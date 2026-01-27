@@ -13,7 +13,7 @@ const Hero = () => {
         </div>
         
         <p className="text-2xl md:text-3xl text-gray-300 mb-12 font-light">
-          Solutions Web & Développement Digital
+          Innovation & Développement Digital
         </p>
         
         <div className="max-w-md mx-auto">
