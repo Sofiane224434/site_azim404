@@ -41,7 +41,7 @@ services:
 
   portfolio-sofiane:
     build:
-      context: ../portfolio
+      context: ../portfolio-site
       dockerfile: Dockerfile
     container_name: portfolio_sofiane
     restart: unless-stopped
