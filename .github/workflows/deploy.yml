@@ -28,7 +28,7 @@ jobs:
           script: |
             set -e
 
-            APP_DIR=~/apps/azim
+            APP_DIR=~/apps/azim-main
             REPO_URL=https://github.com/${{ github.repository }}.git
 
             echo "📁 Préparation du dossier..."
