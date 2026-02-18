@@ -90,10 +90,14 @@ jobs:
               echo "Certificats SSL déjà présents"
             fi
             
-            # Configurer le renouvellement automatique
-            if ! sudo crontab -l 2>/dev/null | grep -q certbot; then
-              echo "Configuration du renouvellement automatique..."
-              (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'docker stop azim_main_site' --post-hook 'docker start azim_main_site'") | sudo crontab -
+            # Configurer le renouvellement automatique (optionnel)
+            if command -v crontab &> /dev/null; then
+              if ! sudo crontab -l 2>/dev/null | grep -q certbot; then
+                echo "Configuration du renouvellement automatique..."
+                (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'docker stop azim_main_site' --post-hook 'docker start azim_main_site'") | sudo crontab - || true
+              fi
+            else
+              echo "Crontab non disponible, renouvellement manuel nécessaire"
             fi
             
             # Build l'image
