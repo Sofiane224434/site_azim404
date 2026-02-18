@@ -68,8 +68,22 @@ jobs:
             echo "🚀 Lancement des containers..."
             docker compose up -d
 
+            echo "⏳ Attente du démarrage des containers..."
+            sleep 5
+
+            echo "🔍 Vérification des containers..."
+            docker ps
+
+            echo "🔍 Vérification du contenu Nginx..."
+            docker exec azim_main_site ls -la /usr/share/nginx/html
+
+            echo "🔍 Logs Traefik..."
+            docker logs traefik --tail 20
+
+            echo "🔍 Logs azim-site..."
+            docker logs azim_main_site --tail 20
+
             echo "🧹 Nettoyage..."
             docker image prune -f
 
             echo "✅ Déploiement terminé !"
-            docker ps
