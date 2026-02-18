@@ -115,10 +115,7 @@ jobs:
             echo "🔍 Vérification du contenu Nginx..."
             docker exec azim_main_site ls -la /usr/share/nginx/html
 
-            echo "🔍 Logs Traefik..."
-            docker logs traefik --tail 20
-
-            echo "🔍 Logs azim-site..."
+            echo "🔍 Logs du site..."
             docker logs azim_main_site --tail 20
 
             echo "🧹 Nettoyage..."
