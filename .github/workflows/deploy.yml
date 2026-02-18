@@ -62,6 +62,40 @@ jobs:
             sudo fuser -k 80/tcp 2>/dev/null || true
             sudo fuser -k 443/tcp 2>/dev/null || true
             
+            # Configuration SSL avec Certbot
+            echo "🔒 Configuration SSL..."
+            
+            # Installer Certbot si nécessaire
+            if ! command -v certbot &> /dev/null; then
+              echo "Installation de Certbot..."
+              sudo apt-get update
+              sudo apt-get install -y certbot
+            fi
+            
+            # Créer le dossier pour le challenge
+            sudo mkdir -p /var/www/certbot
+            
+            # Vérifier si les certificats existent déjà
+            if [ ! -f /etc/letsencrypt/live/azim404.com/fullchain.pem ]; then
+              echo "Génération des certificats SSL..."
+              sudo certbot certonly --standalone \
+                --non-interactive \
+                --agree-tos \
+                --email admin@azim404.com \
+                -d azim404.com \
+                -d www.azim404.com \
+                --pre-hook "docker stop azim_main_site 2>/dev/null || true" \
+                --post-hook "docker start azim_main_site 2>/dev/null || true"
+            else
+              echo "Certificats SSL déjà présents"
+            fi
+            
+            # Configurer le renouvellement automatique
+            if ! sudo crontab -l 2>/dev/null | grep -q certbot; then
+              echo "Configuration du renouvellement automatique..."
+              (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'docker stop azim_main_site' --post-hook 'docker start azim_main_site'") | sudo crontab -
+            fi
+            
             # Build l'image
             docker compose build --no-cache
 

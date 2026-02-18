@@ -6,6 +6,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - /etc/letsencrypt/live/azim404.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/letsencrypt/live/azim404.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+      - /var/www/certbot:/var/www/certbot:ro
 
 networks:
   web:
