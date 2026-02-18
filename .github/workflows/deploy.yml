@@ -32,14 +32,19 @@ jobs:
             REPO_URL=https://github.com/${{ github.repository }}.git
 
             echo "📁 Préparation du dossier..."
+            mkdir -p $APP_DIR
             cd $APP_DIR
 
             echo "📥 Récupération du code..."
-            git fetch origin
-            git reset --hard origin/main
+            if [ -d ".git" ]; then
+              git fetch origin
+              git reset --hard origin/main
+            else
+              git clone $REPO_URL .
+            fi
 
             echo "🐳 Build Docker..."
-            docker compose down
+            docker compose down || true
             docker compose build --no-cache
 
             echo "🚀 Lancement des containers..."
