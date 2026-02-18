@@ -11,14 +11,14 @@ const Hero = () => {
             </h1>
           </div>
         </div>
-        
+
         <p className="text-2xl md:text-3xl text-gray-300 mb-12 font-light">
-          Innovation & Développement Digital
+          Innovations & Développement Digital
         </p>
-        
+
         <div className="max-w-md mx-auto">
-          <a 
-            href="https://sofiane-kherarfa.azim404.com" 
+          <a
+            href="https://sofiane-kherarfa.azim404.com"
             target="_blank"
             rel="noopener noreferrer"
             className="block w-full bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-semibold px-12 py-5 rounded-xl transition-all transform hover:scale-105 shadow-2xl hover:shadow-indigo-500/50"
