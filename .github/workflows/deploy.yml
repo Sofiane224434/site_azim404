@@ -44,9 +44,19 @@ jobs:
             fi
 
             echo "🐳 Build Docker..."
-            docker compose down || true
-            docker stop traefik azim_main_site || true
-            docker rm traefik azim_main_site || true
+            # Arrêter tous les containers du projet
+            docker compose down -v || true
+            
+            # Forcer l'arrêt et suppression des containers spécifiques
+            docker stop $(docker ps -aq --filter "name=traefik") 2>/dev/null || true
+            docker stop $(docker ps -aq --filter "name=azim") 2>/dev/null || true
+            docker rm -f $(docker ps -aq --filter "name=traefik") 2>/dev/null || true
+            docker rm -f $(docker ps -aq --filter "name=azim") 2>/dev/null || true
+            
+            # Nettoyer les containers arrêtés
+            docker container prune -f || true
+            
+            # Build l'image
             docker compose build --no-cache
 
             echo "🚀 Lancement des containers..."
