@@ -4,13 +4,10 @@ services:
     container_name: azim_main_site
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/letsencrypt/live/azim404.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
-      - /etc/letsencrypt/live/azim404.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
-      - /var/www/certbot:/var/www/certbot:ro
+      - "127.0.0.1:3001:80"
+    networks:
+      - web
 
 networks:
   web:
-    driver: bridge
+    external: true

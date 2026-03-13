@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 # WORKFLOW DE DÉPLOIEMENT AUTOMATIQUE - REACT + VITE
 # ═══════════════════════════════════════════════════════════════════════
-name: Deploy React App to VPS
+name: Deploy site_azim404 to VPS
 
 on:
   push:
@@ -17,7 +17,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Étape 2 : Se connecter au VPS et déployer
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -28,8 +27,11 @@ jobs:
           script: |
             set -e
 
-            APP_DIR=~/apps/azim
+            APP_DIR=~/apps/azim-main
             REPO_URL=https://github.com/${{ github.repository }}.git
+
+            echo "🌐 Vérification du réseau Docker..."
+            docker network inspect web >/dev/null 2>&1 || docker network create web
 
             echo "📁 Préparation du dossier..."
             mkdir -p $APP_DIR
@@ -39,86 +41,17 @@ jobs:
             if [ -d ".git" ]; then
               git fetch origin
               git reset --hard origin/main
+              git clean -fd
             else
               git clone $REPO_URL .
             fi
 
-            echo "🐳 Build Docker..."
-            # Arrêter tous les containers du projet
-            docker compose down -v || true
-            
-            # Forcer l'arrêt et suppression des containers spécifiques
-            docker stop $(docker ps -aq --filter "name=traefik") 2>/dev/null || true
-            docker stop $(docker ps -aq --filter "name=azim") 2>/dev/null || true
-            docker rm -f $(docker ps -aq --filter "name=traefik") 2>/dev/null || true
-            docker rm -f $(docker ps -aq --filter "name=azim") 2>/dev/null || true
-            
-            # Nettoyer TOUS les containers arrêtés
-            docker ps -aq | xargs -r docker rm -f 2>/dev/null || true
-            docker container prune -f || true
-            
-            # Libérer les ports 80 et 443 si occupés
-            echo "🔓 Libération des ports 80 et 443..."
-            sudo fuser -k 80/tcp 2>/dev/null || true
-            sudo fuser -k 443/tcp 2>/dev/null || true
-            
-            # Configuration SSL avec Certbot
-            echo "🔒 Configuration SSL..."
-            
-            # Installer Certbot si nécessaire
-            if ! command -v certbot &> /dev/null; then
-              echo "Installation de Certbot..."
-              sudo apt-get update
-              sudo apt-get install -y certbot
-            fi
-            
-            # Créer le dossier pour le challenge
-            sudo mkdir -p /var/www/certbot
-            
-            # Vérifier si les certificats existent déjà
-            if [ ! -f /etc/letsencrypt/live/azim404.com/fullchain.pem ]; then
-              echo "Génération des certificats SSL..."
-              sudo certbot certonly --standalone \
-                --non-interactive \
-                --agree-tos \
-                --email admin@azim404.com \
-                -d azim404.com \
-                -d www.azim404.com \
-                --pre-hook "docker stop azim_main_site 2>/dev/null || true" \
-                --post-hook "docker start azim_main_site 2>/dev/null || true"
-            else
-              echo "Certificats SSL déjà présents"
-            fi
-            
-            # Configurer le renouvellement automatique (optionnel)
-            if command -v crontab &> /dev/null; then
-              if ! sudo crontab -l 2>/dev/null | grep -q certbot; then
-                echo "Configuration du renouvellement automatique..."
-                (sudo crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'docker stop azim_main_site' --post-hook 'docker start azim_main_site'") | sudo crontab - || true
-              fi
-            else
-              echo "Crontab non disponible, renouvellement manuel nécessaire"
-            fi
-            
-            # Build l'image
-            docker compose build --no-cache
-
-            echo "🚀 Lancement des containers..."
-            docker compose up -d
-
-            echo "⏳ Attente du démarrage des containers..."
-            sleep 5
-
-            echo "🔍 Vérification des containers..."
-            docker ps
-
-            echo "🔍 Vérification du contenu Nginx..."
-            docker exec azim_main_site ls -la /usr/share/nginx/html
-
-            echo "🔍 Logs du site..."
-            docker logs azim_main_site --tail 20
+            echo "🐳 Déploiement Docker..."
+            docker compose down || true
+            docker compose up -d --build
 
             echo "🧹 Nettoyage..."
             docker image prune -f
 
             echo "✅ Déploiement terminé !"
+            docker ps | grep azim_main_site
