@@ -27,7 +27,7 @@ jobs:
           script: |
             set -e
 
-            APP_DIR=~/apps/azim-main
+            APP_DIR=~/apps/azim404
             REPO_URL=https://github.com/${{ github.repository }}.git
 
             echo "🌐 Vérification du réseau Docker..."
@@ -57,4 +57,4 @@ jobs:
             docker image prune -f
 
             echo "✅ Déploiement terminé !"
-            docker ps | grep azim_main_site
+            docker ps | grep azim404
