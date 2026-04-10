@@ -50,6 +50,13 @@ Secrets GitHub requis:
 - URL a soumettre: `https://azim404.com/sitemap.xml`
 - Optionnel (si propriete URL-prefix www): `https://www.azim404.com/sitemap.xml`
 
+## SEO et favicon
+
+- Les meta SEO principales sont configurees dans `index.html` (title, description, canonical, robots, Open Graph, Twitter Card).
+- Les donnees structurees WebSite (JSON-LD) sont incluses dans `index.html`.
+- La favicon exportee en production est `public/favicon.ico` (usage exclusif, pas de version SVG).
+- L'image de partage social est `public/og-image.svg`.
+
 ## Commandes utiles sur le VPS
 
 ```bash
