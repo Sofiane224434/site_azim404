@@ -43,6 +43,12 @@ Secrets GitHub requis:
 - VPS_SSH_KEY
 - VPS_PORT
 
+## Sitemap (Google Search Console)
+
+- Le fichier sitemap doit etre dans `public/sitemap.xml` pour etre servi en production sur `/sitemap.xml`.
+- URL a soumettre: `https://azim404.com/sitemap.xml`
+- Optionnel (si propriete URL-prefix www): `https://www.azim404.com/sitemap.xml`
+
 ## Commandes utiles sur le VPS
 
 ```bash
