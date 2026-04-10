@@ -54,6 +54,20 @@ jobs:
             docker compose down || true
             docker compose up -d --build
 
+            echo "🔎 Vérification du service local..."
+            docker compose ps
+            if ! docker ps --format '{{.Names}}' | grep -q '^azim_main_site$'; then
+              echo "❌ Le conteneur azim_main_site n'est pas actif"
+              docker compose logs --tail=120
+              exit 1
+            fi
+
+            if command -v curl >/dev/null 2>&1; then
+              curl -fsS http://127.0.0.1:3001/sitemap.xml >/dev/null
+            else
+              wget -qO- http://127.0.0.1:3001/sitemap.xml >/dev/null
+            fi
+
             echo "🧹 Nettoyage..."
             docker image prune -f
 
