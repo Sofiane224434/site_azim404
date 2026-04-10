@@ -8,7 +8,7 @@ const Footer = () => {
       <div className="container mx-auto px-6">
         <div className="grid md:grid-cols-3 gap-8 mb-8">
           <div>
-            <h3 className="text-xl font-bold mb-4">Portfolio</h3>
+            <h3 className="text-xl font-bold mb-4">Site principal</h3>
             <p className="text-gray-400">
               Développeur web passionné par la création d'expériences digitales modernes et performantes.
             </p>
@@ -72,7 +72,7 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
-          <p>&copy; {currentYear} Portfolio. Tous droits réservés.</p>
+          <p>&copy; {currentYear} Site principal. Tous droits réservés.</p>
         </div>
       </div>
     </footer>

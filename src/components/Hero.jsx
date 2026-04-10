@@ -23,10 +23,10 @@ const Hero = () => {
             rel="noopener noreferrer"
             className="block w-full bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-semibold px-12 py-5 rounded-xl transition-all transform hover:scale-105 shadow-2xl hover:shadow-indigo-500/50"
           >
-            Découvrir le Portfolio →
+            Voir le site principal →
           </a>
           <p className="text-gray-400 mt-4 text-sm">
-            Portfolio de Sofiane Kherarfa - Développeur Full Stack
+            Site principal de Sofiane Kherarfa - Développeur Full Stack
           </p>
         </div>
       </div>
