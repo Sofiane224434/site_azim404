@@ -46,6 +46,7 @@ Secrets GitHub requis:
 ## Sitemap (Google Search Console)
 
 - Le fichier sitemap doit etre dans `public/sitemap.xml` pour etre servi en production sur `/sitemap.xml`.
+- Le fichier robots doit etre dans `public/robots.txt` et declare le sitemap.
 - URL a soumettre: `https://azim404.com/sitemap.xml`
 - Optionnel (si propriete URL-prefix www): `https://www.azim404.com/sitemap.xml`
 
