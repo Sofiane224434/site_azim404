@@ -41,7 +41,8 @@ jobs:
             if [ -d ".git" ]; then
               git fetch origin
               git reset --hard origin/main
-              git clean -fd
+              # Conserver les fichiers persistants générés côté serveur (certificats, variables locales)
+              git clean -fd -e letsencrypt/ -e .env
             else
               git init
               git remote add origin $REPO_URL

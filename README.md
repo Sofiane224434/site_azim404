@@ -26,12 +26,12 @@ Ce repo ne publie pas directement sur 80 ou 443.
 
 ## Deploiement GitHub Actions
 
-Le workflow pousse le code sur le VPS dans ~/apps/azim-main puis execute:
+Le workflow pousse le code sur le VPS dans ~/apps/azim404 puis execute:
 
 ```bash
 git fetch origin
 git reset --hard origin/main
-git clean -fd
+git clean -fd -e letsencrypt/ -e .env
 docker compose down || true
 docker compose up -d --build
 ```
@@ -46,7 +46,7 @@ Secrets GitHub requis:
 ## Commandes utiles sur le VPS
 
 ```bash
-cd ~/apps/azim-main
+cd ~/apps/azim404
 docker compose ps
 docker compose logs --tail=100
 ```
