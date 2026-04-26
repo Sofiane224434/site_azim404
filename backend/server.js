@@ -18,15 +18,15 @@ app.use(express.json());
 
 // Logger (dev)
 if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} | ${req.method} ${req.url}`);
-    next();
-  });
+    app.use((req, res, next) => {
+        console.log(`${new Date().toISOString()} | ${req.method} ${req.url}`);
+        next();
+    });
 }
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ message: 'Azim404 API', status: 'online' });
+    res.json({ message: 'Azim404 API', status: 'online' });
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/email', emailRoutes);
@@ -36,5 +36,5 @@ app.use((req, res) => res.status(404).json({ error: 'Route non trouvée' }));
 
 // Démarrage
 app.listen(PORT, () => {
-  console.log(`Serveur sur http://localhost:${PORT}`);
+    console.log(`Serveur sur http://localhost:${PORT}`);
 });
