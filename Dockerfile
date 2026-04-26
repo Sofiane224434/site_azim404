@@ -7,16 +7,16 @@
 # ───────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /app/frontend
 
 # Copier les fichiers de dépendances
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 # Installer les dépendances
 RUN npm ci
 
 # Copier le reste du code source
-COPY . .
+COPY frontend/ .
 
 # Builder l'application pour la production
 RUN npm run build
@@ -34,7 +34,7 @@ COPY nginx.conf /etc/nginx/conf.d/
 
 # Copier les fichiers buildés depuis l'étape précédente
 # Note: Vite génère dans /dist (pas /build comme CRA)
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 
 # Exposer le port 80
 EXPOSE 80
