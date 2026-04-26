@@ -1,0 +1,16 @@
+{
+  "nav": {
+    "home": "Home",
+    "login": "Sign in",
+    "register": "Sign up",
+    "logout": "Sign out"
+  },
+  "home": {
+    "title": "AZIM404",
+    "subtitle": "Innovations & Digital Development",
+    "cta": "Visit the main site"
+  },
+  "footer": {
+    "copyright": "© {{year}} Azim404"
+  }
+}

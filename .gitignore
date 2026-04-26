@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+/backend/node_modules
+/frontend/node_modules
 dist
 dist-ssr
 *.local
@@ -27,6 +29,13 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Cache de traduction
+/scripts/.translate-cache.json
+
+# Fichiers privés de conception
+/conception/aides/contexte-projets-prive.md
+
 
 # Always keep SEO guide tracked
 SEO.md

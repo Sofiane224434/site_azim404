@@ -1,6 +1,8 @@
-import React from 'react';
+// components/Footer.jsx
+import { useTranslation } from 'react-i18next';
 
-const Footer = () => {
+function Footer() {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
   return (
@@ -72,11 +74,21 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
-          <p>&copy; {currentYear} Site principal. Tous droits réservés.</p>
+          <p>
+            {t('footer.copyright', { year: currentYear })} -{' '}
+            <a
+              href="https://azim404.com"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-indigo-400 transition"
+            >
+              Azim404.com
+            </a>
+          </p>
         </div>
       </div>
     </footer>
   );
-};
+}
 
 export default Footer;

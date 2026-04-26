@@ -1,0 +1,16 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "logout": "Déconnexion"
+  },
+  "home": {
+    "title": "AZIM404",
+    "subtitle": "Innovations & Développement Digital",
+    "cta": "Voir le site principal"
+  },
+  "footer": {
+    "copyright": "© {{year}} Azim404"
+  }
+}
