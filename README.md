@@ -32,8 +32,8 @@ Le workflow pousse le code sur le VPS dans ~/apps/azim404 puis execute:
 git fetch origin
 git reset --hard origin/main
 git clean -fd -e letsencrypt/ -e .env
-docker compose down || true
-docker compose up -d --build
+docker compose build
+docker compose up -d --no-build
 ```
 
 Secrets GitHub requis:

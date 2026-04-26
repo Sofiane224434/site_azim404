@@ -17,6 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify frontend lockfile exists
+        run: test -f frontend/package-lock.json
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -50,9 +53,11 @@ jobs:
               git checkout -B main origin/main
             fi
 
-            echo "🐳 Déploiement Docker..."
-            docker compose down || true
-            docker compose up -d --build
+            echo "🐳 Build Docker (sans couper le service courant)..."
+            docker compose build
+
+            echo "🚀 Bascule sur la nouvelle image..."
+            docker compose up -d --no-build
 
             echo "🔎 Vérification du service local..."
             docker compose ps
