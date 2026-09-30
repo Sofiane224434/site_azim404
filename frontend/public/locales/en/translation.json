@@ -1,16 +1,34 @@
 {
   "nav": {
     "home": "Home",
-    "login": "Sign in",
-    "register": "Sign up",
-    "logout": "Sign out"
+    "about": "About",
+    "contact": "Contact",
+    "portfolio_site": "Portfolio & Projects",
+    "login": "Login",
+    "admin": "Admin"
   },
-  "home": {
-    "title": "AZIM404",
-    "subtitle": "Innovations & Digital Development",
-    "cta": "Visit the main site"
+  "hero": {
+    "brand_name": "Azim.404",
+    "subtitle": "Web Development & Full Stack Engineering",
+    "lead": "Official portal of Sofiane Kherarfa. Central hub connecting my web applications, infrastructures, and deployed projects.",
+    "cta_portfolio": "View Portfolio & Projects",
+    "cta_about": "About & Skills",
+    "stat_role": "Full Stack",
+    "stat_infra": "Infrastructure",
+    "stat_portfolio": "Dedicated Portfolio"
+  },
+  "about": {
+    "title": "About Me",
+    "subtitle": "Full Stack Developer passionate about modern web engineering",
+    "p1": "I build and deploy modern, reliable, and high-performance web applications. My work covers full stack development from fluid user interfaces to containerized VPS production environments.",
+    "p2": "The azim404.com domain serves as the central hub for my deployed applications, APIs, and microservices.",
+    "skills_title": "Technologies & Tools"
   },
   "footer": {
-    "copyright": "© {{year}} Azim404"
+    "welcome": "Welcome to",
+    "brand": "Azim.404",
+    "description": "Web portal and Full Stack architectures by Sofiane Kherarfa.",
+    "contact_btn": "Contact Me",
+    "copyright": "© {{year}} Azim.404 — Sofiane Kherarfa. All rights reserved."
   }
 }

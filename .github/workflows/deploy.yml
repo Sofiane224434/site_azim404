@@ -1,6 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════
-# WORKFLOW DE DÉPLOIEMENT AUTOMATIQUE - REACT + VITE
-# ═══════════════════════════════════════════════════════════════════════
 name: Deploy site_azim404 to VPS
 
 on:
@@ -13,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Étape 1 : Récupérer le code
       - name: Checkout code
         uses: actions/checkout@v4
 

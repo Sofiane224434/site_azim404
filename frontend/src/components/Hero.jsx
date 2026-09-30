@@ -1,37 +1,72 @@
-import React from 'react';
+import { useAdmin } from '../contexts/AdminContext.jsx';
 
-const Hero = () => {
+export default function Hero() {
+  const { openModal } = useAdmin();
+
   return (
-    <section className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900">
-      <div className="container mx-auto px-4 sm:px-6 text-center py-12 sm:py-20">
-        <div className="mb-8">
-          <div className="inline-block max-w-full p-4 sm:p-6 md:p-8 rounded-2xl bg-white/10 backdrop-blur-sm mb-8">
-            <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-white tracking-tight break-words">
-              AZIM<span className="text-indigo-400">404</span>
-            </h1>
-          </div>
+    <section
+      id="home"
+      className="relative min-h-[75vh] flex items-center justify-center cosmic-bg overflow-hidden py-16 sm:py-24"
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-slate-950/75 to-[#030712] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 text-center max-w-4xl">
+        {/* Main Title with the Cyber Logo integrated directly as the letter "A" */}
+        <div className="mb-6 flex justify-center">
+          <h1 className="inline-flex items-center text-7xl sm:text-8xl md:text-9xl lg:text-[10.5rem] font-black text-white tracking-tight leading-none drop-shadow-[0_10px_40px_rgba(0,0,0,0.95)]">
+            <span className="relative inline-flex items-center -mr-2 sm:-mr-4 md:-mr-6 select-none">
+              <img
+                src="/images/logo_transparent.png"
+                alt="A"
+                className="h-[0.92em] w-auto object-contain drop-shadow-[0_0_35px_rgba(59,130,246,0.65)] hover:scale-105 transition-transform duration-300"
+              />
+            </span>
+            <span className="tracking-tight">zim</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 drop-shadow-[0_0_25px_rgba(34,211,238,0.5)]">
+              .404
+            </span>
+          </h1>
         </div>
 
-        <p className="text-xl sm:text-2xl md:text-3xl text-gray-300 mb-12 font-light">
-          Innovations & Développement Digital
+        {/* Subtitle */}
+        <p className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-cyan-200 mb-6 max-w-2xl mx-auto">
+          Portail Privé & Passerelle Digitale
         </p>
 
-        <div className="max-w-md mx-auto">
+        {/* Lead description */}
+        <p className="max-w-2xl mx-auto text-base sm:text-lg text-gray-300 font-light leading-relaxed mb-12">
+          Espace central d'accès et d'administration de l'écosystème Azim404. Retrouvez l'ensemble de mes projets sur mon portfolio officiel ou contactez-moi directement.
+        </p>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+          <button
+            onClick={openModal}
+            className="w-full sm:w-auto px-8 py-4 rounded-xl btn-neon-primary text-base sm:text-lg group flex items-center justify-center gap-2"
+          >
+            <span>⚡ Accéder à la Console</span>
+          </button>
+
           <a
             href="https://sofiane-kherarfa.azim404.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full bg-indigo-500 hover:bg-indigo-600 text-white text-base sm:text-lg md:text-xl font-semibold px-6 sm:px-10 md:px-12 py-4 md:py-5 rounded-xl transition-all transform hover:scale-105 shadow-2xl hover:shadow-indigo-500/50"
+            className="w-full sm:w-auto px-8 py-4 rounded-xl btn-neon-secondary text-base sm:text-lg group flex items-center justify-center gap-2"
           >
-            Voir le site principal →
+            <span>Explorer le Portfolio</span>
+            <span className="text-sm">↗</span>
           </a>
-          <p className="text-gray-400 mt-4 text-sm">
-            Site principal de Sofiane Kherarfa - Développeur Full Stack
-          </p>
+
+          <a
+            href="#contact"
+            className="w-full sm:w-auto px-6 py-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-700 text-base transition-colors"
+          >
+            ✉ Me Contacter
+          </a>
         </div>
       </div>
     </section>
   );
-};
-
-export default Hero;
+}
