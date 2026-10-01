@@ -11,20 +11,28 @@ export default function AdminDashboardPage() {
     accounts,
     createAccount,
     deleteAccount,
-    siteStatus,
+    sites,
     toggleSiteMaintenance,
-    refreshSiteStatus,
+    saveSiteConfig,
+    removeSite,
+    refreshSites,
   } = useAdmin();
 
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('sites'); // 'sites', 'accounts', 'demos', 'system'
 
-  // Maintenance messages editing state
-  const [portfolioMsg, setPortfolioMsg] = useState(
-    siteStatus.portfolio?.message || "Le site est actuellement en cours de mise à jour et d'optimisation. Nous serons de retour très prochainement."
-  );
-  const [azimMsg, setAzimMsg] = useState(
-    siteStatus.azim404?.message || "Maintenance technique planifiée sur le portail Azim404."
+  // Modals & Forms
+  const [showAddSiteModal, setShowAddSiteModal] = useState(false);
+  const [previewSite, setPreviewSite] = useState(null); // Site object to preview
+
+  // New site form state
+  const [newSiteName, setNewSiteName] = useState('');
+  const [newSiteDomain, setNewSiteDomain] = useState('');
+  const [newSiteScope, setNewSiteScope] = useState('ALL');
+  const [newSitePages, setNewSitePages] = useState('');
+  const [newSiteTitle, setNewSiteTitle] = useState('Atelier en cours de rénovation');
+  const [newSiteMessage, setNewSiteMessage] = useState(
+    "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants."
   );
 
   // New account form state
@@ -41,42 +49,34 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToast(''), 3500);
   };
 
-  // Live preview modal for maintenance template
-  const [previewSite, setPreviewSite] = useState(null); // 'portfolio' | 'azim404' | null
-
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
-  const handleTogglePortfolio = async () => {
-    const nextState = !siteStatus.portfolio?.inMaintenance;
-    await toggleSiteMaintenance('portfolio', nextState, portfolioMsg);
-    showToast(
-      nextState
-        ? '🚧 Mode Travaux activé pour sofiane-kherarfa.azim404.com !'
-        : '🟢 sofiane-kherarfa.azim404.com est de nouveau EN LIGNE !'
-    );
-  };
+  const handleCreateSite = async (e) => {
+    e.preventDefault();
+    if (!newSiteDomain.trim()) return;
 
-  const handleToggleAzim = async () => {
-    const nextState = !siteStatus.azim404?.inMaintenance;
-    await toggleSiteMaintenance('azim404', nextState, azimMsg);
-    showToast(
-      nextState
-        ? '🚧 Mode Travaux activé pour azim404.com !'
-        : '🟢 azim404.com est de nouveau EN LIGNE !'
-    );
-  };
+    const res = await saveSiteConfig({
+      name: newSiteName || newSiteDomain,
+      domain: newSiteDomain,
+      scope: newSiteScope,
+      targetPages: newSitePages,
+      title: newSiteTitle,
+      message: newSiteMessage,
+      inMaintenance: false,
+    });
 
-  const handleSavePortfolioMsg = async () => {
-    await toggleSiteMaintenance('portfolio', siteStatus.portfolio?.inMaintenance, portfolioMsg);
-    showToast('Message de maintenance mis à jour pour le portfolio');
-  };
-
-  const handleSaveAzimMsg = async () => {
-    await toggleSiteMaintenance('azim404', siteStatus.azim404?.inMaintenance, azimMsg);
-    showToast('Message de maintenance mis à jour pour Azim404');
+    if (res.success) {
+      showToast(`Site "${newSiteDomain}" ajouté au gestionnaire !`);
+      setShowAddSiteModal(false);
+      setNewSiteName('');
+      setNewSiteDomain('');
+      setNewSitePages('');
+    } else {
+      alert(res.error || "Erreur lors de l'ajout du site");
+    }
   };
 
   const handleCreateAccount = async (e) => {
@@ -98,11 +98,13 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const siteList = Object.values(sites || {});
+
   return (
     <div className="min-h-screen bg-[#030712] text-gray-100 font-sans selection:bg-cyan-500 selection:text-black">
       {/* Toast Alert */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl bg-cyan-950/90 border border-cyan-400 text-cyan-200 text-sm font-medium shadow-[0_0_25px_rgba(6,182,212,0.4)] backdrop-blur-md flex items-center gap-3 animate-fade-in">
+        <div className="fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl bg-cyan-950/90 border border-cyan-400 text-cyan-200 text-sm font-medium shadow-[0_0_25px_rgba(6,182,212,0.4)] backdrop-blur-md flex items-center gap-3 animate-fade-in">
           <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
           <span>{toast}</span>
         </div>
@@ -124,7 +126,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <span className="hidden sm:inline-block text-xs font-mono px-2.5 py-1 rounded-md bg-cyan-950/80 border border-cyan-500/30 text-cyan-300">
-              CONSOLE ADMINISTRATION
+              ATELIER D'ADMINISTRATION
             </span>
           </div>
 
@@ -156,10 +158,10 @@ export default function AdminDashboardPage() {
         {/* Tab Navigation */}
         <div className="container mx-auto px-4 sm:px-6 flex gap-2 border-t border-white/5 overflow-x-auto">
           {[
-            { id: 'sites', label: '⚡ Contrôle Sites & Mode Travaux', badge: null },
+            { id: 'sites', label: '⚡ Contrôle des Sites & Travaux', badge: siteList.length },
             { id: 'accounts', label: '👥 Comptes Privés', badge: accounts.length },
             { id: 'demos', label: '🚀 Démos & Projets Privés', badge: '3' },
-            { id: 'system', label: '🖥️ Moniteur VPS & Services', badge: null },
+            { id: 'system', label: '🖥️ Supervision VPS', badge: null },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -189,197 +191,57 @@ export default function AdminDashboardPage() {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-white">
-                  Gestion des Sites & Mode Travaux en 1 Clic
+                  Contrôle des Sites & Mode Travaux
                 </h2>
-                <p className="text-sm text-gray-400">
-                  Activez ou désactivez le template de travaux instantanément. En mode travaux, vos visiteurs voient la page de maintenance avec votre message personnalisé.
+                <p className="text-sm text-gray-400 mt-0.5">
+                  Pilotez la maintenance en un clic, ciblez tout le site ou des pages spécifiques, et accédez-y vous-même sans blocage.
                 </p>
               </div>
 
-              <button
-                onClick={refreshSiteStatus}
-                className="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-2"
-              >
-                <span>↻</span>
-                <span>Actualiser les statuts</span>
-              </button>
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => setShowAddSiteModal(true)}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center gap-2"
+                >
+                  <span>+ Ajouter un site</span>
+                </button>
+                <button
+                  onClick={refreshSites}
+                  className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-1.5"
+                  title="Rafraîchir depuis le serveur"
+                >
+                  <span>↻</span>
+                </button>
+              </div>
             </div>
 
             {/* Sites Control Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Site 1: Portfolio (sofiane-kherarfa.azim404.com) */}
-              <div className={`p-6 sm:p-8 rounded-3xl border transition-all ${
-                siteStatus.portfolio?.inMaintenance
-                  ? 'bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)]'
-                  : 'bg-slate-950/80 border-slate-800 shadow-xl'
-              }`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
-                      Site Portfolio Vitrine
-                    </span>
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mt-1">
-                      <span>sofiane-kherarfa.azim404.com</span>
-                    </h3>
-                  </div>
-
-                  {/* Status Indicator */}
-                  {siteStatus.portfolio?.inMaintenance ? (
-                    <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse">
-                      <span>🚧</span>
-                      <span>EN TRAVAUX</span>
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>EN LIGNE</span>
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-xs text-gray-400 mb-6">
-                  Contient vos compétences, la présentation complète de vos projets web et le formulaire de contact pro.
-                </p>
-
-                {/* Big 1-Click Toggle Button */}
-                <div className="mb-6">
-                  <button
-                    onClick={handleTogglePortfolio}
-                    className={`w-full py-4 px-6 rounded-2xl font-bold text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-3 ${
-                      siteStatus.portfolio?.inMaintenance
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
-                        : 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_25px_rgba(245,158,11,0.3)]'
-                    }`}
-                  >
-                    {siteStatus.portfolio?.inMaintenance ? (
-                      <>
-                        <span className="text-lg">🟢</span>
-                        <span>DÉSACTIVER LES TRAVAUX — REMETTRE EN LIGNE</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg">🚧</span>
-                        <span>ACTIVER LE MODE TRAVAUX EN 1 CLIC</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Message Customizer */}
-                <div className="space-y-2 pt-4 border-t border-white/5">
-                  <label className="block text-xs font-mono text-gray-300">
-                    MESSAGE DU TEMPLATE DE TRAVAUX (VU PAR LES VISITEURS)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={portfolioMsg}
-                    onChange={(e) => setPortfolioMsg(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-gray-200 text-xs focus:outline-none focus:border-amber-400 transition"
-                    placeholder="Ex: Refonte complète en cours..."
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => setPreviewSite('portfolio')}
-                      className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-gray-300 hover:text-white transition"
-                    >
-                      Aperçu du Template
-                    </button>
-                    <button
-                      onClick={handleSavePortfolioMsg}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition"
-                    >
-                      Enregistrer message
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Site 2: Azim404 Portal (azim404.com) */}
-              <div className={`p-6 sm:p-8 rounded-3xl border transition-all ${
-                siteStatus.azim404?.inMaintenance
-                  ? 'bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)]'
-                  : 'bg-slate-950/80 border-slate-800 shadow-xl'
-              }`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
-                      Portail Principal & Passerelle
-                    </span>
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mt-1">
-                      <span>azim404.com</span>
-                    </h3>
-                  </div>
-
-                  {/* Status Indicator */}
-                  {siteStatus.azim404?.inMaintenance ? (
-                    <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse">
-                      <span>🚧</span>
-                      <span>EN TRAVAUX</span>
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>EN LIGNE</span>
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-xs text-gray-400 mb-6">
-                  Hub d'entrée digital, authentification privée et accès sécurisé aux services et démos.
-                </p>
-
-                {/* Big 1-Click Toggle Button */}
-                <div className="mb-6">
-                  <button
-                    onClick={handleToggleAzim}
-                    className={`w-full py-4 px-6 rounded-2xl font-bold text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-3 ${
-                      siteStatus.azim404?.inMaintenance
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
-                        : 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_25px_rgba(245,158,11,0.3)]'
-                    }`}
-                  >
-                    {siteStatus.azim404?.inMaintenance ? (
-                      <>
-                        <span className="text-lg">🟢</span>
-                        <span>DÉSACTIVER LES TRAVAUX — REMETTRE EN LIGNE</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg">🚧</span>
-                        <span>ACTIVER LE MODE TRAVAUX EN 1 CLIC</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Message Customizer */}
-                <div className="space-y-2 pt-4 border-t border-white/5">
-                  <label className="block text-xs font-mono text-gray-300">
-                    MESSAGE DU TEMPLATE DE TRAVAUX (VU PAR LES VISITEURS)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={azimMsg}
-                    onChange={(e) => setAzimMsg(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-gray-200 text-xs focus:outline-none focus:border-amber-400 transition"
-                    placeholder="Ex: Maintenance technique planifiée..."
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => setPreviewSite('azim404')}
-                      className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-gray-300 hover:text-white transition"
-                    >
-                      Aperçu du Template
-                    </button>
-                    <button
-                      onClick={handleSaveAzimMsg}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition"
-                    >
-                      Enregistrer message
-                    </button>
-                  </div>
-                </div>
-              </div>
+              {siteList.map((site) => (
+                <SiteCard
+                  key={site.id}
+                  site={site}
+                  onToggle={async (id, nextState, patch) => {
+                    await toggleSiteMaintenance(id, nextState, patch);
+                    showToast(
+                      nextState
+                        ? `🚧 Mode Travaux activé pour ${site.domain} !`
+                        : `🟢 ${site.domain} est de nouveau EN LIGNE !`
+                    );
+                  }}
+                  onSave={async (patch) => {
+                    await saveSiteConfig({ ...site, ...patch });
+                    showToast(`Configuration mise à jour pour ${site.domain}`);
+                  }}
+                  onDelete={async (id) => {
+                    if (confirm(`Supprimer le site "${site.domain}" du gestionnaire ?`)) {
+                      await removeSite(id);
+                      showToast(`Site supprimé`);
+                    }
+                  }}
+                  onPreview={() => setPreviewSite(site)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -389,10 +251,10 @@ export default function AdminDashboardPage() {
           <div className="space-y-8 animate-fade-in">
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-white">
-                Gestion des Comptes d'Accès Privé
+                Comptes d'Accès Privé
               </h2>
               <p className="text-sm text-gray-400">
-                Créez des identifiants et mots de passe personnalisés pour donner accès à des espaces privés, des sites en avant-première ou des démos protégées.
+                Créez des identifiants et mots de passe sur-mesure pour donner accès à des démos ou espaces réservés.
               </p>
             </div>
 
@@ -412,7 +274,7 @@ export default function AdminDashboardPage() {
                       onChange={(e) => setNewId(e.target.value)}
                       placeholder="ex: client-demo, recruteur..."
                       required
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
 
@@ -424,27 +286,27 @@ export default function AdminDashboardPage() {
                       onChange={(e) => setNewPass(e.target.value)}
                       placeholder="mot de passe d'accès"
                       required
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-mono text-gray-400">NOM OU RÉFÉRENCE</label>
+                    <label className="text-xs font-mono text-gray-400">RÉFÉRENCE / NOTE</label>
                     <input
                       type="text"
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       placeholder="ex: Démo Entreprise XYZ"
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-mono text-gray-400">DROITS / PERMISSIONS</label>
+                    <label className="text-xs font-mono text-gray-400">PERMISSIONS</label>
                     <select
                       value={newPerm}
                       onChange={(e) => setNewPerm(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
                       <option value="Accès Démos">Accès Démos & Projets</option>
                       <option value="Accès VIP">Accès VIP / Partenaire</option>
@@ -485,7 +347,6 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-900">
-                      {/* Master Admin Row */}
                       <tr className="bg-cyan-950/20 font-medium">
                         <td className="py-3 px-3 text-cyan-300 font-mono flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -503,7 +364,6 @@ export default function AdminDashboardPage() {
                         </td>
                       </tr>
 
-                      {/* Custom Accounts Rows */}
                       {accounts.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="py-8 text-center text-gray-500 italic">
@@ -550,10 +410,10 @@ export default function AdminDashboardPage() {
           <div className="space-y-8 animate-fade-in">
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-white">
-                Démos & Applications Réservées
+                Démos & Projets Réservés
               </h2>
               <p className="text-sm text-gray-400">
-                Accès direct aux microservices et interfaces réservées aux utilisateurs authentifiés.
+                Accès direct aux microservices et applications hébergées sur le VPS.
               </p>
             </div>
 
@@ -627,7 +487,7 @@ export default function AdminDashboardPage() {
               {[
                 { name: 'azim404.com (Portail)', port: '3001', status: 'En ligne', ssl: 'Let’s Encrypt Valide' },
                 { name: 'sofiane-kherarfa (Portfolio)', port: '3002', status: 'En ligne', ssl: 'Let’s Encrypt Valide' },
-                { name: 'Azim API Hub', port: '5000', status: 'En ligne', ssl: 'Interne Nginx' },
+                { name: 'Azim API Hub', port: '5005', status: 'En ligne', ssl: 'Interne Nginx' },
                 { name: 'Nginx Host Proxy', port: '443 / 80', status: 'Actif', ssl: 'HTTP/2 + TLS 1.3' },
               ].map((srv, idx) => (
                 <div key={idx} className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
@@ -647,13 +507,147 @@ export default function AdminDashboardPage() {
         )}
       </main>
 
+      {/* Modal: Ajouter un nouveau site via nom de domaine */}
+      {showAddSiteModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-black text-white">Ajouter un nouveau site</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Connectez un nouveau sous-domaine ou nom de domaine au gestionnaire de travaux.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddSiteModal(false)}
+                className="text-gray-400 hover:text-white p-1 text-sm font-mono"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSite} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-mono text-gray-300">NOM DU SITE</label>
+                  <input
+                    type="text"
+                    value={newSiteName}
+                    onChange={(e) => setNewSiteName(e.target.value)}
+                    placeholder="ex: WikisGuessr App"
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-mono text-gray-300">NOM DE DOMAINE</label>
+                  <input
+                    type="text"
+                    value={newSiteDomain}
+                    onChange={(e) => setNewSiteDomain(e.target.value)}
+                    placeholder="ex: wikisguessr.azim404.com"
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Scope Selector */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-mono text-gray-300">PORTÉE DES TRAVAUX</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewSiteScope('ALL')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-medium text-center transition ${
+                      newSiteScope === 'ALL'
+                        ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
+                        : 'bg-slate-900 border-slate-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Tout le site web
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewSiteScope('SPECIFIC')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-medium text-center transition ${
+                      newSiteScope === 'SPECIFIC'
+                        ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
+                        : 'bg-slate-900 border-slate-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Pages spécifiques
+                  </button>
+                </div>
+              </div>
+
+              {newSiteScope === 'SPECIFIC' && (
+                <div className="space-y-1 animate-fade-in">
+                  <label className="text-xs font-mono text-amber-300">
+                    PAGES CIBLÉES (SÉPARÉES PAR DES VIRGULES)
+                  </label>
+                  <input
+                    type="text"
+                    value={newSitePages}
+                    onChange={(e) => setNewSitePages(e.target.value)}
+                    placeholder="ex: /contact, /projets, /dashboard"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <p className="text-[11px] text-gray-500">
+                    Seules ces pages afficheront le template de travaux ; les autres resteront accessibles.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-mono text-gray-300">TITRE DU TEMPLATE</label>
+                <input
+                  type="text"
+                  value={newSiteTitle}
+                  onChange={(e) => setNewSiteTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-mono text-gray-300">MESSAGE DE TRAVAUX</label>
+                <textarea
+                  rows={2}
+                  value={newSiteMessage}
+                  onChange={(e) => setNewSiteMessage(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddSiteModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-gray-300 text-xs font-medium hover:bg-slate-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                >
+                  Enregistrer le site
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal for Maintenance Screen */}
       {previewSite && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
           <div className="bg-slate-900 border-b border-slate-700 px-6 py-3 flex justify-between items-center">
             <span className="text-xs font-mono text-amber-400 flex items-center gap-2">
               <span>👁</span>
-              <span>Aperçu en direct du template de travaux pour : <strong>{previewSite}</strong></span>
+              <span>
+                Aperçu en direct du template de travaux pour : <strong>{previewSite.domain}</strong>
+              </span>
             </span>
             <button
               onClick={() => setPreviewSite(null)}
@@ -664,13 +658,223 @@ export default function AdminDashboardPage() {
           </div>
           <div className="flex-1 overflow-y-auto">
             <MaintenanceScreen
-              siteName={previewSite === 'portfolio' ? 'Sofiane Kherarfa (Portfolio)' : 'Azim.404'}
-              message={previewSite === 'portfolio' ? portfolioMsg : azimMsg}
+              siteName={previewSite.name || previewSite.domain}
+              title={previewSite.title || 'Atelier en cours de rénovation'}
+              message={previewSite.message}
               onBypass={() => setPreviewSite(null)}
             />
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Composant Carte Site individuel
+function SiteCard({ site, onToggle, onSave, onDelete, onPreview }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(site.title || 'Atelier en cours de rénovation');
+  const [message, setMessage] = useState(site.message || '');
+  const [scope, setScope] = useState(site.scope || 'ALL');
+  const [targetPages, setTargetPages] = useState(site.targetPages || '');
+
+  // URL avec bypass magique automatique pour Sofiane
+  const bypassUrl = `https://${site.domain}/?admin_bypass=azim404`;
+
+  const isProtected = ['portfolio', 'azim404'].includes(site.id);
+
+  const handleSaveEdits = () => {
+    onSave({ title, message, scope, targetPages });
+    setIsEditing(false);
+  };
+
+  return (
+    <div
+      className={`p-6 sm:p-8 rounded-3xl border transition-all flex flex-col justify-between ${
+        site.inMaintenance
+          ? 'bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border-amber-500/40 shadow-[0_0_35px_rgba(245,158,11,0.15)]'
+          : 'bg-slate-950/80 border-slate-800 shadow-xl'
+      }`}
+    >
+      <div>
+        {/* Card Header */}
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <span className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
+              {site.name}
+            </span>
+            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 mt-0.5">
+              <span>{site.domain}</span>
+            </h3>
+          </div>
+
+          {/* Status Badge */}
+          {site.inMaintenance ? (
+            <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse">
+              <span>🚧</span>
+              <span>EN TRAVAUX</span>
+            </span>
+          ) : (
+            <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>EN LIGNE</span>
+            </span>
+          )}
+        </div>
+
+        {/* Scope Tag */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-gray-300">
+            Portée : {site.scope === 'SPECIFIC' ? `Pages ciblées (${site.targetPages || 'non défini'})` : 'Tout le site'}
+          </span>
+
+          <a
+            href={bypassUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 flex items-center gap-1 transition shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+            title="Ouvrir le site avec votre dérogation administrateur active"
+          >
+            <span>⚡ Accéder (Bypass Actif)</span>
+            <span>↗</span>
+          </a>
+        </div>
+
+        {/* 1-Click Toggle Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => onToggle(site.id, !site.inMaintenance, { title, message, scope, targetPages })}
+            className={`w-full py-4 px-6 rounded-2xl font-bold text-xs sm:text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-3 ${
+              site.inMaintenance
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
+                : 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_25px_rgba(245,158,11,0.3)]'
+            }`}
+          >
+            {site.inMaintenance ? (
+              <>
+                <span className="text-base sm:text-lg">🟢</span>
+                <span>DÉSACTIVER LES TRAVAUX — REMETTRE EN LIGNE</span>
+              </>
+            ) : (
+              <>
+                <span className="text-base sm:text-lg">🚧</span>
+                <span>ACTIVER LE MODE TRAVAUX EN 1 CLIC</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Configuration details / Edit Form */}
+        <div className="space-y-3 pt-4 border-t border-white/5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-mono text-gray-400">RÉGLAGES DU TEMPLATE</span>
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="text-xs text-cyan-400 hover:text-cyan-300 underline font-mono"
+            >
+              {isEditing ? 'Annuler' : 'Personnaliser'}
+            </button>
+          </div>
+
+          {isEditing ? (
+            <div className="space-y-3 animate-fade-in">
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono text-gray-400">PORTÉE</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScope('ALL')}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-mono ${
+                      scope === 'ALL'
+                        ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                        : 'bg-slate-900 border-slate-800 text-gray-400'
+                    }`}
+                  >
+                    Tout le site
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScope('SPECIFIC')}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-mono ${
+                      scope === 'SPECIFIC'
+                        ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                        : 'bg-slate-900 border-slate-800 text-gray-400'
+                    }`}
+                  >
+                    Pages spécifiques
+                  </button>
+                </div>
+              </div>
+
+              {scope === 'SPECIFIC' && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-mono text-amber-300">
+                    PAGES CIBLÉES (ex: /projets, /contact)
+                  </label>
+                  <input
+                    type="text"
+                    value={targetPages}
+                    onChange={(e) => setTargetPages(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
+                    placeholder="/projets, /contact"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono text-gray-400">TITRE DE L'ANNONCE</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-mono text-gray-400">MESSAGE DE TRAVAUX</label>
+                <textarea
+                  rows={3}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <button
+                onClick={handleSaveEdits}
+                className="w-full py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition"
+              >
+                Enregistrer les réglages
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5 text-xs text-gray-300">
+              <div className="font-semibold text-white">{site.title || 'Atelier en cours de rénovation'}</div>
+              <div className="text-gray-400 line-clamp-2">{site.message}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Card Footer Actions */}
+      <div className="pt-4 mt-4 border-t border-white/5 flex justify-between items-center">
+        <button
+          onClick={onPreview}
+          className="text-xs text-gray-400 hover:text-white transition font-mono flex items-center gap-1"
+        >
+          <span>👁 Aperçu template</span>
+        </button>
+
+        {!isProtected && (
+          <button
+            onClick={() => onDelete(site.id)}
+            className="text-xs text-rose-400/80 hover:text-rose-300 transition font-mono underline"
+          >
+            Retirer le site
+          </button>
+        )}
+      </div>
     </div>
   );
 }

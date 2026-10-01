@@ -5,20 +5,32 @@ const AdminContext = createContext(null);
 
 const STORAGE_SESSION_KEY = 'azim_private_session';
 const STORAGE_ACCOUNTS_KEY = 'azim_private_accounts';
-const STORAGE_STATUS_KEY = 'azim_site_status';
+const STORAGE_SITES_KEY = 'azim_registered_sites';
 
 const DEFAULT_ADMIN_KEYS = ['azim404', 'admin404', 'azim2026'];
 const DEFAULT_ADMIN_IDENTIFIERS = ['admin', 'azim404', 'sb.kherarfa@gmail.com', 'sofiane'];
 
-const DEFAULT_STATUS = {
+const DEFAULT_SITES = {
   portfolio: {
+    id: 'portfolio',
+    name: 'Portfolio Vitrine',
+    domain: 'sofiane-kherarfa.azim404.com',
     inMaintenance: false,
-    message: "Le site est actuellement en cours de mise à jour et d'optimisation. Nous serons de retour très prochainement.",
+    scope: 'ALL',
+    targetPages: '',
+    title: 'Atelier en cours de rénovation',
+    message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
     updatedAt: new Date().toISOString(),
   },
   azim404: {
+    id: 'azim404',
+    name: 'Portail Principal Azim404',
+    domain: 'azim404.com',
     inMaintenance: false,
-    message: "Maintenance technique planifiée sur le portail Azim404.",
+    scope: 'ALL',
+    targetPages: '',
+    title: 'Portail en cours de maintenance',
+    message: "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
     updatedAt: new Date().toISOString(),
   },
 };
@@ -42,42 +54,43 @@ export function AdminProvider({ children }) {
     }
   });
 
-  const [siteStatus, setSiteStatus] = useState(() => {
+  const [sites, setSites] = useState(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_STATUS_KEY);
-      return stored ? { ...DEFAULT_STATUS, ...JSON.parse(stored) } : DEFAULT_STATUS;
+      const stored = localStorage.getItem(STORAGE_SITES_KEY);
+      return stored ? { ...DEFAULT_SITES, ...JSON.parse(stored) } : DEFAULT_SITES;
     } catch {
-      return DEFAULT_STATUS;
+      return DEFAULT_SITES;
     }
   });
 
-  const [isStatusLoading, setIsStatusLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch Site Status from API
-  const refreshSiteStatus = useCallback(async () => {
+  // Sync sites with backend
+  const refreshSites = useCallback(async () => {
     try {
-      setIsStatusLoading(true);
+      setIsLoading(true);
       const res = await fetch('/api/site-status', {
         headers: { 'Cache-Control': 'no-cache' },
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.status) {
-          const merged = { ...DEFAULT_STATUS, ...data.status };
-          setSiteStatus(merged);
-          localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(merged));
+        const incoming = data.sites || data.status;
+        if (incoming && typeof incoming === 'object') {
+          const merged = { ...DEFAULT_SITES, ...incoming };
+          setSites(merged);
+          localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(merged));
           return merged;
         }
       }
     } catch (e) {
-      console.warn('API site-status non joignable, utilisation statut local');
+      console.warn('API site-status non joignable, utilisation des données locales');
     } finally {
-      setIsStatusLoading(false);
+      setIsLoading(false);
     }
-    return siteStatus;
-  }, [siteStatus]);
+    return sites;
+  }, [sites]);
 
-  // Fetch accounts from API
+  // Sync accounts with backend
   const refreshAccounts = useCallback(async () => {
     try {
       const res = await fetch('/api/private-accounts');
@@ -94,62 +107,131 @@ export function AdminProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refreshSiteStatus();
+    refreshSites();
     refreshAccounts();
-  }, [refreshSiteStatus, refreshAccounts]);
+  }, [refreshSites, refreshAccounts]);
 
-  // 1-Click Maintenance Toggle
-  const toggleSiteMaintenance = async (siteKey, inMaintenance, message) => {
-    const prevSite = siteStatus[siteKey] || {};
-    const nextMaintenance = typeof inMaintenance === 'boolean' ? inMaintenance : !prevSite.inMaintenance;
-    const nextMsg = typeof message === 'string' && message.trim() ? message.trim() : prevSite.message;
+  // 1-Click Toggle Maintenance
+  const toggleSiteMaintenance = async (siteId, inMaintenance, patchData = {}) => {
+    const existing = sites[siteId] || {};
+    const nextState = typeof inMaintenance === 'boolean' ? inMaintenance : !existing.inMaintenance;
 
-    const updatedSite = {
-      ...prevSite,
-      inMaintenance: nextMaintenance,
-      message: nextMsg,
+    const updated = {
+      ...existing,
+      ...patchData,
+      inMaintenance: nextState,
       updatedAt: new Date().toISOString(),
     };
 
-    const nextAll = {
-      ...siteStatus,
-      [siteKey]: updatedSite,
+    const nextSites = {
+      ...sites,
+      [siteId]: updated,
     };
 
-    // Instant local state update for zero latency
-    setSiteStatus(nextAll);
-    localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(nextAll));
+    // Instant local state update
+    setSites(nextSites);
+    localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
 
-    // Async push to backend API
+    // Send to backend
     try {
       const res = await fetch('/api/site-status/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          site: siteKey,
-          inMaintenance: nextMaintenance,
-          message: nextMsg,
+          id: siteId,
+          site: siteId,
+          inMaintenance: nextState,
+          ...patchData,
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.all) {
-          setSiteStatus(data.all);
-          localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(data.all));
+        if (data.all || data.sites) {
+          const remoteSites = data.sites || data.all;
+          setSites(remoteSites);
+          localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(remoteSites));
         }
       }
     } catch (e) {
-      console.warn('Erreur envoi toggle backend, enregistré en local:', e);
+      console.warn('Erreur envoi toggle backend:', e);
     }
 
-    return updatedSite;
+    return updated;
+  };
+
+  // Add or Update Site
+  const saveSiteConfig = async (siteData) => {
+    const cleanDomain = (siteData.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const cleanId = (siteData.id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_')).trim().toLowerCase();
+
+    if (!cleanDomain) {
+      return { success: false, error: 'Nom de domaine obligatoire' };
+    }
+
+    const updated = {
+      id: cleanId,
+      name: siteData.name || cleanDomain,
+      domain: cleanDomain,
+      inMaintenance: Boolean(siteData.inMaintenance),
+      scope: siteData.scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
+      targetPages: (siteData.targetPages || '').trim(),
+      title: (siteData.title || 'Atelier en cours de rénovation').trim(),
+      message: (siteData.message || DEFAULT_SITES.portfolio.message).trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const nextSites = {
+      ...sites,
+      [cleanId]: updated,
+    };
+
+    setSites(nextSites);
+    localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
+
+    try {
+      const res = await fetch('/api/site-status/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sites) {
+          setSites(data.sites);
+          localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(data.sites));
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur sauvegarde site backend:', e);
+    }
+
+    return { success: true, site: updated };
+  };
+
+  // Delete Site
+  const removeSite = async (siteId) => {
+    if (['portfolio', 'azim404'].includes(siteId)) {
+      return { success: false, error: 'Impossible de supprimer un site principal' };
+    }
+
+    const nextSites = { ...sites };
+    delete nextSites[siteId];
+    setSites(nextSites);
+    localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
+
+    try {
+      await fetch(`/api/site-status/${siteId}`, { method: 'DELETE' });
+    } catch (e) {
+      // offline
+    }
+
+    return { success: true };
   };
 
   const login = async (identifier, password) => {
     const trimmedId = (identifier || '').trim().toLowerCase();
     const trimmedPass = (password || '').trim();
 
-    // 1. Check Master Admin Credentials
     const envKey = import.meta.env.VITE_ADMIN_KEY;
     const validAdminPass = envKey ? [...DEFAULT_ADMIN_KEYS, envKey] : DEFAULT_ADMIN_KEYS;
 
@@ -168,7 +250,6 @@ export function AdminProvider({ children }) {
       return { success: true, user: sessionUser };
     }
 
-    // 2. Check Private Accounts
     const existingAccount = accounts.find(
       (acc) =>
         acc.identifier.toLowerCase() === trimmedId &&
@@ -186,30 +267,6 @@ export function AdminProvider({ children }) {
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionUser));
       setUser(sessionUser);
       return { success: true, user: sessionUser };
-    }
-
-    // 3. Optional Backend API fallback
-    try {
-      const apiRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedId, password: trimmedPass }),
-      });
-      if (apiRes.ok) {
-        const data = await apiRes.json();
-        const sessionUser = {
-          identifier: data.user.email,
-          name: data.user.firstname || data.user.email,
-          role: 'member',
-          token: data.token,
-          loginTime: Date.now(),
-        };
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionUser));
-        setUser(sessionUser);
-        return { success: true, user: sessionUser };
-      }
-    } catch {
-      // Backend not running or unreachable
     }
 
     return { success: false, message: 'Identifiant ou mot de passe incorrect' };
@@ -247,7 +304,6 @@ export function AdminProvider({ children }) {
     setAccounts(updated);
     localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(updated));
 
-    // Try backend persistence
     try {
       await fetch('/api/private-accounts', {
         method: 'POST',
@@ -255,7 +311,7 @@ export function AdminProvider({ children }) {
         body: JSON.stringify(newAccount),
       });
     } catch (e) {
-      // offline fallback
+      // offline
     }
 
     return { success: true, account: newAccount };
@@ -283,10 +339,13 @@ export function AdminProvider({ children }) {
         isAuthenticated,
         isAdmin,
         accounts,
-        siteStatus,
-        isStatusLoading,
-        refreshSiteStatus,
+        sites,
+        siteStatus: sites,
+        isLoading,
+        refreshSites,
         toggleSiteMaintenance,
+        saveSiteConfig,
+        removeSite,
         login,
         logout,
         createAccount,
