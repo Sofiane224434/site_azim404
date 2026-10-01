@@ -1,0 +1,62 @@
+[
+  {
+    "id": "fansite",
+    "title": "Fansite Malaisie",
+    "description": "Site vitrine complet dédié à la Malaisie, présentant culture, paysages, guides touristiques et formalités.",
+    "technologies": ["HTML5", "TailwindCSS", "JavaScript"],
+    "image": "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=600&h=400&fit=crop",
+    "link": "https://fansite.azim404.com/",
+    "domain": "fansite.azim404.com",
+    "badge": "En ligne"
+  },
+  {
+    "id": "novakult",
+    "title": "Novakult",
+    "description": "Médiathèque culturelle en ligne pour gérer, filtrer et explorer un catalogue de médias variés avec persistance SQL.",
+    "technologies": ["PHP MVC", "MySQL", "Docker"],
+    "image": "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=600&h=400&fit=crop",
+    "link": "https://novakult.azim404.com/",
+    "domain": "novakult.azim404.com",
+    "badge": "Backend & SQL"
+  },
+  {
+    "id": "moviedb",
+    "title": "MovieDB",
+    "description": "Application interactive de cinéma connectée à l'API TMDB avec recherche temps réel, fiches détaillées et favoris.",
+    "technologies": ["React", "API TMDB", "Tailwind CSS"],
+    "image": "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=600&h=400&fit=crop",
+    "link": "https://moviedb.azim404.com/",
+    "domain": "moviedb.azim404.com",
+    "badge": "API & Streaming"
+  },
+  {
+    "id": "marsai",
+    "title": "MarsAI",
+    "description": "Interface web moderne dédiée aux interactions et modèles d'intelligence artificielle.",
+    "technologies": ["React", "API REST", "Node.js"],
+    "image": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop",
+    "link": "https://marsai.azim404.com/",
+    "domain": "marsai.azim404.com",
+    "badge": "IA & Web"
+  },
+  {
+    "id": "wikisguessr",
+    "title": "WikisGuessr",
+    "description": "Jeu interactif inspiré de GeoGuessr : devinez le sujet encyclopédique à partir d'indices progressifs générés.",
+    "technologies": ["React", "Node.js", "MySQL", "Docker"],
+    "image": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop",
+    "link": "https://wikisguessr.azim404.com/",
+    "domain": "wikisguessr.azim404.com",
+    "badge": "Jeu Interactif"
+  },
+  {
+    "id": "cxb",
+    "title": "Cars X Battle",
+    "description": "Jeu multijoueur de combat automobile en arène avec gestion de comptes et statistiques en direct.",
+    "technologies": ["Node.js", "Express", "MySQL", "Docker"],
+    "image": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&h=400&fit=crop",
+    "link": "https://cxb.azim404.com/",
+    "domain": "cxb.azim404.com",
+    "badge": "Multijoueur"
+  }
+]

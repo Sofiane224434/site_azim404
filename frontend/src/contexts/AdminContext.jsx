@@ -6,6 +6,7 @@ const AdminContext = createContext(null);
 const STORAGE_SESSION_KEY = 'azim_private_session';
 const STORAGE_ACCOUNTS_KEY = 'azim_private_accounts';
 const STORAGE_SITES_KEY = 'azim_registered_sites';
+const STORAGE_PROJECTS_KEY = 'azim_portfolio_projects';
 
 const DEFAULT_ADMIN_KEYS = ['azim404', 'admin404', 'azim2026'];
 const DEFAULT_ADMIN_IDENTIFIERS = ['admin', 'azim404', 'sb.kherarfa@gmail.com', 'sofiane'];
@@ -63,9 +64,18 @@ export function AdminProvider({ children }) {
     }
   });
 
+  const [portfolioProjects, setPortfolioProjects] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_PROJECTS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync sites with backend
+  // Sync sites from backend
   const refreshSites = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -90,7 +100,7 @@ export function AdminProvider({ children }) {
     return sites;
   }, [sites]);
 
-  // Sync accounts with backend
+  // Sync accounts from backend
   const refreshAccounts = useCallback(async () => {
     try {
       const res = await fetch('/api/private-accounts');
@@ -106,10 +116,29 @@ export function AdminProvider({ children }) {
     }
   }, []);
 
+  // Sync portfolio projects from backend
+  const refreshPortfolioProjects = useCallback(async () => {
+    try {
+      const res = await fetch('/api/portfolio-projects');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.projects)) {
+          setPortfolioProjects(data.projects);
+          localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(data.projects));
+          return data.projects;
+        }
+      }
+    } catch (e) {
+      // offline
+    }
+    return portfolioProjects;
+  }, [portfolioProjects]);
+
   useEffect(() => {
     refreshSites();
     refreshAccounts();
-  }, [refreshSites, refreshAccounts]);
+    refreshPortfolioProjects();
+  }, [refreshSites, refreshAccounts, refreshPortfolioProjects]);
 
   // 1-Click Toggle Maintenance
   const toggleSiteMaintenance = async (siteId, inMaintenance, patchData = {}) => {
@@ -128,11 +157,9 @@ export function AdminProvider({ children }) {
       [siteId]: updated,
     };
 
-    // Instant local state update
     setSites(nextSites);
     localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
 
-    // Send to backend
     try {
       const res = await fetch('/api/site-status/toggle', {
         method: 'POST',
@@ -146,8 +173,8 @@ export function AdminProvider({ children }) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.all || data.sites) {
-          const remoteSites = data.sites || data.all;
+        const remoteSites = data.sites || data.all;
+        if (remoteSites) {
           setSites(remoteSites);
           localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(remoteSites));
         }
@@ -228,12 +255,153 @@ export function AdminProvider({ children }) {
     return { success: true };
   };
 
+  // Save / Update Portfolio Project
+  const savePortfolioProject = async (projectData) => {
+    try {
+      const res = await fetch('/api/portfolio-projects/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projectData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.projects) {
+          setPortfolioProjects(data.projects);
+          localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(data.projects));
+          return { success: true, project: data.project };
+        }
+      }
+    } catch (e) {
+      // offline fallback
+      const cleanId = (projectData.id || Date.now().toString()).trim();
+      const updatedList = [...portfolioProjects];
+      const idx = updatedList.findIndex((p) => p.id === cleanId);
+      if (idx >= 0) {
+        updatedList[idx] = { ...updatedList[idx], ...projectData };
+      } else {
+        updatedList.push({ ...projectData, id: cleanId });
+      }
+      setPortfolioProjects(updatedList);
+      localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
+      return { success: true, project: projectData };
+    }
+    return { success: false, error: 'Erreur sauvegarde projet' };
+  };
+
+  // Delete Portfolio Project
+  const deletePortfolioProject = async (id) => {
+    const updated = portfolioProjects.filter((p) => p.id !== id);
+    setPortfolioProjects(updated);
+    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updated));
+
+    try {
+      await fetch(`/api/portfolio-projects/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      // offline
+    }
+    return { success: true };
+  };
+
+  // Update own credentials (identifiant & mot de passe)
+  const updateMyCredentials = async ({ newIdentifier, newPassword, name }) => {
+    const cleanNewId = (newIdentifier || '').trim().toLowerCase();
+    const cleanPass = (newPassword || '').trim();
+
+    if (!cleanNewId && !cleanPass) {
+      return { success: false, message: 'Rien à mettre à jour' };
+    }
+
+    // Check if new identifier is taken
+    if (cleanNewId && cleanNewId !== user?.identifier?.toLowerCase()) {
+      if (DEFAULT_ADMIN_IDENTIFIERS.includes(cleanNewId) && user?.role !== 'admin') {
+        return { success: false, message: 'Cet identifiant est réservé à l’administrateur' };
+      }
+      if (accounts.some((a) => a.identifier.toLowerCase() === cleanNewId)) {
+        return { success: false, message: 'Cet identifiant est déjà utilisé' };
+      }
+    }
+
+    // If master admin
+    if (user?.role === 'admin') {
+      const updatedUser = {
+        ...user,
+        identifier: cleanNewId || user.identifier,
+        name: name || user.name,
+      };
+      if (cleanPass) {
+        localStorage.setItem('azim_admin_custom_key', cleanPass);
+      }
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      return { success: true, user: updatedUser };
+    }
+
+    // If private member account
+    try {
+      const res = await fetch('/api/private-accounts/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentIdentifier: user?.identifier,
+          newIdentifier: cleanNewId || user?.identifier,
+          newPassword: cleanPass,
+          name: name || user?.name,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updatedUser = {
+          ...user,
+          identifier: data.account.identifier,
+          name: data.account.name,
+        };
+        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        refreshAccounts();
+        return { success: true, user: updatedUser };
+      } else {
+        const err = await res.json();
+        return { success: false, message: err.error || 'Erreur lors de la mise à jour' };
+      }
+    } catch {
+      // offline fallback
+      const updatedAccounts = accounts.map((acc) => {
+        if (acc.identifier.toLowerCase() === user?.identifier?.toLowerCase()) {
+          return {
+            ...acc,
+            identifier: cleanNewId || acc.identifier,
+            password: cleanPass || acc.password,
+            name: name || acc.name,
+          };
+        }
+        return acc;
+      });
+      setAccounts(updatedAccounts);
+      localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
+
+      const updatedUser = {
+        ...user,
+        identifier: cleanNewId || user.identifier,
+        name: name || user.name,
+      };
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      return { success: true, user: updatedUser };
+    }
+  };
+
   const login = async (identifier, password) => {
     const trimmedId = (identifier || '').trim().toLowerCase();
     const trimmedPass = (password || '').trim();
 
     const envKey = import.meta.env.VITE_ADMIN_KEY;
-    const validAdminPass = envKey ? [...DEFAULT_ADMIN_KEYS, envKey] : DEFAULT_ADMIN_KEYS;
+    const customAdminKey = localStorage.getItem('azim_admin_custom_key');
+    const validAdminPass = [
+      ...DEFAULT_ADMIN_KEYS,
+      ...(envKey ? [envKey] : []),
+      ...(customAdminKey ? [customAdminKey] : []),
+    ];
 
     const isMasterAdmin =
       DEFAULT_ADMIN_IDENTIFIERS.includes(trimmedId) && validAdminPass.includes(trimmedPass);
@@ -341,11 +509,16 @@ export function AdminProvider({ children }) {
         accounts,
         sites,
         siteStatus: sites,
+        portfolioProjects,
         isLoading,
         refreshSites,
         toggleSiteMaintenance,
         saveSiteConfig,
         removeSite,
+        savePortfolioProject,
+        deletePortfolioProject,
+        refreshPortfolioProjects,
+        updateMyCredentials,
         login,
         logout,
         createAccount,

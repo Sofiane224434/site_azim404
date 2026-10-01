@@ -39,7 +39,6 @@ function writeAccountsFile(data) {
 
 export const getAccounts = (req, res) => {
   const accounts = readAccountsFile();
-  // Return accounts list (safe representation)
   const safeList = accounts.map(({ id, identifier, name, permissions, createdAt }) => ({
     id,
     identifier,
@@ -61,7 +60,7 @@ export const createAccount = (req, res) => {
 
   const reserved = ['admin', 'azim404', 'sb.kherarfa@gmail.com', 'sofiane'];
   if (reserved.includes(trimmedId)) {
-    return res.status(400).json({ success: false, error: 'Cet identifiant est réservé' });
+    return res.status(400).json({ success: false, error: 'Cet identifiant est réservé à l’administrateur' });
   }
 
   const accounts = readAccountsFile();
@@ -89,6 +88,53 @@ export const createAccount = (req, res) => {
       name: newAcc.name,
       permissions: newAcc.permissions,
       createdAt: newAcc.createdAt,
+    },
+  });
+};
+
+export const updateAccount = (req, res) => {
+  const { currentIdentifier, newIdentifier, newPassword, name } = req.body;
+  const cleanCurrent = (currentIdentifier || '').trim().toLowerCase();
+  const cleanNewId = (newIdentifier || '').trim().toLowerCase();
+  const cleanPass = (newPassword || '').trim();
+
+  const accounts = readAccountsFile();
+  const targetIndex = accounts.findIndex((a) => a.identifier.toLowerCase() === cleanCurrent);
+
+  if (targetIndex === -1) {
+    return res.status(404).json({ success: false, error: 'Compte introuvable' });
+  }
+
+  // Si changement d'identifiant, verifier qu'il n'est pas reserve ni deja pris
+  if (cleanNewId && cleanNewId !== cleanCurrent) {
+    const reserved = ['admin', 'azim404', 'sb.kherarfa@gmail.com', 'sofiane'];
+    if (reserved.includes(cleanNewId)) {
+      return res.status(400).json({ success: false, error: 'Cet identifiant est réservé' });
+    }
+    if (accounts.some((a, idx) => idx !== targetIndex && a.identifier.toLowerCase() === cleanNewId)) {
+      return res.status(409).json({ success: false, error: 'Cet identifiant est déjà utilisé par un autre compte' });
+    }
+    accounts[targetIndex].identifier = cleanNewId;
+  }
+
+  if (cleanPass) {
+    accounts[targetIndex].password = cleanPass;
+  }
+
+  if (name) {
+    accounts[targetIndex].name = name.trim();
+  }
+
+  writeAccountsFile(accounts);
+
+  const updated = accounts[targetIndex];
+  res.json({
+    success: true,
+    account: {
+      id: updated.id,
+      identifier: updated.identifier,
+      name: updated.name,
+      permissions: updated.permissions,
     },
   });
 };

@@ -1,12 +1,24 @@
 {
   "portfolio": {
+    "id": "portfolio",
+    "name": "Portfolio Vitrine",
+    "domain": "sofiane-kherarfa.azim404.com",
     "inMaintenance": false,
-    "message": "Le site est actuellement en cours de mise à jour et d'optimisation. Nous serons de retour très prochainement.",
-    "updatedAt": "2026-10-01T12:00:00.000Z"
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Atelier en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
+    "updatedAt": "2026-10-01T14:00:00.000Z"
   },
   "azim404": {
+    "id": "azim404",
+    "name": "Portail Principal Azim404",
+    "domain": "azim404.com",
     "inMaintenance": false,
-    "message": "Maintenance technique planifiée sur le portail Azim404.",
-    "updatedAt": "2026-10-01T12:00:00.000Z"
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Portail en cours de maintenance",
+    "message": "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
+    "updatedAt": "2026-10-01T14:00:00.000Z"
   }
 }
