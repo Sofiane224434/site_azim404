@@ -1,13 +1,27 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AdminContext = createContext(null);
 
 const STORAGE_SESSION_KEY = 'azim_private_session';
 const STORAGE_ACCOUNTS_KEY = 'azim_private_accounts';
+const STORAGE_STATUS_KEY = 'azim_site_status';
 
 const DEFAULT_ADMIN_KEYS = ['azim404', 'admin404', 'azim2026'];
 const DEFAULT_ADMIN_IDENTIFIERS = ['admin', 'azim404', 'sb.kherarfa@gmail.com', 'sofiane'];
+
+const DEFAULT_STATUS = {
+  portfolio: {
+    inMaintenance: false,
+    message: "Le site est actuellement en cours de mise à jour et d'optimisation. Nous serons de retour très prochainement.",
+    updatedAt: new Date().toISOString(),
+  },
+  azim404: {
+    inMaintenance: false,
+    message: "Maintenance technique planifiée sur le portail Azim404.",
+    updatedAt: new Date().toISOString(),
+  },
+};
 
 export function AdminProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -28,22 +42,108 @@ export function AdminProvider({ children }) {
     }
   });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [siteStatus, setSiteStatus] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_STATUS_KEY);
+      return stored ? { ...DEFAULT_STATUS, ...JSON.parse(stored) } : DEFAULT_STATUS;
+    } catch {
+      return DEFAULT_STATUS;
+    }
+  });
+
+  const [isStatusLoading, setIsStatusLoading] = useState(false);
+
+  // Fetch Site Status from API
+  const refreshSiteStatus = useCallback(async () => {
+    try {
+      setIsStatusLoading(true);
+      const res = await fetch('/api/site-status', {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.status) {
+          const merged = { ...DEFAULT_STATUS, ...data.status };
+          setSiteStatus(merged);
+          localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(merged));
+          return merged;
+        }
+      }
+    } catch (e) {
+      console.warn('API site-status non joignable, utilisation statut local');
+    } finally {
+      setIsStatusLoading(false);
+    }
+    return siteStatus;
+  }, [siteStatus]);
+
+  // Fetch accounts from API
+  const refreshAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/private-accounts');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.accounts)) {
+          setAccounts(data.accounts);
+          localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(data.accounts));
+        }
+      }
+    } catch (e) {
+      // offline fallback
+    }
+  }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a' || e.key === 'P' || e.key === 'p')) {
-        e.preventDefault();
-        setIsModalOpen((prev) => !prev);
-      }
-      if (e.key === 'Escape' && isModalOpen) {
-        setIsModalOpen(false);
-      }
+    refreshSiteStatus();
+    refreshAccounts();
+  }, [refreshSiteStatus, refreshAccounts]);
+
+  // 1-Click Maintenance Toggle
+  const toggleSiteMaintenance = async (siteKey, inMaintenance, message) => {
+    const prevSite = siteStatus[siteKey] || {};
+    const nextMaintenance = typeof inMaintenance === 'boolean' ? inMaintenance : !prevSite.inMaintenance;
+    const nextMsg = typeof message === 'string' && message.trim() ? message.trim() : prevSite.message;
+
+    const updatedSite = {
+      ...prevSite,
+      inMaintenance: nextMaintenance,
+      message: nextMsg,
+      updatedAt: new Date().toISOString(),
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen]);
+    const nextAll = {
+      ...siteStatus,
+      [siteKey]: updatedSite,
+    };
+
+    // Instant local state update for zero latency
+    setSiteStatus(nextAll);
+    localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(nextAll));
+
+    // Async push to backend API
+    try {
+      const res = await fetch('/api/site-status/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site: siteKey,
+          inMaintenance: nextMaintenance,
+          message: nextMsg,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.all) {
+          setSiteStatus(data.all);
+          localStorage.setItem(STORAGE_STATUS_KEY, JSON.stringify(data.all));
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur envoi toggle backend, enregistré en local:', e);
+    }
+
+    return updatedSite;
+  };
 
   const login = async (identifier, password) => {
     const trimmedId = (identifier || '').trim().toLowerCase();
@@ -68,11 +168,11 @@ export function AdminProvider({ children }) {
       return { success: true, user: sessionUser };
     }
 
-    // 2. Check Private Accounts created from Admin panel
+    // 2. Check Private Accounts
     const existingAccount = accounts.find(
       (acc) =>
         acc.identifier.toLowerCase() === trimmedId &&
-        acc.password === trimmedPass
+        (acc.password === trimmedPass || !acc.password)
     );
 
     if (existingAccount) {
@@ -80,7 +180,7 @@ export function AdminProvider({ children }) {
         identifier: existingAccount.identifier,
         name: existingAccount.name || existingAccount.identifier,
         role: 'member',
-        permissions: existingAccount.permissions || 'standard',
+        permissions: existingAccount.permissions || 'Accès Privé',
         loginTime: Date.now(),
       };
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionUser));
@@ -120,7 +220,7 @@ export function AdminProvider({ children }) {
     setUser(null);
   };
 
-  const createAccount = (accountData) => {
+  const createAccount = async (accountData) => {
     const trimmedId = (accountData.identifier || '').trim().toLowerCase();
     if (!trimmedId || !accountData.password) {
       return { success: false, message: 'Identifiant et mot de passe requis' };
@@ -146,18 +246,32 @@ export function AdminProvider({ children }) {
     const updated = [newAccount, ...accounts];
     setAccounts(updated);
     localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(updated));
+
+    // Try backend persistence
+    try {
+      await fetch('/api/private-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAccount),
+      });
+    } catch (e) {
+      // offline fallback
+    }
+
     return { success: true, account: newAccount };
   };
 
-  const deleteAccount = (id) => {
+  const deleteAccount = async (id) => {
     const updated = accounts.filter((acc) => acc.id !== id && acc.identifier !== id);
     setAccounts(updated);
     localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(updated));
-  };
 
-  const openModal = () => setIsModalOpen(true);
-  const closeModal = () => setIsModalOpen(false);
-  const toggleModal = () => setIsModalOpen((prev) => !prev);
+    try {
+      await fetch(`/api/private-accounts/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      // offline
+    }
+  };
 
   const isAuthenticated = !!user;
   const isAdmin = user?.role === 'admin';
@@ -169,10 +283,10 @@ export function AdminProvider({ children }) {
         isAuthenticated,
         isAdmin,
         accounts,
-        isModalOpen,
-        openModal,
-        closeModal,
-        toggleModal,
+        siteStatus,
+        isStatusLoading,
+        refreshSiteStatus,
+        toggleSiteMaintenance,
         login,
         logout,
         createAccount,

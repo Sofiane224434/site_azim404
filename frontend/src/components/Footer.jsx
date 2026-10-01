@@ -1,9 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { useAdmin } from '../contexts/AdminContext.jsx';
+import { Link } from 'react-router-dom';
 
 export default function Footer() {
   const { t } = useTranslation();
-  const { openModal } = useAdmin();
   const currentYear = new Date().getFullYear();
   const PRO_EMAIL = 'sb.kherarfa@gmail.com';
 
@@ -75,13 +74,13 @@ export default function Footer() {
         <div className="pt-6 border-t border-slate-900 text-center text-xs text-gray-500 flex flex-col sm:flex-row justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <span>{t('footer.copyright', { year: currentYear })}</span>
-            <button
-              onClick={openModal}
-              className="text-gray-700 hover:text-cyan-500 transition-colors p-1"
-              title="Console Admin"
+            <Link
+              to="/admin"
+              className="text-gray-700 hover:text-cyan-400 transition-colors p-1"
+              title="Accès Console Admin & Espace Privé"
             >
               🔒
-            </button>
+            </Link>
           </div>
           <span className="font-semibold text-gray-400 text-sm">
             Sofiane Kherarfa

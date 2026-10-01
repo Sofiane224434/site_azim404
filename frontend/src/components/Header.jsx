@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAdmin } from '../contexts/AdminContext.jsx';
 
@@ -9,7 +10,8 @@ const languages = [
 
 export default function Header() {
   const { t, i18n } = useTranslation();
-  const { isAdmin, openModal } = useAdmin();
+  const { isAdmin } = useAdmin();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'fr').slice(0, 2);
 
@@ -38,10 +40,10 @@ export default function Header() {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                openModal();
+                navigate('/admin');
               }}
               className="text-cyan-400 cursor-pointer select-none hover:text-cyan-200 transition-colors"
-              title="Console Admin (Ctrl+Shift+A)"
+              title="Console Admin / Espace Privé"
             >
               .
             </span>
@@ -65,20 +67,20 @@ export default function Header() {
         {/* Action Buttons & Language Switcher */}
         <div className="hidden md:flex items-center gap-3">
           <button
-            onClick={openModal}
+            onClick={() => navigate('/admin')}
             className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-all flex items-center gap-1.5 ${
               isAdmin
                 ? 'bg-cyan-950/90 border-cyan-500 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
                 : 'bg-slate-900 border-slate-700 text-gray-300 hover:border-cyan-400 hover:text-cyan-300'
             }`}
-            title="Connexion Console (Ctrl+Shift+A)"
+            title="Accéder à la Console Admin & Espace Privé"
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
                 isAdmin ? 'bg-cyan-400 animate-pulse' : 'bg-gray-500'
               }`}
             />
-            <span>{isAdmin ? 'ADMIN' : 'CONNEXION'}</span>
+            <span>{isAdmin ? 'CONSOLE ADMIN' : 'ESPACE PRIVÉ'}</span>
           </button>
 
           <a
@@ -124,7 +126,7 @@ export default function Header() {
         {/* Mobile Hamburger Button */}
         <div className="flex md:hidden items-center gap-2">
           <button
-            onClick={openModal}
+            onClick={() => navigate('/admin')}
             className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-mono font-semibold"
           >
             {isAdmin ? 'ADM' : 'LOG'}
@@ -180,7 +182,7 @@ export default function Header() {
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
-                openModal();
+                navigate('/admin');
               }}
               className="w-full text-center py-2.5 rounded-lg bg-slate-900 border border-cyan-500/40 text-cyan-300 font-semibold"
             >

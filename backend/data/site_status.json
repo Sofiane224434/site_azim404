@@ -1,0 +1,12 @@
+{
+  "portfolio": {
+    "inMaintenance": false,
+    "message": "Le site est actuellement en cours de mise à jour et d'optimisation. Nous serons de retour très prochainement.",
+    "updatedAt": "2026-10-01T12:00:00.000Z"
+  },
+  "azim404": {
+    "inMaintenance": false,
+    "message": "Maintenance technique planifiée sur le portail Azim404.",
+    "updatedAt": "2026-10-01T12:00:00.000Z"
+  }
+}

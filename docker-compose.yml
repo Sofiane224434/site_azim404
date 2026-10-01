@@ -7,6 +7,23 @@ services:
       - "127.0.0.1:3001:80"
     networks:
       - web
+    depends_on:
+      - azim-api
+
+  azim-api:
+    build:
+      context: ./backend
+    container_name: azim_api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5005:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+    volumes:
+      - ./backend/data:/app/data
+    networks:
+      - web
 
 networks:
   web:
