@@ -152,7 +152,7 @@ export const getProjects = (req, res) => {
 
 // POST /api/portfolio-projects/save
 export const saveProject = (req, res) => {
-  const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance } = req.body;
+  const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance } = req.body || {};
 
   if (!title || !title.trim()) {
     return res.status(400).json({ success: false, error: 'Titre du projet obligatoire' });
@@ -208,7 +208,7 @@ export const saveProject = (req, res) => {
 
 // POST /api/portfolio-projects/toggle-visibility
 export const toggleVisibility = (req, res) => {
-  const { id, visible } = req.body;
+  const { id, visible } = req.body || {};
   const projects = readProjectsFile();
   const project = projects.find((p) => p.id === id);
   if (!project) {

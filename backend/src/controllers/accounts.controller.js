@@ -50,7 +50,7 @@ export const getAccounts = (req, res) => {
 };
 
 export const createAccount = (req, res) => {
-  const { identifier, password, name, permissions } = req.body;
+  const { identifier, password, name, permissions } = req.body || {};
   const trimmedId = (identifier || '').trim().toLowerCase();
   const trimmedPass = (password || '').trim();
 
@@ -93,7 +93,7 @@ export const createAccount = (req, res) => {
 };
 
 export const updateAccount = (req, res) => {
-  const { currentIdentifier, newIdentifier, newPassword, name } = req.body;
+  const { currentIdentifier, newIdentifier, newPassword, name } = req.body || {};
   const cleanCurrent = (currentIdentifier || '').trim().toLowerCase();
   const cleanNewId = (newIdentifier || '').trim().toLowerCase();
   const cleanPass = (newPassword || '').trim();

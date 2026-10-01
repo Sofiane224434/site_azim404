@@ -141,7 +141,7 @@ export const getSiteStatus = (req, res) => {
 
 // POST /api/site-status/save
 export const saveSite = (req, res) => {
-  const { id, name, domain, scope, targetPages, title, message, inMaintenance } = req.body;
+  const { id, name, domain, scope, targetPages, title, message, inMaintenance } = req.body || {};
 
   const cleanDomain = (domain || '')
     .trim()
@@ -183,7 +183,7 @@ export const saveSite = (req, res) => {
 // POST /api/site-status/toggle
 // Permet de basculer la maintenance en 1 clic de n'importe quel site ou projet (l'auto-crée s'il n'existe pas encore)
 export const toggleSiteStatus = (req, res) => {
-  const { site, id, inMaintenance, message, title, scope, targetPages, domain, name } = req.body;
+  const { site, id, inMaintenance, message, title, scope, targetPages, domain, name } = req.body || {};
   const siteKey = (id || site || '').trim().toLowerCase();
   const cleanDomain = (domain || siteKey)
     .trim()
