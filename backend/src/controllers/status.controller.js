@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const STATUS_FILE = path.join(DATA_DIR, 'site_status.json');
+const PROJECTS_FILE = path.join(DATA_DIR, 'portfolio_projects.json');
 
 const DEFAULT_SITES = {
   portfolio: {
@@ -13,8 +14,8 @@ const DEFAULT_SITES = {
     name: 'Portfolio Vitrine',
     domain: 'sofiane-kherarfa.azim404.com',
     inMaintenance: false,
-    scope: 'ALL', // 'ALL' ou 'SPECIFIC'
-    targetPages: '', // ex: '/projets, /contact'
+    scope: 'ALL',
+    targetPages: '',
     title: 'Atelier en cours de rénovation',
     message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
     updatedAt: new Date().toISOString(),
@@ -43,23 +44,7 @@ function readStatusFile() {
     }
     const raw = fs.readFileSync(STATUS_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
-
-    // Migration des anciens formats (sans id, domain, etc.)
-    const migrated = {};
-    for (const [key, value] of Object.entries({ ...DEFAULT_SITES, ...parsed })) {
-      migrated[key] = {
-        id: value.id || key,
-        name: value.name || (key === 'portfolio' ? 'Portfolio Vitrine' : key === 'azim404' ? 'Portail Azim404' : key),
-        domain: value.domain || (key === 'portfolio' ? 'sofiane-kherarfa.azim404.com' : key === 'azim404' ? 'azim404.com' : `${key}.azim404.com`),
-        inMaintenance: Boolean(value.inMaintenance),
-        scope: value.scope || 'ALL',
-        targetPages: value.targetPages || '',
-        title: value.title || (key === 'portfolio' ? 'Atelier en cours de rénovation' : 'Maintenance technique'),
-        message: value.message || DEFAULT_SITES.portfolio.message,
-        updatedAt: value.updatedAt || new Date().toISOString(),
-      };
-    }
-    return migrated;
+    return { ...DEFAULT_SITES, ...parsed };
   } catch (error) {
     console.error('Erreur lecture site_status.json:', error);
     return DEFAULT_SITES;
@@ -79,59 +64,94 @@ function writeStatusFile(data) {
   }
 }
 
+// Synchronise l'état de maintenance dans portfolio_projects.json si le projet y existe
+function syncProjectMaintenance(id, domain, inMaintenance) {
+  try {
+    if (!fs.existsSync(PROJECTS_FILE)) return;
+    const raw = fs.readFileSync(PROJECTS_FILE, 'utf-8');
+    const projects = JSON.parse(raw);
+    if (!Array.isArray(projects)) return;
+
+    let modified = false;
+    for (const proj of projects) {
+      if (
+        proj.id === id ||
+        (proj.domain && proj.domain.toLowerCase() === domain?.toLowerCase())
+      ) {
+        proj.inMaintenance = inMaintenance;
+        modified = true;
+      }
+    }
+    if (modified) {
+      fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
+    }
+  } catch (e) {
+    // silencieux
+  }
+}
+
 // GET /api/site-status
 export const getAllStatus = (req, res) => {
   const sites = readStatusFile();
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, sites, status: sites });
 };
 
 // GET /api/site-status/lookup?domain=...
-// ou GET /api/site-status/:key
+// ou GET /api/site-status/:site
 export const getSiteStatus = (req, res) => {
   const { site } = req.params;
-  const domainQuery = (req.query.domain || '').trim().toLowerCase();
+  const rawDomain = req.query.domain || site || '';
+  const cleanDomain = rawDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+    .split('/')[0]; // juste le hostname
+
   const sites = readStatusFile();
 
-  // Recherche par domaine si paramètre query
-  if (domainQuery) {
-    const matched = Object.values(sites).find(
-      (s) => s.domain && (s.domain.toLowerCase() === domainQuery || domainQuery.endsWith(s.domain.toLowerCase()))
-    );
-    if (matched) {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.json({ success: true, site: matched.id, ...matched });
-    }
-  }
-
-  // Recherche par ID ou nom ou domaine direct
-  const cleanKey = (site || '').trim().toLowerCase();
-  let found = sites[cleanKey];
-
-  if (!found) {
-    found = Object.values(sites).find(
-      (s) => (s.domain && s.domain.toLowerCase() === cleanKey) || s.id.toLowerCase() === cleanKey
-    );
-  }
-
-  if (!found) {
-    return res.status(404).json({ success: false, error: 'Site non trouvé' });
-  }
+  // Recherche par domaine exact, par sous-domaine ou par ID
+  const matched = Object.values(sites).find((s) => {
+    if (!s) return false;
+    const sDomain = (s.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const sId = (s.id || '').toLowerCase();
+    return sDomain === cleanDomain || sId === cleanDomain || cleanDomain.endsWith(sDomain);
+  });
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.json({ success: true, site: found.id, ...found });
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+  if (matched) {
+    return res.json({ success: true, site: matched.id, ...matched });
+  }
+
+  // Ne jamais planter : renvoie un statut en ligne par défaut si non enregistré
+  return res.json({
+    success: true,
+    site: cleanDomain,
+    inMaintenance: false,
+    scope: 'ALL',
+    targetPages: '',
+    title: 'Atelier en cours de rénovation',
+    message: '',
+  });
 };
 
 // POST /api/site-status/save
-// Ajoute ou met à jour la configuration complète d'un site
 export const saveSite = (req, res) => {
   const { id, name, domain, scope, targetPages, title, message, inMaintenance } = req.body;
 
-  const cleanDomain = (domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const cleanDomain = (domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
   const cleanId = (id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString()).trim().toLowerCase();
 
-  if (!cleanDomain) {
-    return res.status(400).json({ success: false, error: 'Le nom de domaine est obligatoire' });
+  if (!cleanDomain && !cleanId) {
+    return res.status(400).json({ success: false, error: 'Identifiant ou domaine obligatoire' });
   }
 
   const sites = readStatusFile();
@@ -139,12 +159,12 @@ export const saveSite = (req, res) => {
 
   const updatedSite = {
     id: cleanId,
-    name: (name || cleanDomain).trim(),
-    domain: cleanDomain,
+    name: (name || cleanDomain || cleanId).trim(),
+    domain: cleanDomain || existing.domain || `${cleanId}.azim404.com`,
     inMaintenance: typeof inMaintenance === 'boolean' ? inMaintenance : Boolean(existing.inMaintenance),
     scope: scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
     targetPages: (targetPages || '').trim(),
-    title: (title || existing.title || 'Site en cours de maintenance').trim(),
+    title: (title || existing.title || 'Atelier en cours de rénovation').trim(),
     message: (message || existing.message || DEFAULT_SITES.portfolio.message).trim(),
     updatedAt: new Date().toISOString(),
   };
@@ -152,37 +172,70 @@ export const saveSite = (req, res) => {
   sites[cleanId] = updatedSite;
   writeStatusFile(sites);
 
+  // Synchronise aussi le projet portfolio
+  syncProjectMaintenance(cleanId, updatedSite.domain, updatedSite.inMaintenance);
+
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, site: updatedSite, sites });
 };
 
 // POST /api/site-status/toggle
+// Permet de basculer la maintenance en 1 clic de n'importe quel site ou projet (l'auto-crée s'il n'existe pas encore)
 export const toggleSiteStatus = (req, res) => {
-  const { site, id, inMaintenance, message, title, scope, targetPages } = req.body;
+  const { site, id, inMaintenance, message, title, scope, targetPages, domain, name } = req.body;
   const siteKey = (id || site || '').trim().toLowerCase();
+  const cleanDomain = (domain || siteKey)
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
 
   const sites = readStatusFile();
-  const currentSite = sites[siteKey] || Object.values(sites).find((s) => s.domain.toLowerCase() === siteKey);
+  let currentSite =
+    sites[siteKey] ||
+    Object.values(sites).find(
+      (s) => (s.domain && s.domain.toLowerCase() === cleanDomain) || s.id.toLowerCase() === siteKey
+    );
 
+  // Si le site n'existe pas encore dans site_status.json, ON LE CRÉE AUTOMATIQUEMENT
   if (!currentSite) {
-    return res.status(404).json({ success: false, error: `Site '${siteKey}' inconnu` });
+    const finalId = siteKey || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString();
+    currentSite = {
+      id: finalId,
+      name: name || cleanDomain || finalId,
+      domain: cleanDomain || `${finalId}.azim404.com`,
+      inMaintenance: false,
+      scope: scope || 'ALL',
+      targetPages: targetPages || '',
+      title: title || 'Atelier en cours de rénovation',
+      message: message || DEFAULT_SITES.portfolio.message,
+      updatedAt: new Date().toISOString(),
+    };
+    sites[finalId] = currentSite;
   }
 
-  const updatedSite = {
-    ...currentSite,
-    inMaintenance: typeof inMaintenance === 'boolean' ? inMaintenance : !currentSite.inMaintenance,
-    message: typeof message === 'string' && message.trim() ? message.trim() : currentSite.message,
-    title: typeof title === 'string' && title.trim() ? title.trim() : currentSite.title,
-    scope: scope ? (scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL') : currentSite.scope,
-    targetPages: typeof targetPages === 'string' ? targetPages.trim() : currentSite.targetPages,
-    updatedAt: new Date().toISOString(),
-  };
+  const nextState = typeof inMaintenance === 'boolean' ? inMaintenance : !currentSite.inMaintenance;
 
-  sites[currentSite.id] = updatedSite;
+  currentSite.inMaintenance = nextState;
+  if (message && message.trim()) currentSite.message = message.trim();
+  if (title && title.trim()) currentSite.title = title.trim();
+  if (scope) currentSite.scope = scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL';
+  if (targetPages !== undefined) currentSite.targetPages = (targetPages || '').trim();
+  if (cleanDomain) currentSite.domain = cleanDomain;
+  currentSite.updatedAt = new Date().toISOString();
+
+  sites[currentSite.id] = currentSite;
   writeStatusFile(sites);
 
+  // Synchronise portfolio_projects.json
+  syncProjectMaintenance(currentSite.id, currentSite.domain, nextState);
+
+  console.log(`[STATUS] Site '${currentSite.id}' (${currentSite.domain}) -> maintenance: ${nextState}`);
+
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.json({ success: true, site: currentSite.id, status: updatedSite, sites, all: sites });
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({ success: true, site: currentSite.id, status: currentSite, sites, all: sites });
 };
 
 // DELETE /api/site-status/:id
@@ -204,5 +257,6 @@ export const deleteSite = (req, res) => {
   writeStatusFile(sites);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.json({ success: true, message: 'Site supprimé avec succès', sites });
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({ success: true, message: 'Site supprimé de l’admin', sites });
 };

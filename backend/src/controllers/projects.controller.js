@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const PROJECTS_FILE = path.join(DATA_DIR, 'portfolio_projects.json');
+const STATUS_FILE = path.join(DATA_DIR, 'site_status.json');
 
 const DEFAULT_PROJECTS = [
   {
@@ -17,6 +18,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://fansite.azim404.com/',
     domain: 'fansite.azim404.com',
     badge: 'En ligne',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
   {
     id: 'novakult',
@@ -27,6 +30,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://novakult.azim404.com/',
     domain: 'novakult.azim404.com',
     badge: 'Backend & SQL',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
   {
     id: 'moviedb',
@@ -37,6 +42,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://moviedb.azim404.com/',
     domain: 'moviedb.azim404.com',
     badge: 'API & Streaming',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
   {
     id: 'marsai',
@@ -47,6 +54,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://marsai.azim404.com/',
     domain: 'marsai.azim404.com',
     badge: 'IA & Web',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
   {
     id: 'wikisguessr',
@@ -57,6 +66,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://wikisguessr.azim404.com/',
     domain: 'wikisguessr.azim404.com',
     badge: 'Jeu Interactif',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
   {
     id: 'cxb',
@@ -67,6 +78,8 @@ const DEFAULT_PROJECTS = [
     link: 'https://cxb.azim404.com/',
     domain: 'cxb.azim404.com',
     badge: 'Multijoueur',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
   },
 ];
 
@@ -101,16 +114,45 @@ function writeProjectsFile(data) {
   }
 }
 
+// Auto enregistre dans site_status.json
+function registerInStatusFile(project) {
+  try {
+    if (!fs.existsSync(STATUS_FILE)) return;
+    const raw = fs.readFileSync(STATUS_FILE, 'utf-8');
+    const sites = JSON.parse(raw);
+    const cleanDomain = (project.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!cleanDomain) return;
+
+    if (!sites[project.id]) {
+      sites[project.id] = {
+        id: project.id,
+        name: project.title,
+        domain: cleanDomain,
+        inMaintenance: Boolean(project.inMaintenance),
+        scope: 'ALL',
+        targetPages: '',
+        title: 'Atelier en cours de rénovation',
+        message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+        updatedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(STATUS_FILE, JSON.stringify(sites, null, 2), 'utf-8');
+    }
+  } catch (e) {
+    // silencieux
+  }
+}
+
 // GET /api/portfolio-projects
 export const getProjects = (req, res) => {
   const projects = readProjectsFile();
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, projects });
 };
 
 // POST /api/portfolio-projects/save
 export const saveProject = (req, res) => {
-  const { id, title, description, technologies, badge, link, image, domain } = req.body;
+  const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance } = req.body;
 
   if (!title || !title.trim()) {
     return res.status(400).json({ success: false, error: 'Titre du projet obligatoire' });
@@ -127,15 +169,26 @@ export const saveProject = (req, res) => {
 
   const existingIndex = projects.findIndex((p) => p.id === cleanId || p.id === id);
 
+  const cleanDomain = (
+    domain ||
+    (link ? new URL(link.startsWith('http') ? link : `https://${link}`).hostname : `${cleanId}.azim404.com`)
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
+
   const updatedProject = {
     id: cleanId,
     title: title.trim(),
     description: (description || '').trim(),
     technologies: techArray,
     badge: (badge || 'En ligne').trim(),
-    link: (link || `https://${cleanId}.azim404.com/`).trim(),
+    link: (link || `https://${cleanDomain}/`).trim(),
     image: image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
-    domain: (domain || (link ? new URL(link.startsWith('http') ? link : `https://${link}`).hostname : `${cleanId}.azim404.com`)).trim(),
+    domain: cleanDomain,
+    visibleOnPortfolio: visibleOnPortfolio !== undefined ? Boolean(visibleOnPortfolio) : true,
+    inMaintenance: Boolean(inMaintenance),
     updatedAt: new Date().toISOString(),
   };
 
@@ -146,9 +199,28 @@ export const saveProject = (req, res) => {
   }
 
   writeProjectsFile(projects);
+  registerInStatusFile(updatedProject);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, project: updatedProject, projects });
+};
+
+// POST /api/portfolio-projects/toggle-visibility
+export const toggleVisibility = (req, res) => {
+  const { id, visible } = req.body;
+  const projects = readProjectsFile();
+  const project = projects.find((p) => p.id === id);
+  if (!project) {
+    return res.status(404).json({ success: false, error: 'Projet introuvable' });
+  }
+
+  project.visibleOnPortfolio = typeof visible === 'boolean' ? visible : !project.visibleOnPortfolio;
+  writeProjectsFile(projects);
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({ success: true, project, projects });
 };
 
 // DELETE /api/portfolio-projects/:id
@@ -160,5 +232,6 @@ export const deleteProject = (req, res) => {
   writeProjectsFile(filtered);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, message: 'Projet retiré avec succès', projects: filtered });
 };

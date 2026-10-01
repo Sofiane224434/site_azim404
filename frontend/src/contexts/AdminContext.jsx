@@ -119,7 +119,10 @@ export function AdminProvider({ children }) {
   // Sync portfolio projects from backend
   const refreshPortfolioProjects = useCallback(async () => {
     try {
-      const res = await fetch('/api/portfolio-projects');
+      const res = await fetch(`/api/portfolio-projects?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.projects)) {
@@ -140,26 +143,44 @@ export function AdminProvider({ children }) {
     refreshPortfolioProjects();
   }, [refreshSites, refreshAccounts, refreshPortfolioProjects]);
 
-  // 1-Click Toggle Maintenance
+  // 1-Click Toggle Maintenance (Synchronise sites ET portfolioProjects)
   const toggleSiteMaintenance = async (siteId, inMaintenance, patchData = {}) => {
     const existing = sites[siteId] || {};
     const nextState = typeof inMaintenance === 'boolean' ? inMaintenance : !existing.inMaintenance;
+    const cleanDomain = (patchData.domain || existing.domain || siteId)
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
 
-    const updated = {
+    const updatedSite = {
       ...existing,
       ...patchData,
+      id: siteId,
+      domain: cleanDomain,
       inMaintenance: nextState,
       updatedAt: new Date().toISOString(),
     };
 
     const nextSites = {
       ...sites,
-      [siteId]: updated,
+      [siteId]: updatedSite,
     };
 
+    // Instant local state update
     setSites(nextSites);
     localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
 
+    // Synchronise aussi instantanément portfolioProjects si c'est un projet
+    const updatedProjects = portfolioProjects.map((p) => {
+      if (p.id === siteId || (p.domain && p.domain.toLowerCase() === cleanDomain)) {
+        return { ...p, inMaintenance: nextState };
+      }
+      return p;
+    });
+    setPortfolioProjects(updatedProjects);
+    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedProjects));
+
+    // Push au backend
     try {
       const res = await fetch('/api/site-status/toggle', {
         method: 'POST',
@@ -167,6 +188,7 @@ export function AdminProvider({ children }) {
         body: JSON.stringify({
           id: siteId,
           site: siteId,
+          domain: cleanDomain,
           inMaintenance: nextState,
           ...patchData,
         }),
@@ -180,10 +202,10 @@ export function AdminProvider({ children }) {
         }
       }
     } catch (e) {
-      console.warn('Erreur envoi toggle backend:', e);
+      console.warn('Erreur toggle backend:', e);
     }
 
-    return updated;
+    return updatedSite;
   };
 
   // Add or Update Site
@@ -235,7 +257,7 @@ export function AdminProvider({ children }) {
     return { success: true, site: updated };
   };
 
-  // Delete Site
+  // Delete Site permanently from Admin
   const removeSite = async (siteId) => {
     if (['portfolio', 'azim404'].includes(siteId)) {
       return { success: false, error: 'Impossible de supprimer un site principal' };
@@ -255,13 +277,53 @@ export function AdminProvider({ children }) {
     return { success: true };
   };
 
-  // Save / Update Portfolio Project
+  // Save / Update Portfolio Project (Mise à jour en DIRECT)
   const savePortfolioProject = async (projectData) => {
+    const cleanId = (projectData.id || projectData.title?.toLowerCase().replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString()).trim();
+    const cleanDomain = (projectData.domain || (projectData.link ? new URL(projectData.link.startsWith('http') ? projectData.link : `https://${projectData.link}`).hostname : '')).toLowerCase();
+
+    const updatedObj = {
+      ...projectData,
+      id: cleanId,
+      domain: cleanDomain,
+      visibleOnPortfolio: projectData.visibleOnPortfolio !== undefined ? Boolean(projectData.visibleOnPortfolio) : true,
+      inMaintenance: Boolean(projectData.inMaintenance),
+    };
+
+    // Mise à jour locale INSTANTANÉE pour affichage en direct
+    const updatedList = [...portfolioProjects];
+    const idx = updatedList.findIndex((p) => p.id === cleanId);
+    if (idx >= 0) {
+      updatedList[idx] = { ...updatedList[idx], ...updatedObj };
+    } else {
+      updatedList.push(updatedObj);
+    }
+    setPortfolioProjects(updatedList);
+    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
+
+    // Synchronise aussi le domaine dans les sites pour le mode travaux
+    if (cleanDomain) {
+      const updatedSiteConfig = {
+        id: cleanId,
+        name: updatedObj.title,
+        domain: cleanDomain,
+        inMaintenance: updatedObj.inMaintenance,
+        scope: projectData.scope || 'ALL',
+        targetPages: projectData.targetPages || '',
+        title: projectData.maintenanceTitle || 'Atelier en cours de rénovation',
+        message: projectData.maintenanceMessage || DEFAULT_SITES.portfolio.message,
+        updatedAt: new Date().toISOString(),
+      };
+      const nextSites = { ...sites, [cleanId]: updatedSiteConfig };
+      setSites(nextSites);
+      localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
+    }
+
     try {
       const res = await fetch('/api/portfolio-projects/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projectData),
+        body: JSON.stringify(updatedObj),
       });
       if (res.ok) {
         const data = await res.json();
@@ -272,23 +334,35 @@ export function AdminProvider({ children }) {
         }
       }
     } catch (e) {
-      // offline fallback
-      const cleanId = (projectData.id || Date.now().toString()).trim();
-      const updatedList = [...portfolioProjects];
-      const idx = updatedList.findIndex((p) => p.id === cleanId);
-      if (idx >= 0) {
-        updatedList[idx] = { ...updatedList[idx], ...projectData };
-      } else {
-        updatedList.push({ ...projectData, id: cleanId });
-      }
-      setPortfolioProjects(updatedList);
-      localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
-      return { success: true, project: projectData };
+      // offline
     }
-    return { success: false, error: 'Erreur sauvegarde projet' };
+    return { success: true, project: updatedObj };
   };
 
-  // Delete Portfolio Project
+  // Toggle Visibility on Portfolio (Masquer du portfolio public sans supprimer de l'admin)
+  const toggleProjectVisibility = async (id, visible) => {
+    const updatedList = portfolioProjects.map((p) => {
+      if (p.id === id) {
+        return { ...p, visibleOnPortfolio: typeof visible === 'boolean' ? visible : !p.visibleOnPortfolio };
+      }
+      return p;
+    });
+
+    setPortfolioProjects(updatedList);
+    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
+
+    try {
+      await fetch('/api/portfolio-projects/toggle-visibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, visible }),
+      });
+    } catch (e) {
+      // offline
+    }
+  };
+
+  // Delete Portfolio Project permanently
   const deletePortfolioProject = async (id) => {
     const updated = portfolioProjects.filter((p) => p.id !== id);
     setPortfolioProjects(updated);
@@ -307,7 +381,7 @@ export function AdminProvider({ children }) {
     const cleanNewId = (newIdentifier || '').trim().toLowerCase();
     const cleanPass = (newPassword || '').trim();
 
-    if (!cleanNewId && !cleanPass) {
+    if (!cleanNewId && !cleanPass && !name) {
       return { success: false, message: 'Rien à mettre à jour' };
     }
 
@@ -430,6 +504,7 @@ export function AdminProvider({ children }) {
         name: existingAccount.name || existingAccount.identifier,
         role: 'member',
         permissions: existingAccount.permissions || 'Accès Privé',
+        allowedProjects: existingAccount.allowedProjects || [],
         loginTime: Date.now(),
       };
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionUser));
@@ -465,6 +540,7 @@ export function AdminProvider({ children }) {
       name: accountData.name || trimmedId,
       password: accountData.password,
       permissions: accountData.permissions || 'Accès Privé',
+      allowedProjects: Array.isArray(accountData.allowedProjects) ? accountData.allowedProjects : [],
       createdAt: new Date().toLocaleDateString('fr-FR'),
     };
 
@@ -516,6 +592,7 @@ export function AdminProvider({ children }) {
         saveSiteConfig,
         removeSite,
         savePortfolioProject,
+        toggleProjectVisibility,
         deletePortfolioProject,
         refreshPortfolioProjects,
         updateMyCredentials,
