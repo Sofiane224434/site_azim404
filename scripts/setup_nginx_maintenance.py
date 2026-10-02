@@ -30,7 +30,8 @@ location = /_azim_maintenance_check {
 
 location @azim_maintenance_screen {
     auth_request off;
-    proxy_pass http://127.0.0.1:5005/api/site-status/maintenance-screen;
+    rewrite ^ /api/site-status/maintenance-screen break;
+    proxy_pass http://127.0.0.1:5005;
     proxy_set_header Host $host;
     proxy_set_header X-Original-Host $host;
     proxy_set_header X-Original-URI $request_uri;
