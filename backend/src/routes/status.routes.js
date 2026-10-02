@@ -8,6 +8,8 @@ import {
   toggleSiteStatus,
   deleteSite,
   auditSiteHeaders,
+  auditObservatory,
+  auditSSLLabs,
 } from '../controllers/status.controller.js';
 
 const router = Router();
@@ -16,6 +18,8 @@ router.get('/', getAllStatus);
 router.get('/check', checkMaintenanceStatus);
 router.get('/maintenance-screen', renderMaintenanceScreen);
 router.get('/audit-headers', auditSiteHeaders);
+router.get('/audit-observatory', auditObservatory);
+router.get('/audit-ssllabs', auditSSLLabs);
 router.get('/lookup', getSiteStatus);
 router.get('/:site', getSiteStatus);
 router.post('/save', saveSite);

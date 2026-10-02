@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext.jsx';
 import MaintenanceScreen from '../components/MaintenanceScreen.jsx';
@@ -25,7 +26,7 @@ export default function AdminDashboardPage() {
   } = useAdmin();
 
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('projects'); // 'projects', 'accounts', 'system'
+  const [activeTab, setActiveTab] = useState('projects'); // 'projects', 'security', 'accounts', 'context', 'system'
 
   // Modals & forms
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
@@ -73,9 +74,8 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const cleanDomain = (newDomain || (newLink ? new URL(newLink.startsWith('http') ? newLink : `https://${link}`).hostname : '')).trim().toLowerCase();
+    const cleanDomain = (newDomain || (newLink ? new URL(newLink.startsWith('http') ? newLink : `https://${newLink}`).hostname : '')).trim().toLowerCase();
 
-    // 1. Save to portfolio showcase and auto-register in context sync targets if allowed
     const projectRes = await savePortfolioProject({
       title: newTitle,
       description: newDesc,
@@ -89,7 +89,6 @@ export default function AdminDashboardPage() {
       folderName: newFolderName || undefined,
     });
 
-    // 2. Also register in site status controller
     if (cleanDomain) {
       await saveSiteConfig({
         id: projectRes.project?.id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_'),
@@ -103,7 +102,7 @@ export default function AdminDashboardPage() {
       });
     }
 
-    showToast(`Site / Projet "${newTitle}" ajouté avec succès !`);
+    showToast(`Site / Projet "${newTitle}" ajouté avec succès`);
     setShowAddProjectModal(false);
     setNewTitle('');
     setNewDesc('');
@@ -122,12 +121,12 @@ export default function AdminDashboardPage() {
       name: myName,
     });
     if (res.success) {
-      showToast('Vos identifiants ont été mis à jour avec succès !');
-      setProfileMsg('✓ Identifiants modifiés et session synchronisée.');
+      showToast('Vos identifiants ont été mis à jour');
+      setProfileMsg('Identifiants modifiés avec succès.');
       setMyNewId('');
       setMyNewPass('');
     } else {
-      setProfileMsg(`⚠ ${res.message}`);
+      setProfileMsg(res.message);
     }
   };
 
@@ -143,7 +142,7 @@ export default function AdminDashboardPage() {
       allowedProjects: newAccAllowedProjects,
     });
     if (res.success) {
-      showToast(`Compte privé "${newAccId}" créé avec succès !`);
+      showToast(`Compte "${newAccId}" créé avec succès`);
       setNewAccId('');
       setNewAccPass('');
       setNewAccName('');
@@ -153,7 +152,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Toggle allowed project checkbox
   const handleToggleProjectAccess = (projId) => {
     if (newAccAllowedProjects.includes(projId)) {
       setNewAccAllowedProjects(newAccAllowedProjects.filter((id) => id !== projId));
@@ -213,7 +211,6 @@ export default function AdminDashboardPage() {
     }
   }
 
-  // Filter list if user is a member with restricted access
   const displayedProjects = isAdmin
     ? combinedList
     : combinedList.filter((item) => (user?.allowedProjects || []).includes(item.id));
@@ -222,36 +219,35 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-[#030712] text-gray-100 font-sans selection:bg-cyan-500 selection:text-black">
       {/* Toast Alert */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl bg-cyan-950/90 border border-cyan-400 text-cyan-200 text-sm font-medium shadow-[0_0_25px_rgba(6,182,212,0.4)] backdrop-blur-md flex items-center gap-3 animate-fade-in">
-          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+        <div className="fixed top-5 right-5 z-50 px-4 py-2 rounded-lg bg-slate-900 border border-cyan-500/50 text-cyan-200 text-xs font-medium shadow-lg backdrop-blur-md flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-cyan-400" />
           <span>{toast}</span>
         </div>
       )}
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/90 border-b border-white/10 backdrop-blur-md">
-        <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Integrated Flawless Logo Brand */}
-          <div className="flex items-center gap-4">
-            <Link to="/" className="group flex items-center select-none" title="Retour à l'accueil Azim404">
-              <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-white group-hover:text-cyan-300 transition-colors flex items-center">
+      <header className="sticky top-0 z-40 bg-slate-950/95 border-b border-white/10 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center select-none" title="Retour à l'accueil Azim404">
+              <span className="text-lg font-bold tracking-tight text-white flex items-center">
                 <img
                   src="/images/logo_transparent.png"
                   alt="A"
-                  className="h-[1.18em] w-auto object-contain inline-block -mr-1 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)] group-hover:scale-105 transition-transform"
+                  className="h-[1.15em] w-auto object-contain inline-block -mr-1"
                 />
                 <span>zim.404</span>
               </span>
             </Link>
 
-            <span className="hidden sm:inline-block text-xs font-mono px-2.5 py-1 rounded-md bg-cyan-950/80 border border-cyan-500/30 text-cyan-300">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-400">
               CONSOLE ADMINISTRATION
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 text-xs font-mono text-gray-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2 text-xs font-mono text-gray-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               <span>{user?.name || user?.identifier}</span>
               <span className="text-gray-600">•</span>
               <span className="uppercase text-cyan-400">{user?.role || 'Membre'}</span>
@@ -259,15 +255,14 @@ export default function AdminDashboardPage() {
 
             <Link
               to="/"
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition flex items-center gap-1.5"
+              className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition"
             >
-              <span>Site Public</span>
-              <span>↗</span>
+              Site Public
             </Link>
 
             <button
               onClick={handleLogout}
-              className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/40 text-rose-300 hover:text-rose-200 transition font-medium"
+              className="text-xs px-2.5 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 transition"
             >
               Déconnexion
             </button>
@@ -275,26 +270,26 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="container mx-auto px-4 sm:px-6 flex gap-2 border-t border-white/5 overflow-x-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 border-t border-white/5 overflow-x-auto">
           {[
             { id: 'projects', label: 'Démos & Projets', badge: displayedProjects.length },
+            { id: 'security', label: 'Audits & Tests', badge: displayedProjects.length },
             { id: 'accounts', label: 'Comptes & Profil', badge: isAdmin ? accounts.length + 1 : 1 },
-            { id: 'security', label: 'SecurityHeaders', badge: displayedProjects.length },
             { id: 'context', label: 'Contexte Privé', badge: null },
             { id: 'system', label: 'Supervision VPS', badge: null },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-4 text-xs sm:text-sm font-semibold whitespace-nowrap transition-all border-b-2 flex items-center gap-2 ${
+              className={`py-2.5 px-3.5 text-xs font-medium whitespace-nowrap transition-all border-b-2 flex items-center gap-2 ${
                 activeTab === tab.id
-                  ? 'border-cyan-400 text-cyan-300 bg-cyan-950/30'
+                  ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
                   : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-700'
               }`}
             >
               <span>{tab.label}</span>
               {tab.badge !== null && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-gray-300 border border-slate-700 font-mono">
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-gray-300 border border-slate-700 font-mono">
                   {tab.badge}
                 </span>
               )}
@@ -304,55 +299,54 @@ export default function AdminDashboardPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="container mx-auto px-4 sm:px-6 py-8">
-        {/* UNIFIED TAB: PROJETS, DÉMOS & TRAVAUX */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* TAB 1: PROJETS & DÉMOS */}
         {activeTab === 'projects' && (
-          <div className="space-y-8 animate-fade-in">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white">
-                  {isAdmin ? 'Gestion des Démos, Projets & Mode Travaux' : 'Vos Accès Privés & Démos Réservées'}
+                <h2 className="text-lg font-bold text-white">
+                  {isAdmin ? 'Démos, Projets & Mode Travaux' : 'Vos Accès Privés & Démos'}
                 </h2>
-                <p className="text-sm text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5">
                   {isAdmin
-                    ? 'Modifiez les fiches des projets en direct, choisissez de les afficher ou non sur le portfolio public, et basculez la maintenance en un clic.'
-                    : 'Applications et démonstrations spécifiquement autorisées pour votre compte par l’administrateur.'}
+                    ? 'Gestion des fiches de projets, visibilité portfolio et bascule des travaux en un clic.'
+                    : 'Applications et démonstrations autorisées pour votre compte.'}
                 </p>
               </div>
 
               {isAdmin && (
-                <div className="flex gap-2.5">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowAddProjectModal(true)}
-                    className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center gap-2"
+                    className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium transition"
                   >
-                    <span>+ Ajouter un site ou projet</span>
+                    + Ajouter un projet
                   </button>
                   <button
                     onClick={() => {
                       refreshSites();
                       refreshPortfolioProjects();
-                      showToast('Données synchronisées en direct avec le serveur');
+                      showToast('Données synchronisées');
                     }}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-gray-300 hover:text-white transition flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-gray-300 hover:text-white transition"
                     title="Actualiser depuis le serveur"
                   >
-                    <span>↻</span>
+                    Actualiser
                   </button>
                 </div>
               )}
             </div>
 
             {displayedProjects.length === 0 ? (
-              <div className="p-12 rounded-3xl bg-slate-950/60 border border-slate-800 text-center space-y-3">
-                <span className="text-3xl">🔒</span>
-                <h3 className="text-lg font-bold text-white">Aucun projet assigné pour le moment</h3>
-                <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Votre compte n'a pas encore de démonstrations spécifiques affectées. Veuillez contacter Sofiane pour débloquer des accès.
+              <div className="p-8 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-2">
+                <h3 className="text-sm font-semibold text-white">Aucun projet assigné</h3>
+                <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                  Votre compte n'a pas encore de démonstrations spécifiques affectées.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {displayedProjects.map((item) => (
                   <UnifiedProjectCard
                     key={item.id}
@@ -360,37 +354,28 @@ export default function AdminDashboardPage() {
                     isAdmin={isAdmin}
                     onToggleMaintenance={async (siteId, nextState, patch) => {
                       await toggleSiteMaintenance(siteId, nextState, patch);
-                      showToast(
-                        nextState
-                          ? `🚧 Mode Travaux activé pour ${item.title} !`
-                          : `🟢 ${item.title} est de nouveau EN LIGNE !`
-                      );
+                      showToast(nextState ? `Mode Travaux activé pour ${item.title}` : `${item.title} est en ligne`);
                     }}
                     onTogglePortfolioVisibility={async (id, nextVisible) => {
                       await toggleProjectVisibility(id, nextVisible);
-                      showToast(
-                        nextVisible
-                          ? `👁️ "${item.title}" est maintenant affiché sur le portfolio public`
-                          : `🚫 "${item.title}" a été masqué du portfolio (conservé dans l'admin)`
-                      );
+                      showToast(nextVisible ? `Affiché sur portfolio` : `Masqué du portfolio`);
                     }}
                     onSaveProject={async (projData) => {
                       await savePortfolioProject(projData);
-                      showToast(`Projet "${projData.title}" mis à jour en direct !`);
+                      showToast(`Projet mis à jour`);
                     }}
                     onSaveSiteConfig={async (siteData) => {
                       await saveSiteConfig(siteData);
-                      showToast(`Réglages de travaux enregistrés pour ${siteData.domain}`);
+                      showToast(`Réglages enregistrés`);
                     }}
                     onDeleteFromAdmin={async (id) => {
-                      if (confirm(`Supprimer définitivement "${item.title}" de l'administration ?`)) {
+                      if (confirm(`Supprimer "${item.title}" de l'administration ?`)) {
                         if (item.isProject) await deletePortfolioProject(id);
                         await removeSite(id);
-                        showToast(`Site supprimé de l'admin`);
+                        showToast(`Site supprimé`);
                       }
                     }}
                     onPreview={() => setPreviewSite(item.siteConfig || item)}
-                    onSelectTab={setActiveTab}
                   />
                 ))}
               </div>
@@ -398,109 +383,96 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: COMPTES & MON PROFIL (CLAIREMENT ORGANISÉ) */}
+        {/* TAB 2: AUDITS & TESTS QUALITÉ (Complet avec notes, 6 catégories et auto-analyse) */}
+        {activeTab === 'security' && (
+          <AuditTestsTab sites={displayedProjects} showToast={showToast} />
+        )}
+
+        {/* TAB 3: COMPTES & MON PROFIL */}
         {activeTab === 'accounts' && (
-          <div className="space-y-10 animate-fade-in">
-            {/* Split layout : Section A (Mon Profil) et Section B (Comptes Invités) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-              {/* SECTION A : MON PROFIL & SÉCURITÉ */}
-              <div className="p-6 sm:p-8 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-6">
-                <div className="border-b border-white/5 pb-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      <span>🔒 Mon Profil & Identifiants</span>
-                    </h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-xs font-mono uppercase">
-                      {user?.role || 'Membre'}
-                    </span>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              {/* SECTION A : MON PROFIL */}
+              <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                <div className="border-b border-white/5 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Mon Profil & Identifiants</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Mettez à jour votre mot de passe et nom de session.</p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Personnalisez librement votre identifiant et votre mot de passe de connexion.
-                  </p>
+                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono uppercase">
+                    {user?.role || 'Membre'}
+                  </span>
                 </div>
 
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-mono text-gray-300">
-                      IDENTIFIANT DE CONNEXION
-                    </label>
+                <form onSubmit={handleUpdateProfile} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-400">IDENTIFIANT DE CONNEXION</label>
                     <input
                       type="text"
                       value={myNewId}
                       onChange={(e) => setMyNewId(e.target.value)}
                       placeholder={user?.identifier}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
-                    <p className="text-[11px] text-gray-500">
-                      Actuel : <strong className="text-cyan-400">{user?.identifier}</strong>. Laissez vide pour ne pas modifier.
-                    </p>
+                    <p className="text-[10px] text-gray-500">Actuel : {user?.identifier}. Laissez vide pour ne pas modifier.</p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-mono text-gray-300">
-                      NOUVEAU MOT DE PASSE
-                    </label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-400">NOUVEAU MOT DE PASSE</label>
                     <input
                       type="password"
                       value={myNewPass}
                       onChange={(e) => setMyNewPass(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
-                    <p className="text-[11px] text-gray-500">
-                      Laissez vide pour conserver votre mot de passe actuel.
-                    </p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-mono text-gray-300">NOM D'AFFICHAGE</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-400">NOM D'AFFICHAGE</label>
                     <input
                       type="text"
                       value={myName}
                       onChange={(e) => setMyName(e.target.value)}
                       placeholder="Votre nom ou pseudonyme"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
 
                   {profileMsg && (
-                    <div className="text-xs font-mono text-cyan-300 bg-cyan-950/40 p-3 rounded-xl border border-cyan-500/30">
+                    <div className="text-xs font-mono text-cyan-300 bg-cyan-950/30 p-2 rounded-lg border border-cyan-500/20">
                       {profileMsg}
                     </div>
                   )}
 
                   <button
                     type="submit"
-                    className="w-full py-3 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                    className="w-full py-1.5 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
                   >
                     Sauvegarder mes identifiants
                   </button>
                 </form>
               </div>
 
-              {/* SECTION B : CRÉATION D'ACCÈS SUR-MESURE AVEC SÉLECTION DE CONTENU (Admin Only) */}
+              {/* SECTION B : CRÉATION D'ACCÈS (Admin Only) */}
               {isAdmin ? (
-                <div className="p-6 sm:p-8 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-6">
-                  <div className="border-b border-white/5 pb-4">
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      <span>👥 Créer un Compte & Affecter du Contenu</span>
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Créez un compte pour un client ou collaborateur et choisissez exactement les projets auxquels il a accès.
-                    </p>
+                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-bold text-white">Créer un Compte & Affecter du Contenu</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Créez un compte privé et affectez-lui des projets spécifiques.</p>
                   </div>
 
-                  <form onSubmit={handleCreateAccount} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <form onSubmit={handleCreateAccount} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div className="space-y-1">
                         <label className="text-xs font-mono text-gray-400">IDENTIFIANT</label>
                         <input
                           type="text"
                           value={newAccId}
                           onChange={(e) => setNewAccId(e.target.value)}
-                          placeholder="client-xyz"
+                          placeholder="identifiant"
                           required
-                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                         />
                       </div>
 
@@ -512,20 +484,20 @@ export default function AdminDashboardPage() {
                           onChange={(e) => setNewAccPass(e.target.value)}
                           placeholder="mot de passe"
                           required
-                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div className="space-y-1">
                         <label className="text-xs font-mono text-gray-400">NOM / RÉFÉRENCE</label>
                         <input
                           type="text"
                           value={newAccName}
                           onChange={(e) => setNewAccName(e.target.value)}
-                          placeholder="ex: Entreprise ABC"
-                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          placeholder="Nom du contact"
+                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                         />
                       </div>
 
@@ -534,20 +506,19 @@ export default function AdminDashboardPage() {
                         <select
                           value={newAccPerm}
                           onChange={(e) => setNewAccPerm(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                         >
                           <option value="Accès Démos">Accès Démos Sélectionnées</option>
                           <option value="Client Privé">Client Privé</option>
-                          <option value="Testeur VIP">Testeur VIP</option>
+                          <option value="Testeur">Testeur</option>
                         </select>
                       </div>
                     </div>
 
-                    {/* SELECTEUR DE CONTENU DESTINÉ */}
                     <div className="space-y-2 pt-2 border-t border-slate-800">
                       <div className="flex justify-between items-center">
                         <label className="text-xs font-mono text-cyan-300">
-                          PROJETS & DÉMOS AUTORISÉS POUR CE COMPTE
+                          PROJETS AUTORISÉS ({newAccAllowedProjects.length}/{combinedList.length})
                         </label>
                         <button
                           type="button"
@@ -558,17 +529,17 @@ export default function AdminDashboardPage() {
                               setNewAccAllowedProjects(combinedList.map((c) => c.id));
                             }
                           }}
-                          className="text-[11px] font-mono text-gray-400 hover:text-white underline"
+                          className="text-[10px] font-mono text-gray-400 hover:text-white"
                         >
                           {newAccAllowedProjects.length === combinedList.length ? 'Tout décocher' : 'Tout cocher'}
                         </button>
                       </div>
 
-                      <div className="max-h-40 overflow-y-auto space-y-1.5 p-2.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                      <div className="max-h-32 overflow-y-auto space-y-1 p-2 rounded-lg bg-slate-900 border border-slate-800">
                         {combinedList.map((item) => (
                           <label
                             key={item.id}
-                            className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer text-xs select-none"
+                            className="flex items-center gap-2 p-1 rounded hover:bg-slate-800/50 cursor-pointer text-xs select-none"
                           >
                             <input
                               type="checkbox"
@@ -576,94 +547,84 @@ export default function AdminDashboardPage() {
                               onChange={() => handleToggleProjectAccess(item.id)}
                               className="rounded border-slate-700 text-cyan-500 focus:ring-0"
                             />
-                            <span className="font-semibold text-white">{item.title}</span>
-                            <span className="text-[10px] font-mono text-gray-500 ml-auto">
-                              {item.domain || item.badge}
-                            </span>
+                            <span className="text-white truncate">{item.title}</span>
+                            <span className="text-[10px] font-mono text-gray-500 ml-auto truncate">{item.domain || item.badge}</span>
                           </label>
                         ))}
                       </div>
-                      <p className="text-[11px] text-gray-500">
-                        Ce compte verra uniquement les {newAccAllowedProjects.length} projet(s) sélectionné(s).
-                      </p>
                     </div>
 
-                    {accountMsg && (
-                      <div className="text-xs text-rose-400 font-mono">{accountMsg}</div>
-                    )}
+                    {accountMsg && <div className="text-xs text-rose-400 font-mono">{accountMsg}</div>}
 
                     <button
                       type="submit"
-                      className="w-full py-3 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-[0_0_15px_rgba(6,182,212,0.3)] transition"
+                      className="w-full py-1.5 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
                     >
-                      Créer le compte et affecter les accès
+                      Créer le compte
                     </button>
                   </form>
                 </div>
               ) : (
-                <div className="p-6 rounded-3xl bg-slate-950/60 border border-slate-800 space-y-3 text-xs text-gray-400">
-                  <h4 className="font-bold text-white text-sm">Gestion des Accès</h4>
-                  <p>Votre compte est un compte membre privé. Seul l'administrateur peut créer ou attribuer de nouveaux accès.</p>
+                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-gray-400">
+                  <h4 className="font-semibold text-white text-sm mb-1">Gestion des Accès</h4>
+                  <p>Votre compte est un compte membre privé. Seul l'administrateur peut créer ou modifier des accès.</p>
                 </div>
               )}
             </div>
 
-            {/* TABLEAU DES COMPTES ENREGISTRÉS */}
+            {/* TABLEAU DES COMPTES */}
             {isAdmin && (
-              <div className="p-6 sm:p-8 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-xl space-y-4">
+              <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-base font-bold text-white">Comptes d'accès créés ({accounts.length + 1})</h3>
-                    <p className="text-xs text-gray-400">Liste des utilisateurs autorisés et de leurs projets assignés.</p>
-                  </div>
-                  <span className="text-xs text-gray-500 font-mono">Stockage persistant</span>
+                  <h3 className="text-sm font-bold text-white">Comptes configurés ({accounts.length + 1})</h3>
+                  <span className="text-[11px] text-gray-500 font-mono">Stockage persistant</span>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800 text-gray-400 font-mono">
-                        <th className="py-3 px-3">IDENTIFIANT</th>
-                        <th className="py-3 px-3">RÉFÉRENCE</th>
-                        <th className="py-3 px-3">RÔLE</th>
-                        <th className="py-3 px-3">DÉMOS ASSIGNÉES</th>
-                        <th className="py-3 px-3 text-right">ACTION</th>
+                      <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
+                        <th className="py-2.5 px-3">IDENTIFIANT</th>
+                        <th className="py-2.5 px-3">NOM / RÉFÉRENCE</th>
+                        <th className="py-2.5 px-3">RÔLE</th>
+                        <th className="py-2.5 px-3">PROJETS ASSIGNÉS</th>
+                        <th className="py-2.5 px-3 text-right">ACTION</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-900">
-                      <tr className="bg-cyan-950/20 font-medium">
-                        <td className="py-3 px-3 text-cyan-300 font-mono flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <tbody className="divide-y divide-slate-800/60">
+                      <tr className="bg-cyan-950/10 font-medium">
+                        <td className="py-2.5 px-3 text-cyan-300 font-mono flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                           <span>{user?.identifier} (Actuel)</span>
                         </td>
-                        <td className="py-3 px-3 text-gray-300">{user?.name || 'Sofiane Kherarfa'}</td>
-                        <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px]">
+                        <td className="py-2.5 px-3 text-gray-300">{user?.name || 'Administrateur'}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30 text-cyan-300 text-[10px]">
                             SUPER ADMIN
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-emerald-400 font-mono text-[11px]">
-                          Accès total (Tous les projets)
+                        <td className="py-2.5 px-3 text-emerald-400 font-mono text-[11px]">
+                          Accès total ({combinedList.length} projets)
                         </td>
-                        <td className="py-3 px-3 text-right text-gray-500 text-[11px] italic">
+                        <td className="py-2.5 px-3 text-right text-gray-500 text-[11px] italic">
                           Protégé
                         </td>
                       </tr>
 
                       {accounts.map((acc) => (
-                        <tr key={acc.id} className="hover:bg-slate-900/50 transition">
-                          <td className="py-3 px-3 font-mono text-white">{acc.identifier}</td>
-                          <td className="py-3 px-3 text-gray-300">{acc.name || '-'}</td>
-                          <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded bg-slate-800 text-gray-300 border border-slate-700 text-[10px]">
+                        <tr key={acc.id} className="hover:bg-slate-900/40 transition">
+                          <td className="py-2.5 px-3 font-mono text-white">{acc.identifier}</td>
+                          <td className="py-2.5 px-3 text-gray-300">{acc.name || '-'}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-gray-300 text-[10px]">
                               {acc.permissions || 'Membre'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-gray-400 font-mono text-[11px]">
+                          <td className="py-2.5 px-3 text-gray-400 font-mono text-[11px]">
                             {Array.isArray(acc.allowedProjects) && acc.allowedProjects.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {acc.allowedProjects.map((pId) => (
-                                  <span key={pId} className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-cyan-300 text-[10px]">
+                                  <span key={pId} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-[10px]">
                                     {pId}
                                   </span>
                                 ))}
@@ -672,15 +633,15 @@ export default function AdminDashboardPage() {
                               <span className="text-gray-500 italic">Aucun projet</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-2.5 px-3 text-right">
                             <button
                               onClick={() => {
                                 if (confirm(`Supprimer l'accès pour "${acc.identifier}" ?`)) {
                                   deleteAccount(acc.id);
-                                  showToast(`Compte "${acc.identifier}" supprimé`);
+                                  showToast(`Compte supprimé`);
                                 }
                               }}
-                              className="text-rose-400 hover:text-rose-300 font-mono text-xs underline"
+                              className="text-rose-400 hover:text-rose-300 font-mono text-xs"
                             >
                               Révoquer
                             </button>
@@ -695,14 +656,6 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB SÉCURITÉ : NOTES & AUDIT SECURITYHEADERS.COM (À GAUCHE DE SUPERVISION VPS) */}
-        {activeTab === 'security' && (
-          <SecurityHeadersTab
-            sites={displayedProjects}
-            showToast={showToast}
-          />
-        )}
-
         {/* TAB 4: CONTEXTE PRIVÉ & SYNCHRONISATION */}
         {activeTab === 'context' && (
           <ContextSyncTab showToast={showToast} />
@@ -710,32 +663,30 @@ export default function AdminDashboardPage() {
 
         {/* TAB 5: SUPERVISION VPS */}
         {activeTab === 'system' && (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-5">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white">
-                Supervision Système & Nginx VPS
-              </h2>
-              <p className="text-sm text-gray-400">
+              <h2 className="text-lg font-bold text-white">Supervision Système & Nginx VPS</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
                 Statuts des conteneurs Docker et des certificats SSL sur le serveur principal (51.210.244.46).
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { name: 'azim404.com (Portail)', port: '3001', status: 'En ligne', ssl: 'Let’s Encrypt Valide' },
                 { name: 'sofiane-kherarfa (Portfolio)', port: '3002', status: 'En ligne', ssl: 'Let’s Encrypt Valide' },
                 { name: 'Azim API Hub', port: '5005', status: 'En ligne', ssl: 'Interne Nginx' },
                 { name: 'Nginx Host Proxy', port: '443 / 80', status: 'Actif', ssl: 'HTTP/2 + TLS 1.3' },
               ].map((srv, idx) => (
-                <div key={idx} className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <div key={idx} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-mono text-gray-400">Port {srv.port}</span>
+                    <span className="font-mono text-gray-400 text-[11px]">Port {srv.port}</span>
                     <span className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       {srv.status}
                     </span>
                   </div>
-                  <div className="text-sm font-bold text-white">{srv.name}</div>
+                  <div className="text-xs font-bold text-white">{srv.name}</div>
                   <div className="text-[11px] font-mono text-cyan-400/80">{srv.ssl}</div>
                 </div>
               ))}
@@ -746,24 +697,22 @@ export default function AdminDashboardPage() {
 
       {/* Modal: Ajouter un nouveau site ou projet */}
       {showAddProjectModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-white/5 pb-3">
               <div>
-                <h3 className="text-lg font-black text-white">Ajouter un Projet ou Site Web</h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Contrôlable depuis l'admin avec son mode travaux en 1 clic.
-                </p>
+                <h3 className="text-base font-bold text-white">Ajouter un Projet ou Site Web</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Contrôlable depuis l'admin avec son mode travaux en 1 clic.</p>
               </div>
               <button
                 onClick={() => setShowAddProjectModal(false)}
                 className="text-gray-400 hover:text-white p-1 text-sm font-mono"
               >
-                ✕
+                Fermer
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="space-y-4">
+            <form onSubmit={handleCreateProject} className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-mono text-gray-300">TITRE DU PROJET</label>
                 <input
@@ -772,22 +721,22 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="ex: WikiGame, Nexus Portal..."
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-mono text-gray-300">DESCRIPTION (SUR LE PORTFOLIO)</label>
+                <label className="text-xs font-mono text-gray-300">DESCRIPTION (PORTFOLIO)</label>
                 <textarea
                   rows={2}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Brève description du projet..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-mono text-gray-300">STACK TECHNOLOGIQUE</label>
                   <input
@@ -795,23 +744,23 @@ export default function AdminDashboardPage() {
                     value={newStack}
                     onChange={(e) => setNewStack(e.target.value)}
                     placeholder="React, Node.js, Docker"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
+                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-mono text-gray-300">STATUS EN HAUT À DROITE</label>
+                  <label className="text-xs font-mono text-gray-300">STATUT BADGE</label>
                   <input
                     type="text"
                     value={newBadge}
                     onChange={(e) => setNewBadge(e.target.value)}
-                    placeholder="ex: En ligne, En dev, Démo..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 text-xs"
+                    placeholder="ex: En ligne, En dev..."
+                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-mono text-gray-300">LIEN / URL COMPLÈTE</label>
                   <input
@@ -819,7 +768,7 @@ export default function AdminDashboardPage() {
                     value={newLink}
                     onChange={(e) => setNewLink(e.target.value)}
                     placeholder="https://monsite.azim404.com/"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
+                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
 
@@ -830,68 +779,34 @@ export default function AdminDashboardPage() {
                     value={newDomain}
                     onChange={(e) => setNewDomain(e.target.value)}
                     placeholder="monsite.azim404.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
+                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
               </div>
 
-              {/* Visibilité sur le portfolio */}
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-white block">Afficher sur le portfolio public</span>
-                  <span className="text-[11px] text-gray-400">Désactivez pour garder le site privé dans l'admin uniquement</span>
-                </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-white">Afficher sur le portfolio public</span>
                 <input
                   type="checkbox"
                   checked={newVisibleOnPortfolio}
                   onChange={(e) => setNewVisibleOnPortfolio(e.target.checked)}
-                  className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                  className="rounded border-slate-700 text-cyan-500 focus:ring-0"
                 />
               </div>
 
-              {/* Autorisation synchronisation contexte privé */}
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold text-white block">Autoriser la synchronisation du contexte privé</span>
-                    <span className="text-[11px] text-gray-400">Ajoute automatiquement le projet à la liste et synchronise le dossier agent/</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={newAllowContextSync}
-                    onChange={(e) => setNewAllowContextSync(e.target.checked)}
-                    className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-4 h-4 cursor-pointer"
-                  />
-                </div>
-                {newAllowContextSync && (
-                  <div className="pt-2 border-t border-slate-800/80">
-                    <label className="text-[10px] font-mono text-gray-400 block mb-1">
-                      DOSSIER LOCAL / VPS (LAISSER VIDE POUR AUTO-DÉTECTER)
-                    </label>
-                    <input
-                      type="text"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      placeholder="ex: nouveau-projet"
-                      className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-3">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddProjectModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-gray-300 text-xs font-medium hover:bg-slate-800"
+                  className="flex-1 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-gray-300 text-xs hover:bg-slate-800"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                  className="flex-1 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
                 >
-                  Enregistrer le site
+                  Enregistrer
                 </button>
               </div>
             </form>
@@ -902,18 +817,15 @@ export default function AdminDashboardPage() {
       {/* Preview Modal for Maintenance Screen */}
       {previewSite && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
-          <div className="bg-slate-900 border-b border-slate-700 px-6 py-3 flex justify-between items-center">
-            <span className="text-xs font-mono text-amber-400 flex items-center gap-2">
-              <span>👁</span>
-              <span>
-                Aperçu du template de travaux pour : <strong>{previewSite.domain || previewSite.title}</strong>
-              </span>
+          <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
+            <span className="text-xs font-mono text-gray-300">
+              Aperçu travaux : <strong className="text-white">{previewSite.domain || previewSite.title}</strong>
             </span>
             <button
               onClick={() => setPreviewSite(null)}
-              className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-gray-200 transition font-mono"
+              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-gray-200 transition font-mono"
             >
-              ✕ Fermer l'aperçu
+              Fermer l'aperçu
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -930,7 +842,7 @@ export default function AdminDashboardPage() {
   );
 }
 
-// Composant Carte Unifiée avec synchronisation en DIRECT
+// Composant Carte Unifiée
 function UnifiedProjectCard({
   item,
   isAdmin,
@@ -940,11 +852,9 @@ function UnifiedProjectCard({
   onSaveSiteConfig,
   onDeleteFromAdmin,
   onPreview,
-  onSelectTab,
 }) {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Synchronise les champs avec les props pour réactivité immédiate
   const [title, setTitle] = useState(item.title || '');
   const [description, setDescription] = useState(item.description || '');
   const [technologies, setTechnologies] = useState((item.technologies || []).join(', '));
@@ -979,7 +889,6 @@ function UnifiedProjectCard({
   const bypassUrl = item.domain ? `https://${item.domain}/?admin_bypass=azim404` : item.link;
 
   const handleSaveAll = () => {
-    // 1. Sauvegarde des données du projet (Portfolio)
     if (item.isProject) {
       onSaveProject({
         id: item.id,
@@ -994,7 +903,6 @@ function UnifiedProjectCard({
       });
     }
 
-    // 2. Sauvegarde des données de maintenance
     const cleanDomain = (domain || item.domain).replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
     if (cleanDomain) {
       onSaveSiteConfig({
@@ -1014,93 +922,86 @@ function UnifiedProjectCard({
 
   return (
     <div
-      className={`p-6 sm:p-8 rounded-3xl border transition-all flex flex-col justify-between ${
+      className={`p-4 sm:p-5 rounded-xl border flex flex-col justify-between transition-all ${
         item.inMaintenance
-          ? 'bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border-amber-500/40 shadow-[0_0_35px_rgba(245,158,11,0.15)]'
-          : 'bg-slate-950/80 border-slate-800 shadow-xl'
+          ? 'bg-slate-950 border-amber-500/40 shadow-sm'
+          : 'bg-slate-950/80 border-slate-800'
       }`}
     >
-      <div>
-        {/* Card Header with Status Badge on Top Right */}
-        <div className="flex justify-between items-start mb-4 gap-4">
-          <div>
+      <div className="space-y-3">
+        {/* Header */}
+        <div className="flex justify-between items-start gap-2">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
+              <span className="text-[10px] font-mono uppercase text-gray-400 truncate">
                 {item.domain || 'Projet'}
               </span>
-
               {item.isProject && (
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
                   item.visibleOnPortfolio
-                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500/30'
+                    ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/30'
                     : 'bg-slate-900 text-gray-400 border-slate-700'
                 }`}>
-                  {item.visibleOnPortfolio ? '👁️ Sur Portfolio' : '🚫 Masqué Portfolio'}
+                  {item.visibleOnPortfolio ? 'Sur Portfolio' : 'Masqué Portfolio'}
                 </span>
               )}
             </div>
-            <h3 className="text-xl font-bold text-white mt-1">{item.title}</h3>
+            <h3 className="text-sm font-bold text-white mt-0.5 truncate">{item.title}</h3>
           </div>
 
-          {/* Status Badge in Top Right */}
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 text-xs font-semibold shadow-md">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-[10px] font-medium">
               {item.badge}
             </span>
-
             {item.inMaintenance && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-mono font-bold animate-pulse">
-                TRAVAUX ACTIFS
+              <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 text-[10px] font-mono">
+                TRAVAUX
               </span>
             )}
           </div>
         </div>
 
-        {/* Description & Stack */}
-        <p className="text-xs sm:text-sm text-gray-300 leading-relaxed mb-4 line-clamp-2">
+        {/* Description */}
+        <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
           {item.description}
         </p>
 
-        {/* Technologies Pills */}
-        <div className="flex flex-wrap gap-1.5 mb-6">
+        {/* Stack */}
+        <div className="flex flex-wrap gap-1">
           {(item.technologies || []).map((tech, idx) => (
             <span
               key={idx}
-              className="text-[11px] px-2.5 py-1 rounded-md bg-slate-900 text-cyan-300/90 border border-slate-700/80 font-mono"
+              className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-gray-300 border border-slate-800 font-mono"
             >
               {tech}
             </span>
           ))}
         </div>
 
-        {/* Quick Actions (Bypass + Launch) */}
-        <div className="flex flex-wrap items-center gap-2 mb-6">
+        {/* Quick Links */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <a
             href={bypassUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] font-mono px-3 py-1 rounded-full bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 flex items-center gap-1.5 transition shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-            title="Ouvrir le site avec votre dérogation administrateur active"
+            className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 transition"
           >
-            <span>⚡ Accéder (Bypass Actif)</span>
-            <span>↗</span>
+            Accès Bypass
           </a>
 
           <a
             href={item.link || `https://${item.domain}/`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] font-mono px-3 py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 hover:text-white flex items-center gap-1.5 transition"
+            className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-400 hover:text-white transition"
           >
-            <span>Lien direct</span>
-            <span>↗</span>
+            Lien direct
           </a>
         </div>
 
-
-        {/* 1-Click Kill-Switch Maintenance Toggle */}
+        {/* 1-Click Travaux Toggle */}
         {isAdmin && (
-          <div className="mb-4">
+          <div className="pt-2">
             <button
               onClick={() => {
                 const nextState = !item.inMaintenance;
@@ -1113,164 +1014,109 @@ function UnifiedProjectCard({
                   targetPages,
                 });
               }}
-              className={`w-full py-3.5 px-6 rounded-2xl font-bold text-xs sm:text-sm tracking-wide transition-all shadow-lg flex items-center justify-center gap-2.5 ${
+              className={`w-full py-1.5 px-3 rounded-lg text-xs font-semibold tracking-wide transition ${
                 item.inMaintenance
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
-                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_25px_rgba(245,158,11,0.3)]'
+                  ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                  : 'bg-amber-700 hover:bg-amber-600 text-white'
               }`}
             >
-              {item.inMaintenance ? (
-                <>
-                  <span>🟢</span>
-                  <span>DÉSACTIVER LES TRAVAUX — REMETTRE EN LIGNE</span>
-                </>
-              ) : (
-                <>
-                  <span>🚧</span>
-                  <span>METTRE CE SITE EN TRAVAUX (1 CLIC)</span>
-                </>
-              )}
+              {item.inMaintenance
+                ? 'Désactiver les travaux (Remettre en ligne)'
+                : 'Mettre ce site en travaux (1 clic)'}
             </button>
           </div>
         )}
 
-        {/* Edit Panel (Titre, Description, Stack, Status, Domaine, Portée) */}
+        {/* Edit Panel */}
         {isAdmin && (
-          <div className="pt-4 border-t border-white/5 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-mono text-gray-400">ÉDITION & PARAMÈTRES</span>
+          <div className="pt-2 border-t border-slate-800/80 space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono text-gray-500 text-[11px]">CONFIGURATION</span>
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="text-xs text-cyan-400 hover:text-cyan-300 underline font-mono"
+                className="text-cyan-400 hover:text-cyan-300 text-xs font-mono"
               >
-                {isEditing ? 'Fermer' : 'Modifier les infos / travaux'}
+                {isEditing ? 'Fermer' : 'Modifier'}
               </button>
             </div>
 
             {isEditing && (
-              <div className="space-y-3.5 animate-fade-in bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+              <div className="space-y-2.5 pt-2 bg-slate-900/50 p-3 rounded-lg border border-slate-800 text-xs">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-mono text-gray-400">TITRE DU PROJET</label>
+                  <label className="text-[10px] font-mono text-gray-400">TITRE</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full h-7 px-2.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-mono text-gray-400">DESCRIPTION (SUR LE PORTFOLIO)</label>
+                  <label className="text-[10px] font-mono text-gray-400">DESCRIPTION</label>
                   <textarea
                     rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full p-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-mono text-gray-400">STACK TECHNOLOGIQUE</label>
+                    <label className="text-[10px] font-mono text-gray-400">STACK</label>
                     <input
                       type="text"
                       value={technologies}
                       onChange={(e) => setTechnologies(e.target.value)}
-                      className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
-
                   <div className="space-y-1">
-                    <label className="text-[11px] font-mono text-gray-400">STATUS EN HAUT À DROITE</label>
+                    <label className="text-[10px] font-mono text-gray-400">STATUT</label>
                     <input
                       type="text"
                       value={badge}
                       onChange={(e) => setBadge(e.target.value)}
-                      className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-mono text-gray-400">LIEN / URL</label>
+                    <label className="text-[10px] font-mono text-gray-400">LIEN</label>
                     <input
                       type="text"
                       value={link}
                       onChange={(e) => setLink(e.target.value)}
-                      className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
-
                   <div className="space-y-1">
-                    <label className="text-[11px] font-mono text-gray-400">NOM DE DOMAINE (TRAVAUX)</label>
+                    <label className="text-[10px] font-mono text-gray-400">DOMAINE</label>
                     <input
                       type="text"
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      placeholder="ex: fansite.azim404.com"
-                      className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
 
-                {/* Scope & maintenance message */}
-                <div className="space-y-1 pt-2 border-t border-slate-800">
-                  <label className="text-[11px] font-mono text-gray-400">PORTÉE DES TRAVAUX</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setScope('ALL')}
-                      className={`py-1.5 px-2 rounded-lg border text-xs font-mono ${
-                        scope === 'ALL'
-                          ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                          : 'bg-slate-950 border-slate-800 text-gray-400'
-                      }`}
-                    >
-                      Tout le site
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScope('SPECIFIC')}
-                      className={`py-1.5 px-2 rounded-lg border text-xs font-mono ${
-                        scope === 'SPECIFIC'
-                          ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                          : 'bg-slate-950 border-slate-800 text-gray-400'
-                      }`}
-                    >
-                      Pages spécifiques
-                    </button>
-                  </div>
-                </div>
-
-                {scope === 'SPECIFIC' && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-mono text-amber-300">
-                      PAGES CIBLÉES (ex: /projets, /contact)
-                    </label>
-                    <input
-                      type="text"
-                      value={targetPages}
-                      onChange={(e) => setTargetPages(e.target.value)}
-                      className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
-                      placeholder="/projets, /contact"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-mono text-gray-400">MESSAGE DE TRAVAUX (VU PAR LES VISITEURS)</label>
+                <div className="space-y-1 pt-1 border-t border-slate-800">
+                  <label className="text-[10px] font-mono text-gray-400">MESSAGE DE TRAVAUX</label>
                   <textarea
                     rows={2}
                     value={mMessage}
                     onChange={(e) => setMMessage(e.target.value)}
-                    className="w-full p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full p-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
                 <button
                   onClick={handleSaveAll}
-                  className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-md"
+                  className="w-full py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
                 >
                   Enregistrer les modifications
                 </button>
@@ -1280,40 +1126,32 @@ function UnifiedProjectCard({
         )}
       </div>
 
-      {/* Card Footer Actions : Visibilité Portfolio vs Suppression Admin */}
+      {/* Footer */}
       {isAdmin && (
-        <div className="pt-4 mt-4 border-t border-white/5 flex flex-wrap gap-2 justify-between items-center">
+        <div className="pt-3 mt-3 border-t border-slate-800 flex justify-between items-center text-xs">
           <button
             onClick={onPreview}
-            className="text-xs text-gray-400 hover:text-white transition font-mono flex items-center gap-1"
+            className="text-gray-400 hover:text-white transition font-mono text-[11px]"
           >
-            <span>👁 Aperçu travaux</span>
+            Aperçu travaux
           </button>
 
-          <div className="flex items-center gap-3">
-            {/* Toggle Afficher / Retirer du portfolio public SANS supprimer de l'admin */}
+          <div className="flex items-center gap-2">
             {item.isProject && (
               <button
                 onClick={() => onTogglePortfolioVisibility(item.id, !item.visibleOnPortfolio)}
-                className={`text-xs font-mono px-2.5 py-1 rounded-lg border transition ${
-                  item.visibleOnPortfolio
-                    ? 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
-                    : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
-                }`}
-                title={item.visibleOnPortfolio ? "Masquer ce projet du portfolio public tout en le gardant dans l'admin" : "Ré-afficher ce projet sur le portfolio public"}
+                className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-gray-300 hover:text-white transition"
               >
-                {item.visibleOnPortfolio ? 'Masquer du portfolio' : 'Ré-afficher sur le portfolio'}
+                {item.visibleOnPortfolio ? 'Masquer portfolio' : 'Afficher portfolio'}
               </button>
             )}
 
-            {/* Supprimer définitivement de l'admin */}
             {item.id !== 'portfolio' && item.id !== 'azim404' && (
               <button
                 onClick={() => onDeleteFromAdmin(item.id)}
-                className="text-xs text-rose-400/80 hover:text-rose-300 transition font-mono underline"
-                title="Supprime définitivement ce site de l'administration et du portfolio"
+                className="text-[11px] text-rose-400/80 hover:text-rose-300 font-mono transition"
               >
-                Supprimer de l'Admin
+                Supprimer
               </button>
             )}
           </div>
@@ -1323,68 +1161,53 @@ function UnifiedProjectCard({
   );
 }
 
-// Onglet audit de securite - vue table compacte avec auto-analyse
-function SecurityHeadersTab({ sites, showToast }) {
-  const [audits, setAudits] = useState(() => {
-    try {
-      const stored = localStorage.getItem('azim_securityheaders_cache');
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
+// Onglet Audit & Tests complet (Référentiel complet 6 catégories avec notes et vue d'ensemble)
+function AuditTestsTab({ sites, showToast }) {
+  const [auditsSH, setAuditsSH] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('azim_sh_cache') || '{}'); } catch { return {}; }
+  });
+  const [auditsObs, setAuditsObs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('azim_obs_cache') || '{}'); } catch { return {}; }
+  });
+  const [auditsSSL, setAuditsSSL] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('azim_ssl_cache') || '{}'); } catch { return {}; }
   });
 
   const [loadingMap, setLoadingMap] = useState({});
   const [globalLoading, setGlobalLoading] = useState(false);
-  const [expandedDomain, setExpandedDomain] = useState(null);
+  const [selectedDomain, setSelectedDomain] = useState(null);
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState('ALL');
   const hasAutoRun = useRef(false);
 
-  const AUDIT_TOOLS = (dom) => [
-    { id: 'securityheaders', name: 'SecurityHdr', desc: 'En-têtes HTTP (note A+ à F)', url: `https://securityheaders.com/?q=${encodeURIComponent(dom)}&followRedirects=on` },
-    { id: 'ssllabs', name: 'SSL Labs', desc: 'Audit SSL/TLS complet', url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(dom)}` },
-    { id: 'observatory', name: 'Observatory', desc: 'En-têtes, TLS, bonnes pratiques', url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(dom)}` },
-    { id: 'pagespeed', name: 'PageSpeed', desc: 'Core Web Vitals, SEO, accessibilité', url: `https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(dom)}%2F` },
-    { id: 'wave', name: 'WAVE', desc: 'Accessibilité visuelle (ARIA, contrastes)', url: `https://wave.webaim.org/report#/https://${encodeURIComponent(dom)}` },
-    { id: 'blacklight', name: 'Blacklight', desc: 'Trackers, fingerprinting', url: `https://themarkup.org/blacklight?url=${encodeURIComponent(dom)}` },
-    { id: '2gdpr', name: '2GDPR', desc: 'Conformité RGPD et cookies', url: `https://2gdpr.com/?url=${encodeURIComponent(dom)}` },
-  ];
-
-  const saveAudit = (domain, data) => {
-    setAudits((prev) => {
+  const saveTo = (setter, key, domain, data) => {
+    setter((prev) => {
       const updated = { ...prev, [domain]: data };
-      try { localStorage.setItem('azim_securityheaders_cache', JSON.stringify(updated)); } catch {}
+      try { localStorage.setItem(key, JSON.stringify(updated)); } catch {}
       return updated;
     });
   };
 
-  const fetchWithRetry = async (url, retries = 3, delay = 600) => {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok && res.status >= 500 && attempt < retries) {
-          await new Promise((r) => setTimeout(r, delay * attempt));
-          continue;
-        }
-        return await res.json();
-      } catch (err) {
-        if (attempt === retries) throw err;
-        await new Promise((r) => setTimeout(r, delay * attempt));
-      }
-    }
+  const fetchJSON = async (url, timeout = 30000) => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    return res.json();
   };
 
-  const runAudit = async (rawDomain) => {
-    const cleanDomain = (rawDomain || '').trim().toLowerCase()
-      .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
-    if (!cleanDomain) return;
-    setLoadingMap((prev) => ({ ...prev, [cleanDomain]: true }));
+  const runAuditDomain = async (dom) => {
+    if (!dom) return;
+    setLoadingMap((prev) => ({ ...prev, [dom]: true }));
     try {
-      const data = await fetchWithRetry(`/api/site-status/audit-headers?domain=${encodeURIComponent(cleanDomain)}`, 3, 600);
-      saveAudit(cleanDomain, data);
+      const [shData, obsData, sslData] = await Promise.allSettled([
+        fetchJSON(`/api/site-status/audit-headers?domain=${encodeURIComponent(dom)}`, 12000),
+        fetchJSON(`/api/site-status/audit-observatory?domain=${encodeURIComponent(dom)}`, 35000),
+        fetchJSON(`/api/site-status/audit-ssllabs?domain=${encodeURIComponent(dom)}`, 100000),
+      ]);
+      if (shData.status === 'fulfilled') saveTo(setAuditsSH, 'azim_sh_cache', dom, shData.value);
+      if (obsData.status === 'fulfilled') saveTo(setAuditsObs, 'azim_obs_cache', dom, obsData.value);
+      if (sslData.status === 'fulfilled') saveTo(setAuditsSSL, 'azim_ssl_cache', dom, sslData.value);
     } catch (err) {
-      saveAudit(cleanDomain, { success: false, domain: cleanDomain, grade: '?', score: 0, error: `Erreur : ${err.message}` });
+      saveTo(setAuditsSH, 'azim_sh_cache', dom, { success: false, domain: dom, grade: '?', error: err.message });
     } finally {
-      setLoadingMap((prev) => ({ ...prev, [cleanDomain]: false }));
+      setLoadingMap((prev) => ({ ...prev, [dom]: false }));
     }
   };
 
@@ -1397,14 +1220,13 @@ function SecurityHeadersTab({ sites, showToast }) {
   const runAuditAll = async () => {
     setGlobalLoading(true);
     for (const site of validSites) {
-      await runAudit(site.cleanDomain);
-      await new Promise((r) => setTimeout(r, 300));
+      await runAuditDomain(site.cleanDomain);
+      await new Promise((r) => setTimeout(r, 200));
     }
     setGlobalLoading(false);
-    showToast?.('Analyse terminée pour tous les sites');
+    showToast?.('Analyse globale terminée');
   };
 
-  // Auto-analyse au premier affichage
   useEffect(() => {
     if (hasAutoRun.current || validSites.length === 0) return;
     hasAutoRun.current = true;
@@ -1412,155 +1234,553 @@ function SecurityHeadersTab({ sites, showToast }) {
   }, [validSites.length]);
 
   const gradeColor = (grade) => {
-    if (grade === 'A+' || grade === 'A') return 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
+    if (!grade || grade === '?' || grade === '-') return 'text-gray-400 bg-slate-900 border-slate-700';
+    if (grade === 'A+') return 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50';
+    if (grade === 'A' || grade === 'A-') return 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
     if (grade === 'B') return 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
     if (grade === 'C') return 'text-amber-400 bg-amber-950/40 border-amber-500/40';
-    if (grade === 'D' || grade === 'F') return 'text-rose-400 bg-rose-950/40 border-rose-500/40';
-    return 'text-gray-400 bg-slate-900 border-slate-700';
+    if (grade === 'D' || grade === 'E') return 'text-orange-400 bg-orange-950/40 border-orange-500/40';
+    return 'text-rose-400 bg-rose-950/40 border-rose-500/40';
   };
 
-  const testedCount = validSites.filter((s) => audits[s.cleanDomain]?.success).length;
+  const GradeBadge = ({ grade, loading, href, title: badgeTitle }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" title={badgeTitle} className="inline-flex">
+      {loading ? (
+        <span className="w-9 h-6 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
+          <span className="w-2.5 h-2.5 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
+        </span>
+      ) : (
+        <span className={`w-9 h-6 rounded border text-[11px] font-black flex items-center justify-center transition ${gradeColor(grade)}`}>
+          {grade || '-'}
+        </span>
+      )}
+    </a>
+  );
+
+  const selectedSite = validSites.find((s) => s.cleanDomain === selectedDomain) || validSites[0];
+  const dom = selectedSite?.cleanDomain;
+  const sh = dom ? auditsSH[dom] : null;
+  const obs = dom ? auditsObs[dom] : null;
+  const ssl = dom ? auditsSSL[dom] : null;
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Audit de securite</h2>
-          <p className="text-xs text-gray-400 mt-0.5 font-mono">
-            {testedCount}/{validSites.length} sites analyses — SecurityHeaders analyse automatiquement, les autres outils s'ouvrent en un clic
+          <h2 className="text-lg font-bold text-white">Audits & Conformité Technique</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Sécurité (SecurityHeaders, Observatory, SSL Labs), SEO, Accessibilité, RGPD et Qualité de code.
           </p>
         </div>
+
         <button
           type="button"
           onClick={runAuditAll}
           disabled={globalLoading}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50 shrink-0"
+          className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white text-xs font-medium transition flex items-center gap-2 shrink-0"
         >
           {globalLoading ? (
             <>
-              <span className="w-2.5 h-2.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
-              <span>Analyse...</span>
+              <span className="w-2.5 h-2.5 rounded-full border border-white border-t-transparent animate-spin" />
+              <span>Analyse en cours...</span>
             </>
           ) : (
-            <span>Relancer l'analyse</span>
+            <span>Tout analyser</span>
           )}
         </button>
       </div>
 
-      {/* Table compacte */}
-      <div className="rounded-2xl border border-slate-800 overflow-hidden">
-        {/* En-tête table */}
-        <div className="grid text-[10px] font-mono text-gray-500 px-4 py-2 bg-slate-950 border-b border-slate-800"
-          style={{ gridTemplateColumns: '1fr 56px repeat(7, 80px) 28px' }}>
-          <span>DOMAINE</span>
-          <span className="text-center">NOTE</span>
-          <span className="text-center">SHdr</span>
-          <span className="text-center">SSL</span>
-          <span className="text-center">Obsvr</span>
-          <span className="text-center">Speed</span>
-          <span className="text-center">WAVE</span>
-          <span className="text-center">BLight</span>
-          <span className="text-center">RGPD</span>
-          <span />
+      {/* Overview Table */}
+      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
+                <th className="py-2.5 px-3">SITE / DOMAINE</th>
+                <th className="py-2.5 px-3 text-center">SECURITY HEADERS</th>
+                <th className="py-2.5 px-3 text-center">OBSERVATORY</th>
+                <th className="py-2.5 px-3 text-center">SSL LABS</th>
+                <th className="py-2.5 px-3 text-center">ENSEMBLE DES TESTS</th>
+                <th className="py-2.5 px-3 text-right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {validSites.map((site) => {
+                const sDom = site.cleanDomain;
+                const sSh = auditsSH[sDom];
+                const sObs = auditsObs[sDom];
+                const sSsl = auditsSSL[sDom];
+                const isLoading = loadingMap[sDom];
+                const isSelected = selectedDomain === sDom;
+
+                return (
+                  <tr
+                    key={site.id || sDom}
+                    className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
+                  >
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-white truncate max-w-[200px]">
+                        {site.title || site.name || sDom}
+                      </div>
+                      <div className="text-[10px] font-mono text-gray-500 truncate max-w-[200px]">
+                        {sDom}
+                      </div>
+                    </td>
+
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <GradeBadge
+                          grade={sSh?.grade}
+                          loading={isLoading && !sSh}
+                          href={`https://securityheaders.com/?q=${encodeURIComponent(sDom)}&followRedirects=on`}
+                          title={`SecurityHeaders — ${sSh?.grade || 'Non analysé'}${sSh?.score != null ? ` (${sSh.score}/100)` : ''}`}
+                        />
+                        {sSh?.score != null && (
+                          <span className="text-[10px] font-mono text-gray-400">{sSh.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <GradeBadge
+                          grade={sObs?.grade}
+                          loading={isLoading && !sObs}
+                          href={`https://observatory.mozilla.org/analyze/${encodeURIComponent(sDom)}`}
+                          title={`Mozilla Observatory — ${sObs?.grade || 'Non analysé'}`}
+                        />
+                        {sObs?.score != null && (
+                          <span className="text-[10px] font-mono text-gray-400">{sObs.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="py-2.5 px-3 text-center">
+                      <GradeBadge
+                        grade={sSsl?.grade}
+                        loading={isLoading && !sSsl}
+                        href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(sDom)}`}
+                        title={`Qualys SSL Labs — ${sSsl?.grade || 'Non analysé'}`}
+                      />
+                    </td>
+
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDomain(isSelected ? null : sDom)}
+                        className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
+                          isSelected
+                            ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                            : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        {isSelected ? 'Masquer le détail' : 'Voir les 6 catégories'}
+                      </button>
+                    </td>
+
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => runAuditDomain(sDom)}
+                        disabled={isLoading}
+                        className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline disabled:opacity-50"
+                      >
+                        {isLoading ? 'Analyse...' : 'Analyser'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        {/* Lignes */}
-        {validSites.map((site) => {
-          const dom = site.cleanDomain;
-          const audit = audits[dom];
-          const isLoading = loadingMap[dom];
-          const tools = AUDIT_TOOLS(dom);
+      {/* FULL TEST SUITE DETAIL PANEL */}
+      {selectedDomain && (
+        <div className="p-5 rounded-xl border border-cyan-500/40 bg-slate-950 space-y-5 animate-fade-in shadow-xl">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-cyan-400 uppercase">ENSEMBLE DES TESTS</span>
+                <span className="text-xs text-gray-500">•</span>
+                <span className="text-sm font-bold text-white">{selectedSite?.title || selectedDomain}</span>
+                <span className="text-xs font-mono text-gray-400">({selectedDomain})</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Audit complet selon le référentiel : Sécurité réseau, Référencement/Accessibilité, RGPD, Git, Qualité de code et Vulnérabilités.
+              </p>
+            </div>
 
-          return (
-            <div key={site.id || dom}>
-              <div
-                className="grid items-center px-4 py-2.5 border-b border-slate-800/60 hover:bg-slate-900/40 transition text-xs"
-                style={{ gridTemplateColumns: '1fr 56px repeat(7, 80px) 28px' }}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => runAuditDomain(selectedDomain)}
+                disabled={loadingMap[selectedDomain]}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-gray-200 transition"
               >
-                {/* Domaine */}
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-200 truncate">{site.title || site.name || dom}</div>
-                  <div className="text-[10px] font-mono text-gray-500 truncate">{dom}</div>
+                {loadingMap[selectedDomain] ? 'Analyse en cours...' : 'Relancer pour ce site'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDomain(null)}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-gray-400 hover:text-white"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+
+          {/* Category Filters */}
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { id: 'ALL', label: 'Toutes les catégories' },
+              { id: '1', label: '1. Sécurité & TLS' },
+              { id: '2', label: '2. SEO & Accessibilité' },
+              { id: '3', label: '3. RGPD & Cookies' },
+              { id: '4', label: '4. Fuites Git' },
+              { id: '5', label: '5. Qualité de code' },
+              { id: '6', label: '6. Vulnérabilités' },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setActiveCategoryFilter(cat.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono transition border ${
+                  activeCategoryFilter === cat.id
+                    ? 'bg-cyan-950 border-cyan-500/50 text-cyan-300'
+                    : 'bg-slate-900 border-slate-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            {/* CAT 1: SÉCURITÉ RÉSEAU, TLS & EN-TÊTES */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '1') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">1. SÉCURITÉ RÉSEAU, TLS & EN-TÊTES</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Auto-analysé</span>
                 </div>
 
-                {/* Note SecurityHeaders */}
-                <div className="flex justify-center">
-                  {isLoading ? (
-                    <span className="w-4 h-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
-                  ) : (
-                    <span className={`w-9 h-7 rounded-lg border text-[11px] font-black flex items-center justify-center ${gradeColor(audit?.grade)}`}>
-                      {audit?.grade || '–'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Liens outils */}
-                {tools.map((tool) => (
-                  <div key={tool.id} className="flex justify-center">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* SecurityHeaders */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-white">SecurityHeaders</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(sh?.grade)}`}>
+                        {sh?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Score : <strong className="text-white">{sh?.score ?? '-'} / 100</strong>
+                    </div>
                     <a
-                      href={tool.url}
+                      href={`https://securityheaders.com/?q=${encodeURIComponent(selectedDomain)}&followRedirects=on`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title={tool.desc}
-                      className="text-[10px] font-mono text-gray-400 hover:text-cyan-300 transition px-1.5 py-1 rounded-lg hover:bg-slate-800 flex items-center gap-0.5"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
                     >
-                      <span>{tool.name}</span>
-                      <span className="text-[8px]">↗</span>
+                      Rapport officiel securityheaders.com
                     </a>
                   </div>
-                ))}
 
-                {/* Bouton détails */}
-                <div className="flex justify-end">
-                  {audit?.checks && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedDomain(expandedDomain === dom ? null : dom)}
-                      title="Voir détail en-têtes"
-                      className="text-[10px] font-mono text-gray-500 hover:text-cyan-400 transition"
+                  {/* Mozilla Observatory */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-white">Mozilla Observatory</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(obs?.grade)}`}>
+                        {obs?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Score : <strong className="text-white">{obs?.score ?? '-'} / 100</strong>
+                    </div>
+                    <a
+                      href={`https://observatory.mozilla.org/analyze/${encodeURIComponent(selectedDomain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
                     >
-                      {expandedDomain === dom ? '▲' : '▼'}
-                    </button>
-                  )}
+                      Rapport Mozilla Observatory
+                    </a>
+                  </div>
+
+                  {/* Qualys SSL Labs */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-white">Qualys SSL Labs</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(ssl?.grade)}`}>
+                        {ssl?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Certificat TLS & suites de chiffrement
+                    </div>
+                    <a
+                      href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(selectedDomain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Rapport complet Qualys SSL Labs
+                    </a>
+                  </div>
+                </div>
+
+                {/* En-têtes HTTP décortiqués */}
+                {sh?.checks && (
+                  <div className="space-y-2 pt-2">
+                    <span className="text-[11px] font-mono text-gray-400 block">DÉTAIL DES 6 EN-TÊTES DE SÉCURITÉ :</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {Object.entries(sh.checks).map(([key, check]) => (
+                        <div
+                          key={key}
+                          className={`p-2 rounded-lg border text-xs space-y-1 ${
+                            check.present
+                              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                              : 'bg-rose-950/15 border-rose-500/20 text-rose-300'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center font-mono">
+                            <span className="font-bold">{check.name || key.toUpperCase()}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800">
+                              {check.present ? 'Présent' : 'Manquant'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-400 leading-tight">{check.desc}</p>
+                          {check.value && (
+                            <code className="text-[10px] font-mono text-gray-300 block truncate bg-slate-950 px-1 py-0.5 rounded">
+                              {check.value}
+                            </code>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CAT 2: RÉFÉRENCEMENT, ACCESSIBILITÉ & PERFORMANCE */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '2') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">2. RÉFÉRENCEMENT (SEO), ACCESSIBILITÉ & PERFORMANCE</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Audits web</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">Google PageSpeed / Lighthouse</div>
+                    <p className="text-[11px] text-gray-400">Core Web Vitals, SEO technique, performance et accessibilité de base.</p>
+                    <a
+                      href={`https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(selectedDomain)}%2F`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Lancer l'audit PageSpeed
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">WAVE WebAIM</div>
+                    <p className="text-[11px] text-gray-400">Audit visuel précis de l'accessibilité : contrastes, balises ARIA, hiérarchie.</p>
+                    <a
+                      href={`https://wave.webaim.org/report#/https://${encodeURIComponent(selectedDomain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Lancer l'audit WAVE
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">Google Search Console & Ahrefs</div>
+                    <p className="text-[11px] text-gray-400">Détection des erreurs d'indexation, liens cassés et balises canoniques.</p>
+                    <a
+                      href="https://search.google.com/search-console"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Ouvrir Search Console
+                    </a>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Détail en-têtes dépliable */}
-              {expandedDomain === dom && audit?.checks && (
-                <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {Object.entries(audit.checks).map(([key, check]) => (
-                    <div
-                      key={key}
-                      title={check.desc}
-                      className={`p-1.5 rounded-lg border text-[10px] font-mono flex items-center justify-between ${
-                        check.present
-                          ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
-                          : 'bg-rose-950/20 border-rose-500/20 text-rose-400/80'
-                      }`}
-                    >
-                      <span className="truncate">{key.toUpperCase()}</span>
-                      <span>{check.present ? '✓' : '✗'}</span>
-                    </div>
-                  ))}
-                  {audit.error && (
-                    <div className="col-span-full text-[10px] font-mono text-amber-400">{audit.error}</div>
-                  )}
+            {/* CAT 3: RGPD & COOKIES */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '3') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">3. RGPD & COOKIES</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Conformité vie privée</span>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">2gdpr Scanner</div>
+                    <p className="text-[11px] text-gray-400">Scanne la conformité RGPD, cookies déposés avant consentement et trackers tiers.</p>
+                    <a
+                      href={`https://2gdpr.com/check?domain=${encodeURIComponent(selectedDomain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Scanner sur 2gdpr.com
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">Cookiebot Scanner</div>
+                    <p className="text-[11px] text-gray-400">Vérifie l'exhaustivité des mentions légales de cookies et la conformité ePrivacy.</p>
+                    <a
+                      href="https://www.cookiebot.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Ouvrir Cookiebot Scanner
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">Blacklight (The Markup)</div>
+                    <p className="text-[11px] text-gray-400">Détecte précisément trackers publicitaires, keyloggers et canvas fingerprinting.</p>
+                    <a
+                      href={`https://themarkup.org/blacklight?url=${encodeURIComponent(selectedDomain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                    >
+                      Lancer le test Blacklight
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CAT 4: COMMITS, SECRETS & FUITES GIT */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '4') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">4. COMMITS, SECRETS & FUITES GIT</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Sécurité du code source</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">TruffleHog (CLI)</div>
+                    <p className="text-[11px] text-gray-400">Scanne l'historique complet des commits pour détecter clés API, tokens et mots de passe.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                      trufflehog git file://.
+                    </code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">Gitleaks (CLI / CI)</div>
+                    <p className="text-[11px] text-gray-400">Détection automatique ultra-rapide des secrets oubliés dans les commits.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                      gitleaks detect -v
+                    </code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-white">GitGuardian</div>
+                    <p className="text-[11px] text-gray-400">Monitoring continu des dépôts GitHub/GitLab pour bloquer les fuites en temps réel.</p>
+                    <span className="text-[10px] font-mono text-gray-500 block">Monitoring recommandé en webhook</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CAT 5: QUALITÉ DE CODE & ARCHITECTURE */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '5') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">5. FONCTIONS NON UTILISÉES, QUALITÉ & ARCHITECTURE</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Analyse statique</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">Knip</div>
+                    <p className="text-[11px] text-gray-400">Détecte automatiquement fichiers orphelins, exports et types inutilisés.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">Depcheck</div>
+                    <p className="text-[11px] text-gray-400">Liste les dépendances installées mais jamais importées dans le projet.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">ESLint (no-unused-vars)</div>
+                    <p className="text-[11px] text-gray-400">Traque les variables, paramètres et fonctions mortes fichier par fichier.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">SonarQube / SonarCloud</div>
+                    <p className="text-[11px] text-gray-400">Dette technique, code smells, duplication et failles de sécurité statiques.</p>
+                    <span className="text-[10px] font-mono text-gray-500 block">Audit continu recommandé</span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">Madge</div>
+                    <p className="text-[11px] text-gray-400">Graphe visuel des dépendances et détection des dépendances circulaires.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx madge --circular .</code>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CAT 6: VULNÉRABILITÉS & BASE DE DONNÉES */}
+            {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '6') && (
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono">6. BASE DE DONNÉES & VULNÉRABILITÉS APPLICATIVES</h4>
+                  <span className="text-[11px] font-mono text-gray-500">Sécurité applicative</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">npm audit / Snyk</div>
+                    <p className="text-[11px] text-gray-400">Scanne les vulnérabilités de sécurité connues (CVE) dans les packages.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">Prisma Doctor / Index SQL</div>
+                    <p className="text-[11px] text-gray-400">Audit des requêtes lentes, index manquants et détection des N+1 queries.</p>
+                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="text-xs font-bold text-white">OWASP ZAP</div>
+                    <p className="text-[11px] text-gray-400">Scanner dynamique (DAST) pour tester failles XSS, injections SQL et API exposée.</p>
+                    <span className="text-[10px] font-mono text-gray-500 block">Scanner dynamique DAST</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-
-
-
-
-// Onglet dédié à l'édition et la synchronisation du dossier de contexte privé
+// Onglet synchronisation contexte privé
 function ContextSyncTab({ showToast }) {
   const [content, setContent] = useState('');
   const [lastModified, setLastModified] = useState(null);
@@ -1622,7 +1842,7 @@ function ContextSyncTab({ showToast }) {
       const data = await res.json();
       if (data.success) {
         setLastModified(data.lastModified);
-        showToast(data.message || 'Fichier enregistré avec succès.');
+        showToast(data.message || 'Fichier enregistré avec succès');
         fetchContextData(activeFile);
       } else {
         showToast(data.error || 'Erreur lors de l’enregistrement');
@@ -1669,7 +1889,7 @@ function ContextSyncTab({ showToast }) {
       const data = await res.json();
       if (data.success) {
         setTargets(data.targets);
-        showToast(`Projet "${name}" retiré.`);
+        showToast(`Projet "${name}" retiré`);
       }
     } catch {
       showToast('Erreur lors de la suppression');
@@ -1720,7 +1940,7 @@ function ContextSyncTab({ showToast }) {
       const data = await res.json();
       setSyncResult(data);
       if (data.success) {
-        showToast(`Dossier synchronisé et sécurisé sur ${data.syncedCount} projet(s).`);
+        showToast(`Synchronisé sur ${data.syncedCount} projet(s)`);
       }
     } catch {
       showToast('Erreur lors de la synchronisation');
@@ -1763,19 +1983,16 @@ function ContextSyncTab({ showToast }) {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         setActiveFile(cleanName);
         setContent(text);
-        showToast(`Fichier "${cleanName}" chargé dans l'éditeur. Cliquez sur "Enregistrer" pour synchroniser.`);
+        showToast(`Fichier "${cleanName}" chargé`);
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Synchronisation directe des dossiers locaux depuis le navigateur (sans terminal)
   const handleBrowserLocalSync = async () => {
     setLocalBrowserSyncing(true);
 
-    // 1. Détection du bridge local HTTP (http://127.0.0.1:5001)
-    // S'il est actif, il synchronise immédiatement tous les navigateurs y compris Brave sans aucune restriction
     try {
       const bridgePing = await fetch('http://127.0.0.1:5001/ping', { signal: AbortSignal.timeout(1200) }).catch(() => null);
       if (bridgePing && bridgePing.ok) {
@@ -1783,16 +2000,13 @@ function ContextSyncTab({ showToast }) {
         const bridgeRes = await fetch('http://127.0.0.1:5001/sync', { method: 'POST' });
         const bridgeData = await bridgeRes.json();
         if (bridgeData.success) {
-          showToast(`✓ ${bridgeData.syncedCount} projet(s) locaux synchronisés via le bridge local !`);
+          showToast(`${bridgeData.syncedCount} projet(s) locaux synchronisés via bridge local`);
           setLocalBrowserSyncing(false);
           return;
         }
       }
-    } catch {
-      // Bridge local non actif, on continue avec File System Access API
-    }
+    } catch {}
 
-    // 2. Vérification du support natif du navigateur
     if (!window.showDirectoryPicker) {
       setLocalBrowserSyncing(false);
       setShowBraveModal(true);
@@ -1800,19 +2014,14 @@ function ContextSyncTab({ showToast }) {
     }
 
     try {
-      showToast("Sélectionnez votre dossier de projets (ex: 'git commit')...");
-
-      const rootDirHandle = await window.showDirectoryPicker({
-        mode: 'readwrite',
-      });
-
+      showToast("Sélectionnez votre dossier de projets...");
+      const rootDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
       const bundleRes = await fetch('/api/context/bundle');
       const bundleData = await bundleRes.json();
       if (!bundleData.success || !bundleData.bundle) {
         throw new Error("Impossible de charger les fichiers de contexte depuis le serveur.");
       }
       const bundleFiles = bundleData.bundle;
-
       const enabledTargets = targets.filter((t) => t.enabled);
       let localUpdatedCount = 0;
 
@@ -1823,7 +2032,6 @@ function ContextSyncTab({ showToast }) {
           try {
             projectHandle = await rootDirHandle.getDirectoryHandle(folderName);
           } catch {
-            // Recherche insensible à la casse
             for await (const [name, handle] of rootDirHandle.entries()) {
               if (handle.kind === 'directory' && name.toLowerCase() === folderName.toLowerCase()) {
                 projectHandle = handle;
@@ -1833,7 +2041,6 @@ function ContextSyncTab({ showToast }) {
           }
           if (!projectHandle) continue;
 
-          // 1. Protection .gitignore
           try {
             let gitignoreContent = '';
             try {
@@ -1852,7 +2059,6 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          // 2. Écriture dans le dossier racine sync/ et project-context.md
           const syncDirHandle = await projectHandle.getDirectoryHandle('sync', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
             const fileHandle = await syncDirHandle.getFileHandle(fname, { create: true });
@@ -1869,13 +2075,11 @@ function ContextSyncTab({ showToast }) {
           }
 
           localUpdatedCount++;
-        } catch {
-          // Dossier projet absent de ce dossier racine
-        }
+        } catch {}
       }
 
       if (localUpdatedCount > 0) {
-        showToast(`✓ ${localUpdatedCount} projet(s) locaux synchronisés avec succès depuis le site !`);
+        showToast(`${localUpdatedCount} projet(s) locaux synchronisés`);
       } else {
         showToast("Aucun sous-dossier correspondant trouvé dans le répertoire sélectionné.");
       }
@@ -1900,7 +2104,7 @@ function ContextSyncTab({ showToast }) {
         a.download = 'private-context-bundle.json';
         a.click();
         URL.revokeObjectURL(url);
-        showToast('Fichiers de contexte exportés.');
+        showToast('Fichiers exportés');
       }
     } catch {
       showToast('Erreur lors de l’export');
@@ -1910,16 +2114,17 @@ function ContextSyncTab({ showToast }) {
   const enabledCount = targets.filter((t) => t.enabled).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
+    <div className="space-y-4">
+      {/* Header Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/5 pb-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Dossier Contexte Privé &amp; Synchronisation</h2>
-          <p className="text-xs text-gray-400 mt-1">
-            Gérez le dossier de configuration et synchronisez l'ensemble des fichiers sur vos projets avec protection automatique (.gitignore &amp; .env).
+          <h2 className="text-lg font-bold text-white">Dossier Contexte Privé & Synchronisation</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Édition centralisée et synchronisation automatique avec injection .gitignore.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="file"
             ref={fileInputRef}
@@ -1930,16 +2135,14 @@ function ContextSyncTab({ showToast }) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-white text-xs font-mono border border-slate-800 transition"
-            title="Importer un fichier Markdown (.md) local directement dans l'éditeur"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
           >
             Importer .md
           </button>
           <button
             type="button"
             onClick={handleDownloadBundle}
-            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
-            title="Télécharger l'ensemble des fichiers du dossier au format JSON"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
           >
             Export JSON
           </button>
@@ -1947,16 +2150,15 @@ function ContextSyncTab({ showToast }) {
             type="button"
             onClick={handleBrowserLocalSync}
             disabled={localBrowserSyncing || loading}
-            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs font-semibold border border-cyan-500/40 shadow-sm transition disabled:opacity-50"
-            title="Synchroniser vos dossiers locaux directement depuis le navigateur sans passer par le terminal"
+            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs font-medium border border-cyan-500/40 transition disabled:opacity-50"
           >
-            {localBrowserSyncing ? 'Synchronisation...' : 'Synchroniser en local (Site Web)'}
+            {localBrowserSyncing ? 'Synchronisation...' : 'Synchro directe PC'}
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
           >
             {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
@@ -1964,32 +2166,28 @@ function ContextSyncTab({ showToast }) {
             type="button"
             onClick={handleSyncAll}
             disabled={syncing || loading || enabledCount === 0}
-            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md transition disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium transition disabled:opacity-50"
           >
-            {syncing ? 'Synchronisation...' : `Synchroniser le dossier (${enabledCount})`}
+            {syncing ? 'Synchronisation...' : `Synchroniser (${enabledCount})`}
           </button>
         </div>
       </div>
 
-      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs text-gray-400">
-        <span>Protection automatique active : vérification et injection .gitignore &amp; .env avant chaque écriture dans les projets cibles.</span>
-        <span className="font-mono text-[11px] text-cyan-400">Sécurisé</span>
-      </div>
-
       {loading ? (
-        <div className="p-8 text-center text-xs font-mono text-gray-400 bg-slate-950 rounded-2xl border border-slate-800">
+        <div className="p-8 text-center text-xs font-mono text-gray-400 bg-slate-950 rounded-xl border border-slate-800">
           Chargement du dossier contexte...
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           <div className="lg:col-span-2 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
+            {/* File pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
               {files.map((f) => (
                 <button
                   key={f.filename}
                   type="button"
                   onClick={() => handleSelectFile(f.filename)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono transition border ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono transition border ${
                     activeFile === f.filename
                       ? 'bg-cyan-950 border-cyan-500/50 text-cyan-300'
                       : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
@@ -2001,312 +2199,217 @@ function ContextSyncTab({ showToast }) {
               <button
                 type="button"
                 onClick={() => setShowNewFileModal(true)}
-                className="px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-gray-400 hover:text-white"
+                className="px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-gray-400 hover:text-white"
               >
-                + Ajouter un fichier
+                + Fichier
               </button>
             </div>
 
             {showNewFileModal && (
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
                 <input
                   type="text"
                   placeholder="nom-fichier.md"
                   value={newFileName}
                   onChange={(e) => setNewFileName(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono flex-1 focus:outline-none focus:border-cyan-500"
+                  className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono flex-1 focus:outline-none focus:border-cyan-500"
                 />
                 <button
                   type="button"
                   onClick={handleCreateFile}
-                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold"
+                  className="px-2.5 py-1 rounded bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium"
                 >
                   Créer
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowNewFileModal(false)}
-                  className="px-2 py-1.5 text-xs text-gray-400 hover:text-white"
+                  className="px-2 py-1 text-xs text-gray-400 hover:text-white"
                 >
                   Annuler
                 </button>
               </div>
             )}
 
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            {/* Editor */}
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs font-mono text-gray-400 border-b border-slate-800 pb-2">
-                <span>Fichier : {activeFile}</span>
-                <span>
-                  {lastModified ? `Mis à jour le ${new Date(lastModified).toLocaleString('fr-FR')}` : ''}
-                </span>
+                <span>Fichier actif : {activeFile}</span>
+                <span>{lastModified ? `Mis à jour le ${new Date(lastModified).toLocaleDateString('fr-FR')}` : ''}</span>
               </div>
 
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={25}
+                rows={16}
                 spellCheck={false}
-                className="w-full p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
+                className="w-full p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
                 placeholder={`Contenu du fichier ${activeFile}...`}
               />
 
-              <div className="flex justify-between items-center text-[11px] font-mono text-gray-500">
+              <div className="flex justify-between items-center text-[10px] font-mono text-gray-500">
                 <span>{content.split('\n').length} lignes • {content.length} caractères</span>
                 <button
                   type="button"
                   onClick={() => fetchContextData(activeFile)}
                   className="text-gray-400 hover:text-white underline"
                 >
-                  Recharger depuis le serveur
+                  Recharger
                 </button>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-3">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                <div>
-                  <span className="font-bold text-white block">Synchronisation sur vos dossiers locaux :</span>
-                  <p className="text-gray-400 text-[11px] leading-relaxed mt-0.5">
-                    Synchronisez directement vos dossiers sur votre PC sans quitter le navigateur, ou via terminal.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleBrowserLocalSync}
-                  disabled={localBrowserSyncing}
-                  className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-md whitespace-nowrap"
-                >
-                  {localBrowserSyncing ? 'Synchronisation...' : 'Synchroniser mes dossiers locaux'}
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-gray-500 font-mono">
-                <span>Alternative en ligne de commande :</span>
-                <code className="text-cyan-400/90 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">npm run sync:context</code>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          {/* Sidebar targets */}
+          <div className="space-y-3">
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <div>
-                  <h3 className="text-sm font-bold text-white">Liste de synchronisation</h3>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    {enabledCount} sur {targets.length} projet(s) sélectionné(s)
-                  </p>
+                  <h3 className="text-xs font-bold text-white">Projets cibles</h3>
+                  <p className="text-[10px] text-gray-400">{enabledCount}/{targets.length} activé(s)</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleToggleAllTargets(true)}
-                    className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
                   >
-                    Tout cocher
+                    Tout
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleAllTargets(false)}
-                    className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
                   >
-                    Désélectionner
+                    Rien
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {targets.map((target) => (
                   <div
                     key={target.id}
-                    className={`p-2.5 rounded-xl border flex items-center justify-between transition ${
+                    className={`p-2 rounded-lg border flex items-center justify-between transition ${
                       target.enabled
                         ? 'bg-slate-900 border-slate-700 text-white'
-                        : 'bg-slate-950/60 border-slate-800 text-gray-500'
+                        : 'bg-slate-950 border-slate-800 text-gray-500'
                     }`}
                   >
-                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 mr-2">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 mr-2 text-xs truncate">
                       <input
                         type="checkbox"
                         checked={Boolean(target.enabled)}
                         onChange={() => handleToggleTarget(target.id)}
-                        className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        className="rounded border-slate-700 text-cyan-500 focus:ring-0"
                       />
-                      <span className="text-xs font-medium">{target.name}</span>
+                      <span className="truncate">{target.name}</span>
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-mono text-gray-400">/{target.folder}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteTarget(target.id, target.name)}
-                        className="text-gray-500 hover:text-rose-400 p-0.5 text-xs font-mono"
-                        title="Retirer de la liste"
+                        className="text-gray-500 hover:text-rose-400 font-mono text-xs"
                       >
-                        ✕
+                        Retirer
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Formulaire d'ajout rapide pour autoriser un nouveau projet */}
-              <form onSubmit={handleAddTarget} className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                <span className="text-[11px] font-bold text-gray-300 block">Autoriser un nouveau projet / dossier</span>
+              {/* Add target form */}
+              <form onSubmit={handleAddTarget} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 space-y-2">
+                <span className="text-[10px] font-mono text-gray-300 block">AJOUTER UN PROJET CIBLE</span>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Nom (ex: Mon Jeu)"
+                    placeholder="Nom"
                     value={newTargetName}
                     onChange={(e) => setNewTargetName(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                   />
                   <input
                     type="text"
-                    placeholder="Dossier (ex: mon-jeu)"
+                    placeholder="Dossier"
                     value={newTargetFolder}
                     onChange={(e) => setNewTargetFolder(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={!newTargetName.trim() || !newTargetFolder.trim()}
-                  className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 transition disabled:opacity-40"
+                  className="w-full py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 transition disabled:opacity-40"
                 >
-                  + Ajouter et autoriser la synchronisation
+                  Ajouter à la liste
                 </button>
               </form>
-
-              <button
-                type="button"
-                onClick={handleSyncAll}
-                disabled={syncing || enabledCount === 0}
-                className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-md disabled:opacity-50"
-              >
-                {syncing ? 'Synchronisation en cours...' : 'Lancer la synchronisation'}
-              </button>
             </div>
 
             {syncResult && (
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 animate-fade-in">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-white">Résultat de la synchronisation</span>
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs animate-fade-in">
+                <div className="font-bold text-white flex justify-between">
+                  <span>Résultat synchronisation</span>
                   <span className="text-[10px] font-mono text-gray-400">
                     {new Date(syncResult.syncedAt).toLocaleTimeString('fr-FR')}
                   </span>
                 </div>
-
-                <div className="text-xs text-emerald-400 font-mono">
-                  {syncResult.syncedCount} projet(s) mis à jour avec la dernière version.
+                <div className="text-emerald-400 font-mono text-[11px]">
+                  {syncResult.syncedCount} projet(s) mis à jour
                 </div>
-
-                {syncResult.synced?.length > 0 && (
-                  <div className="text-[11px] text-gray-300 space-y-1">
-                    <span className="text-gray-500 text-[10px] block">Projets synchronisés :</span>
-                    <div className="flex flex-wrap gap-1">
-                      {syncResult.synced.map((name, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-cyan-300">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {syncResult.securedProjects?.length > 0 && (
-                  <div className="text-[10px] text-gray-400 font-mono">
-                    ✓ Sécurité .gitignore validée sur {syncResult.securedProjects.length} dépôts.
-                  </div>
-                )}
-
-                {syncResult.errors?.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800 text-[11px] text-amber-400 font-mono">
-                    <span className="block text-[10px] text-gray-400">Non synchronisés (dossier absent) :</span>
-                    {syncResult.errors.map((err, i) => (
-                      <span key={i} className="block text-[10px] text-gray-500">
-                        • {err.target} ({err.error})
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Modal d'assistance pour Brave Browser */}
+      {/* Modal Brave Browser */}
       {showBraveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
-              <h3 className="text-base font-bold text-white">
-                Synchronisation locale dans Brave Browser
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <h3 className="text-sm font-bold text-white">Synchronisation dans Brave Browser</h3>
               <button
                 type="button"
                 onClick={() => setShowBraveModal(false)}
-                className="text-gray-400 hover:text-white text-sm font-mono p-1 transition"
+                className="text-gray-400 hover:text-white text-xs font-mono"
               >
-                ✕
+                Fermer
               </button>
             </div>
 
             <p className="text-xs text-gray-300 leading-relaxed">
-              Brave désactive l'accès direct aux dossiers par défaut pour préserver la vie privée. Deux options simples permettent de synchroniser vos projets locaux :
+              Brave désactive l'accès direct aux dossiers par défaut. Pour activer l'accès direct ou lancer le script :
             </p>
 
-            {/* Option 1 : Activer le flag Brave */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-cyan-300">
-                  Option 1 (Recommandée) : 100% sur le site
-                </span>
-                <span className="text-[10px] font-mono text-gray-400">1 seule fois</span>
-              </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Activez l'accès direct dans Brave pour utiliser le bouton directement depuis le site :
-              </p>
-              <ol className="text-xs text-gray-300 space-y-1.5 list-decimal list-inside">
-                <li>Ouvrez un nouvel onglet dans Brave et collez :</li>
-              </ol>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+              <span className="text-xs font-semibold text-cyan-300 block">Option 1 : Activer le flag Brave</span>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-cyan-400 select-all overflow-x-auto">
+                <code className="flex-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-cyan-400 select-all truncate">
                   brave://flags/#file-system-access-api
                 </code>
                 <button
                   type="button"
                   onClick={handleCopyBraveFlag}
-                  className="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-medium transition shrink-0"
+                  className="px-2.5 py-1 rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-medium shrink-0"
                 >
-                  {copiedBraveFlag ? 'Copié !' : 'Copier'}
+                  {copiedBraveFlag ? 'Copié' : 'Copier'}
                 </button>
               </div>
-              <ol start="2" className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
-                <li>Passez le réglage de <strong className="text-white">Default</strong> à <strong className="text-emerald-400">Enabled</strong>.</li>
-                <li>Cliquez sur <strong className="text-white">Relaunch</strong> en bas à droite de Brave.</li>
-              </ol>
-              <p className="text-[11px] text-gray-400">
-                Une fois relancé, le bouton du site synchronise directement vos dossiers sans aucune commande.
-              </p>
+              <p className="text-[10px] text-gray-400">Passez sur Enabled puis relancez Brave.</p>
             </div>
 
-            {/* Option 2 : 1 double-clic avec sync.bat */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-white">
-                  Option 2 : Sans modifier Brave
-                </span>
-                <span className="text-[10px] font-mono text-gray-400">1 double-clic</span>
-              </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Double-cliquez sur le fichier <code className="text-cyan-300 font-mono">sync.bat</code> situé à la racine du projet <code className="text-cyan-300 font-mono">azim404</code>. Aucun terminal à ouvrir, aucune commande à taper.
-              </p>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+              <span className="text-xs font-semibold text-white block">Option 2 : Script sync.bat</span>
+              <p className="text-[11px] text-gray-400">Double-cliquez sur sync.bat à la racine du projet.</p>
               <button
                 type="button"
                 onClick={handleDownloadSyncBat}
-                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition flex items-center justify-center gap-2"
+                className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition"
               >
-                <span>Télécharger sync.bat</span>
+                Télécharger sync.bat
               </button>
             </div>
 
@@ -2314,7 +2417,7 @@ function ContextSyncTab({ showToast }) {
               <button
                 type="button"
                 onClick={() => setShowBraveModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700"
               >
                 Fermer
               </button>
@@ -2325,5 +2428,3 @@ function ContextSyncTab({ showToast }) {
     </div>
   );
 }
-
-

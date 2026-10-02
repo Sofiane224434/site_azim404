@@ -663,7 +663,7 @@ export const renderMaintenanceScreen = (req, res) => {
 
   <header>
     <div class="brand">
-      <div class="brand-icon">⚡</div>
+      <div class="brand-icon">A</div>
       <div>
         <div class="brand-title">${safeName}</div>
         <div class="brand-sub">Espace Créatif &amp; Développement</div>
@@ -677,7 +677,6 @@ export const renderMaintenanceScreen = (req, res) => {
 
   <main>
     <div class="center-badge">
-      <div class="avatar-bolt">⚡</div>
       <div class="dev-tag">Sofiane Kherarfa • Développeur Full Stack</div>
     </div>
 
@@ -686,27 +685,27 @@ export const renderMaintenanceScreen = (req, res) => {
 
     <div class="personal-card">
       <div class="card-header">
-        <span>● En direct de l'établi</span>
+        <span>En direct de l'établi</span>
         <span style="color: #22d3ee;">Azim404 Lab</span>
       </div>
       <div class="card-content">
-        <p>▹ <strong>Je retravaille l'expérience, le design et les fonctionnalités de ce site.</strong></p>
-        <p>▹ Un projet à concevoir ou besoin d'échanger ? Vous pouvez m'écrire directement :</p>
+        <p><strong>Je retravaille l'expérience, le design et les fonctionnalités de ce site.</strong></p>
+        <p>Un projet à concevoir ou besoin d'échanger ? Vous pouvez m'écrire directement :</p>
       </div>
 
       <div class="actions">
         <a href="mailto:sb.kherarfa@gmail.com" class="btn-contact">
-          <span>✉️ Écrire à Sofiane</span>
+          <span>Écrire à Sofiane</span>
         </a>
         <button type="button" class="btn-copy" onclick="copyEmail(this)">
           <span>sb.kherarfa@gmail.com</span>
-          <span id="copy-icon" style="color: #22d3ee;">⧉</span>
+          <span id="copy-icon" style="color: #22d3ee;">(Copier)</span>
         </button>
       </div>
 
       <div class="card-footer">
         <span>Projets open-source disponibles :</span>
-        <a href="https://github.com/Sofiane224434" target="_blank" rel="noopener noreferrer">github.com/Sofiane224434 ↗</a>
+        <a href="https://github.com/Sofiane224434" target="_blank" rel="noopener noreferrer">github.com/Sofiane224434</a>
       </div>
     </div>
   </main>
@@ -715,13 +714,12 @@ export const renderMaintenanceScreen = (req, res) => {
     <div>© ${new Date().getFullYear()} Sofiane Kherarfa • Azim404</div>
     <button type="button" class="btn-bypass" onclick="openBypassModal()">
       <span>Accès développeur</span>
-      <span>🔒</span>
     </button>
   </footer>
 
   <div id="bypass-modal" class="modal-overlay">
     <div class="modal-box">
-      <div class="modal-title">🔑 Accès Développeur</div>
+      <div class="modal-title">Accès Développeur</div>
       <div class="modal-desc">Entrez votre clé administrateur pour lever la maintenance et accéder au site normalement.</div>
       <input type="password" id="bypass-input" class="modal-input" placeholder="Clé admin (ex: azim404)" autofocus>
       <div id="bypass-error" class="error-msg">Clé administrateur incorrecte</div>
@@ -750,9 +748,9 @@ export const renderMaintenanceScreen = (req, res) => {
     function copyEmail(btn) {
       navigator.clipboard.writeText('sb.kherarfa@gmail.com');
       const icon = document.getElementById('copy-icon');
-      if (icon) icon.innerText = '✓';
+      if (icon) icon.innerText = 'Copié';
       setTimeout(() => {
-        if (icon) icon.innerText = '⧉';
+        if (icon) icon.innerText = '(Copier)';
       }, 2500);
     }
 
@@ -1224,6 +1222,132 @@ export const auditSiteHeaders = async (req, res) => {
       gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
       error: friendlyError,
       tools: auditTools,
+    });
+  }
+};
+
+// GET /api/site-status/audit-observatory?domain=...
+export const auditObservatory = async (req, res) => {
+  const rawDomain = req.query.domain || '';
+  const cleanDomain = rawDomain.trim().toLowerCase()
+    .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+
+  if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
+
+  const apiBase = 'https://http-observatory.security.mozilla.org/api/v1';
+
+  try {
+    // Declencher le scan (force rescan)
+    const triggerRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&hidden=true&rescan=true`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!triggerRes.ok) throw new Error(`Observatory trigger HTTP ${triggerRes.status}`);
+    let data = await triggerRes.json();
+
+    // Attente max 25s que le scan soit termine
+    const deadline = Date.now() + 25000;
+    while ((data.state === 'PENDING' || data.state === 'RUNNING' || data.state === 'STARTING') && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const pollRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (pollRes.ok) data = await pollRes.json();
+    }
+
+    if (!data.grade) {
+      return res.json({ success: false, domain: cleanDomain, error: 'Scan Observatory non termine ou echec' });
+    }
+
+    const gradeMap = {
+      'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
+      'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+      'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
+      'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
+      'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
+      'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
+    };
+
+    return res.json({
+      success: true,
+      domain: cleanDomain,
+      grade: data.grade,
+      score: data.score ?? null,
+      gradeColor: gradeMap[data.grade] || 'text-gray-400 bg-slate-900 border-slate-700',
+      url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(cleanDomain)}`,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.json({
+      success: false,
+      domain: cleanDomain,
+      error: `Observatory : ${err.message}`,
+    });
+  }
+};
+
+// GET /api/site-status/audit-ssllabs?domain=...
+export const auditSSLLabs = async (req, res) => {
+  const rawDomain = req.query.domain || '';
+  const cleanDomain = rawDomain.trim().toLowerCase()
+    .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+
+  if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
+
+  const apiBase = 'https://api.ssllabs.com/api/v3';
+
+  try {
+    // Lancer l'analyse
+    let pollRes = await fetch(
+      `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&startNew=on&all=done&ignoreMismatch=on`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+    if (!pollRes.ok) throw new Error(`SSL Labs HTTP ${pollRes.status}`);
+    let data = await pollRes.json();
+
+    // Polling max 90s (SSL Labs est lent)
+    const deadline = Date.now() + 90000;
+    while (data.status !== 'READY' && data.status !== 'ERROR' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 8000));
+      pollRes = await fetch(
+        `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&all=done`,
+        { signal: AbortSignal.timeout(15000) }
+      );
+      if (pollRes.ok) data = await pollRes.json();
+    }
+
+    if (data.status !== 'READY' || !data.endpoints?.length) {
+      return res.json({ success: false, domain: cleanDomain, error: 'SSL Labs : scan non termine ou aucun endpoint' });
+    }
+
+    // Prendre la meilleure note parmi les endpoints
+    const grades = data.endpoints.map((e) => e.grade).filter(Boolean);
+    const gradeOrder = ['A+', 'A', 'A-', 'B', 'C', 'D', 'E', 'F', 'T', 'M'];
+    const grade = grades.sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b))[0] || '?';
+
+    const gradeMap = {
+      'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
+      'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+      'A-': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+      'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
+      'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
+      'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
+      'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
+    };
+
+    return res.json({
+      success: true,
+      domain: cleanDomain,
+      grade,
+      gradeColor: gradeMap[grade] || 'text-gray-400 bg-slate-900 border-slate-700',
+      url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(cleanDomain)}`,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.json({
+      success: false,
+      domain: cleanDomain,
+      error: `SSL Labs : ${err.message}`,
     });
   }
 };
