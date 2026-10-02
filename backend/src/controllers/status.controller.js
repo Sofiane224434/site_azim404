@@ -1638,8 +1638,11 @@ export const auditFullSite = async (req, res) => {
       sonarqube,
       madge,
       npmsnyk,
+      npmSnyk: npmsnyk,
       prismadoctor,
+      prismaDoctor: prismadoctor,
       owaspzap,
+      owaspZap: owaspzap,
     };
 
     const { globalGrade, globalScore, globalLabel } = computeGlobalAuditScore(allAudits);

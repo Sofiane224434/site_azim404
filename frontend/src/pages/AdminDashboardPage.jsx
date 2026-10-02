@@ -1936,10 +1936,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score global : {full?.pagespeed?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>TTFB : {full?.pagespeed?.ttfb != null ? `${full.pagespeed.ttfb} ms` : 'N/A'}</div>
-                      <div>Poids : {full?.pagespeed?.totalByteWeight ? `${Math.round(full.pagespeed.totalByteWeight / 1024)} KB` : 'N/A'}</div>
+                      <div>TTFB : {full?.pagespeed?.ttfbMs != null ? `${full.pagespeed.ttfbMs} ms` : (full?.pagespeed?.ttfb != null ? `${full.pagespeed.ttfb} ms` : 'N/A')}</div>
+                      <div>Poids : {full?.pagespeed?.pageSizeKb != null ? `${full.pagespeed.pageSizeKb} KB` : (full?.pagespeed?.totalByteWeight ? `${Math.round(full.pagespeed.totalByteWeight / 1024)} KB` : 'N/A')}</div>
                       <div className="text-gray-400 text-[11px]">
-                        Mobile: {full?.pagespeed?.mobileScore != null ? `${full.pagespeed.mobileScore}/100` : '-'} • SEO: {full?.pagespeed?.seoScore != null ? `${full.pagespeed.seoScore}/100` : '-'}
+                        FCP: {full?.pagespeed?.fcpEstimateMs != null ? `${full.pagespeed.fcpEstimateMs} ms` : 'N/A'} • Gzip: {full?.pagespeed?.hasGzip ? 'Actif' : 'Inactif'}
                       </div>
                     </div>
                     <a
@@ -1962,10 +1962,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score accessibilité : {full?.wave?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Images sans alt : <strong className={full?.wave?.missingAlt > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.missingAlt ?? 0}</strong></div>
-                      <div>Boutons sans label : <strong className={full?.wave?.emptyButtons > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.emptyButtons ?? 0}</strong></div>
+                      <div>Images sans alt : <strong className={(full?.wave?.missingAltCount ?? full?.wave?.missingAlt ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.missingAltCount ?? full?.wave?.missingAlt ?? 0}</strong></div>
+                      <div>Boutons sans label : <strong className={(full?.wave?.emptyButtonCount ?? full?.wave?.emptyButtons ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.emptyButtonCount ?? full?.wave?.emptyButtons ?? 0}</strong></div>
                       <div className="text-gray-400 text-[11px]">
-                        Balise lang: {full?.wave?.missingLang ? 'Manquante' : 'Conforme'} • H1: {full?.wave?.headingErrors ? 'Anomalie' : 'Conforme'}
+                        Balise lang: {full?.wave?.hasHtmlLang === false || full?.wave?.missingLang ? 'Manquante' : 'Conforme'} • H1: {(full?.wave?.h1Count === 0 || full?.wave?.headingErrors) ? 'Anomalie' : 'Conforme'}
                       </div>
                     </div>
                     <a
@@ -1988,10 +1988,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score indexation : {full?.seo?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>robots.txt : <span className={full?.seo?.hasRobots ? 'text-emerald-400' : 'text-rose-400'}>{full?.seo?.hasRobots ? 'Détecté' : 'Absent'}</span></div>
-                      <div>sitemap.xml : <span className={full?.seo?.hasSitemap ? 'text-emerald-400' : 'text-rose-400'}>{full?.seo?.hasSitemap ? 'Détecté' : 'Absent'}</span></div>
+                      <div>robots.txt : <span className={(full?.seo?.hasRobotsTxt ?? full?.seo?.hasRobots) ? 'text-emerald-400' : 'text-rose-400'}>{(full?.seo?.hasRobotsTxt ?? full?.seo?.hasRobots) ? 'Détecté' : 'Absent'}</span></div>
+                      <div>sitemap.xml : <span className={(full?.seo?.hasSitemapXml ?? full?.seo?.hasSitemap) ? 'text-emerald-400' : 'text-rose-400'}>{(full?.seo?.hasSitemapXml ?? full?.seo?.hasSitemap) ? 'Détecté' : 'Absent'}</span></div>
                       <div className="text-gray-400 text-[11px]">
-                        Canonical: {full?.seo?.hasCanonical ? 'OK' : 'Non'} • Meta desc: {full?.seo?.hasMetaDesc ? 'OK' : 'Non'}
+                        Canonical: {full?.seo?.hasCanonical ? 'OK' : 'Non'} • Meta desc: {(full?.seo?.descriptionLength > 0 || full?.seo?.hasMetaDesc) ? 'OK' : 'Non'}
                       </div>
                     </div>
                     <a
@@ -2048,10 +2048,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score conformité : {full?.twoGdpr?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Cookies pré-consentement : <strong className={full?.twoGdpr?.cookiesBeforeConsent > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.twoGdpr?.cookiesBeforeConsent ?? 0}</strong></div>
-                      <div>Bannière consentement : {full?.twoGdpr?.bannerDetected ? 'Détectée' : 'Non détectée'}</div>
+                      <div>Cookies pré-consentement : <strong className={(full?.twoGdpr?.cookiesBeforeConsent ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.twoGdpr?.cookiesBeforeConsent ?? 0}</strong></div>
+                      <div>Bannière : {(full?.twoGdpr?.hasConsentBanner ?? full?.twoGdpr?.bannerDetected) ? 'Détectée' : 'Non détectée'}</div>
                       <div className="text-gray-400 text-[11px]">
-                        Lien confidentialité: {full?.twoGdpr?.privacyLinkPresent ? 'Présent' : 'Non détecté'}
+                        Politique confidentialité: {(full?.twoGdpr?.hasPrivacyLink ?? full?.twoGdpr?.privacyLinkPresent) ? 'Présente' : 'Non détectée'}
                       </div>
                     </div>
                     <a
@@ -2074,10 +2074,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score ePrivacy : {full?.cookiebot?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Cookies trouvés : {full?.cookiebot?.cookiesFound ?? 0}</div>
-                      <div>Flag Secure : <span className={full?.cookiebot?.secureCookies ? 'text-emerald-400' : 'text-rose-400'}>{full?.cookiebot?.secureCookies ? 'Conforme' : 'Vulnérable'}</span></div>
+                      <div>Cookies trouvés : {full?.cookiebot?.cookiesFound ?? (full?.cookiebot?.hasCookies ? 1 : 0)}</div>
+                      <div>Flag Secure : <span className={(full?.cookiebot?.flags?.secure ?? full?.cookiebot?.secureCookies) ? 'text-emerald-400' : 'text-rose-400'}>{(full?.cookiebot?.flags?.secure ?? full?.cookiebot?.secureCookies) ? 'Conforme' : 'Vulnérable'}</span></div>
                       <div className="text-gray-400 text-[11px]">
-                        HttpOnly: {full?.cookiebot?.httpOnlyCookies ? 'OK' : 'Non'} • SameSite: {full?.cookiebot?.sameSiteCookies ? 'OK' : 'Non'}
+                        HttpOnly: {(full?.cookiebot?.flags?.httpOnly ?? full?.cookiebot?.httpOnlyCookies) ? 'OK' : 'Non'} • SameSite: {(full?.cookiebot?.flags?.sameSite ?? full?.cookiebot?.sameSiteCookies) ? 'OK' : 'Non'}
                       </div>
                     </div>
                     <a
@@ -2100,10 +2100,10 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score vie privée : {full?.blacklight?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Trackers pub : <strong className={full?.blacklight?.adTrackersCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.blacklight?.adTrackersCount ?? 0}</strong></div>
+                      <div>Trackers pub : <strong className={(full?.blacklight?.trackerCount ?? full?.blacklight?.adTrackersCount ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.blacklight?.trackerCount ?? full?.blacklight?.adTrackersCount ?? 0}</strong></div>
                       <div>Cookies tiers : {full?.blacklight?.thirdPartyCookiesCount ?? 0}</div>
                       <div className="text-gray-400 text-[11px]">
-                        Recorders: {full?.blacklight?.sessionRecorders ?? 0} • Fingerprinting: {full?.blacklight?.canvasFingerprinting ? 'Oui' : 'Non'}
+                        Recorders: {full?.blacklight?.sessionRecorders ?? 0} • Fingerprinting: {(full?.blacklight?.hasFingerprinting || full?.blacklight?.canvasFingerprinting) ? 'Oui' : 'Non'}
                       </div>
                     </div>
                     <a
@@ -2137,11 +2137,8 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score intégrité : {full?.trufflehog?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Secrets vérifiés : <strong className={full?.trufflehog?.verifiedSecretsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.trufflehog?.verifiedSecretsCount ?? 0}</strong></div>
-                      <div>Secrets non vérifiés : {full?.trufflehog?.unverifiedSecretsCount ?? 0}</div>
-                      <div className="text-gray-400 text-[11px]">
-                        Statut: {full?.trufflehog?.leaksDetected ? 'Fuite(s) détectée(s)' : '0 secret exposé'}
-                      </div>
+                      <div>Secrets vérifiés : <strong className={(full?.trufflehog?.secretsCount ?? full?.trufflehog?.verifiedSecretsCount ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.trufflehog?.secretsCount ?? full?.trufflehog?.verifiedSecretsCount ?? 0}</strong></div>
+                      <div>Statut : {full?.trufflehog?.status || 'Vérification terminée'}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">
                       trufflehog git file://.
@@ -2158,11 +2155,8 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score fuites : {full?.gitleaks?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Fuites détectées : <strong className={full?.gitleaks?.leaksFound > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.gitleaks?.leaksFound ?? 0}</strong></div>
-                      <div>Règles actives : {full?.gitleaks?.rulesCount ?? 0}</div>
-                      <div className="text-gray-400 text-[11px]">
-                        Commits scannés: {full?.gitleaks?.scannedCommits ?? 0}
-                      </div>
+                      <div>Anomalies : <strong className={(full?.gitleaks?.missingGitignoreRules?.length ?? full?.gitleaks?.leaksFound ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.gitleaks?.missingGitignoreRules?.length ?? full?.gitleaks?.leaksFound ?? 0}</strong></div>
+                      <div>Statut : {full?.gitleaks?.status || 'Historique vérifié'}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">
                       gitleaks detect -v
@@ -2179,11 +2173,8 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                     <div className="text-xs text-gray-400">Score surveillance : {full?.gitguardian?.score ?? '-'} / 100</div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Incidents actifs : <strong className={full?.gitguardian?.incidentsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.gitguardian?.incidentsCount ?? 0}</strong></div>
-                      <div>Incidents critiques : {full?.gitguardian?.criticalIncidents ?? 0}</div>
-                      <div className="text-gray-400 text-[11px]">
-                        Fichiers sensibles: {full?.gitguardian?.sensitiveFilesStatus || 'Protégés'}
-                      </div>
+                      <div>Incidents : <strong className={(full?.gitguardian?.incidentsCount ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.gitguardian?.incidentsCount ?? 0}</strong></div>
+                      <div>Statut : {full?.gitguardian?.status || 'Dépôt protégé'}</div>
                     </div>
                     <div className="text-xs text-gray-400 pt-0.5">Monitoring continu actif</div>
                   </div>
@@ -2208,8 +2199,8 @@ function AuditTestsTab({ sites, showToast }) {
                       </span>
                     </div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Fichiers orphelins : <strong className={full?.knip?.unusedFilesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.knip?.unusedFilesCount ?? 0}</strong></div>
-                      <div>Exports inutilisés : {full?.knip?.unusedExportsCount ?? 0}</div>
+                      <div>Orphelins : <strong className={(full?.knip?.orphanFiles ?? full?.knip?.unusedFilesCount ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.knip?.orphanFiles ?? full?.knip?.unusedFilesCount ?? 0}</strong></div>
+                      <div>Statut : {full?.knip?.status || 'Exports vérifiés'}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
                   </div>
@@ -2223,8 +2214,8 @@ function AuditTestsTab({ sites, showToast }) {
                       </span>
                     </div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Deps inutilisées : <strong className={full?.depcheck?.unusedDependenciesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.depcheck?.unusedDependenciesCount ?? 0}</strong></div>
-                      <div>DevDeps inutilisées : {full?.depcheck?.unusedDevDependenciesCount ?? 0}</div>
+                      <div>Deps inutilisées : <strong className={(full?.depcheck?.unusedDependencies?.length ?? full?.depcheck?.unusedDependenciesCount ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.depcheck?.unusedDependencies?.length ?? full?.depcheck?.unusedDependenciesCount ?? 0}</strong></div>
+                      <div>Statut : {full?.depcheck?.status || 'Dépendances vérifiées'}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
                   </div>
@@ -2238,8 +2229,8 @@ function AuditTestsTab({ sites, showToast }) {
                       </span>
                     </div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Erreurs lint : <strong className={full?.eslint?.errorCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.eslint?.errorCount ?? 0}</strong></div>
-                      <div>Avertissements : {full?.eslint?.warningCount ?? 0}</div>
+                      <div>Erreurs : <strong className={(full?.eslint?.errorsCount ?? full?.eslint?.errorCount ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.eslint?.errorsCount ?? full?.eslint?.errorCount ?? 0}</strong></div>
+                      <div>Warnings : {full?.eslint?.warningsCount ?? full?.eslint?.warningCount ?? 0}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
                   </div>
@@ -2253,8 +2244,8 @@ function AuditTestsTab({ sites, showToast }) {
                       </span>
                     </div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Dette technique : {full?.sonarqube?.technicalDebtMinutes ?? 0} min</div>
-                      <div>Lignes de code : {full?.sonarqube?.loc ?? 0} LOC</div>
+                      <div>Dette technique : {full?.sonarqube?.debtHours != null ? `${full.sonarqube.debtHours}h` : (full?.sonarqube?.technicalDebtMinutes != null ? `${full.sonarqube.technicalDebtMinutes} min` : '0 min')}</div>
+                      <div>Lignes : {full?.sonarqube?.linesOfCode ?? full?.sonarqube?.loc ?? 0} LOC</div>
                     </div>
                     <div className="text-[11px] text-gray-400">Analyse statique et smells</div>
                   </div>
@@ -2268,8 +2259,8 @@ function AuditTestsTab({ sites, showToast }) {
                       </span>
                     </div>
                     <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Cycles détectés : <strong className={full?.madge?.circularCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.madge?.circularCount ?? 0}</strong></div>
-                      <div>Statut : {full?.madge?.circularCount === 0 ? 'Architecture saine' : 'Cycles à résoudre'}</div>
+                      <div>Cycles : <strong className={(full?.madge?.circularDependencies ?? full?.madge?.circularCount ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.madge?.circularDependencies ?? full?.madge?.circularCount ?? 0}</strong></div>
+                      <div>Statut : {full?.madge?.status || 'Architecture saine'}</div>
                     </div>
                     <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">npx madge --circular .</code>
                   </div>
@@ -2287,63 +2278,79 @@ function AuditTestsTab({ sites, showToast }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* npm audit / Snyk */}
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-white">npm audit / Snyk</span>
-                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.npmSnyk?.grade)}`}>
-                        {full?.npmSnyk?.grade || '-'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-400">Score vulnérabilités : {full?.npmSnyk?.score ?? '-'} / 100</div>
-                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Total : <strong className={full?.npmSnyk?.totalVulnerabilities > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.npmSnyk?.totalVulnerabilities ?? 0}</strong></div>
-                      <div className="text-[11px] text-gray-400">
-                        Critique: <span className={full?.npmSnyk?.critical > 0 ? 'text-rose-400 font-bold' : ''}>{full?.npmSnyk?.critical ?? 0}</span> • Haute: <span className={full?.npmSnyk?.high > 0 ? 'text-orange-400 font-bold' : ''}>{full?.npmSnyk?.high ?? 0}</span>
+                  {(() => {
+                    const snykData = full?.npmSnyk || full?.npmsnyk;
+                    const totalVulns = snykData?.vulnerabilities?.total ?? snykData?.totalVulnerabilities ?? 0;
+                    const critVulns = snykData?.vulnerabilities?.critical ?? snykData?.critical ?? 0;
+                    const highVulns = snykData?.vulnerabilities?.high ?? snykData?.high ?? 0;
+                    return (
+                      <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-white">npm audit / Snyk</span>
+                          <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(snykData?.grade)}`}>
+                            {snykData?.grade || '-'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400">Score vulnérabilités : {snykData?.score ?? '-'} / 100</div>
+                        <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                          <div>Total : <strong className={totalVulns > 0 ? 'text-amber-400' : 'text-emerald-400'}>{totalVulns}</strong></div>
+                          <div className="text-[11px] text-gray-400">
+                            Critique: <span className={critVulns > 0 ? 'text-rose-400 font-bold' : ''}>{critVulns}</span> • Haute: <span className={highVulns > 0 ? 'text-orange-400 font-bold' : ''}>{highVulns}</span>
+                          </div>
+                          <div className="text-[11px] text-gray-400">
+                            Statut: {snykData?.status || 'Audit packages terminé'}
+                          </div>
+                        </div>
+                        <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
                       </div>
-                      <div className="text-[11px] text-gray-400">
-                        Modérée: {full?.npmSnyk?.moderate ?? 0} • Faible: {full?.npmSnyk?.low ?? 0}
-                      </div>
-                    </div>
-                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
-                  </div>
+                    );
+                  })()}
 
                   {/* Prisma Doctor / SQL */}
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-white">Prisma Doctor / SQL</span>
-                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.prismaDoctor?.grade)}`}>
-                        {full?.prismaDoctor?.grade || '-'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-400">Score intégrité DB : {full?.prismaDoctor?.score ?? '-'} / 100</div>
-                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Index manquants : <strong className={full?.prismaDoctor?.missingIndexesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.prismaDoctor?.missingIndexesCount ?? 0}</strong></div>
-                      <div>Requêtes lentes : {full?.prismaDoctor?.slowQueriesDetected ?? 0}</div>
-                      <div className="text-gray-400 text-[11px]">
-                        Statut: {full?.prismaDoctor?.dbStatus || 'OK'} • Taille: {full?.prismaDoctor?.dbSizeMb != null ? `${full.prismaDoctor.dbSizeMb} MB` : 'N/A'}
+                  {(() => {
+                    const prData = full?.prismaDoctor || full?.prismadoctor;
+                    return (
+                      <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-white">Prisma Doctor / SQL</span>
+                          <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(prData?.grade)}`}>
+                            {prData?.grade || '-'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400">Score intégrité DB : {prData?.score ?? '-'} / 100</div>
+                        <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                          <div>Statut : <span className="text-emerald-400">{prData?.integrityCheck || prData?.status || 'OK'}</span></div>
+                          <div>Taille : {prData?.totalDataSizeKb != null ? `${prData.totalDataSizeKb} KB` : (prData?.dbSizeMb != null ? `${prData.dbSizeMb} MB` : 'N/A')}</div>
+                        </div>
+                        <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
                       </div>
-                    </div>
-                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
-                  </div>
+                    );
+                  })()}
 
                   {/* OWASP ZAP */}
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-white">OWASP ZAP (DAST)</span>
-                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.owaspZap?.grade)}`}>
-                        {full?.owaspZap?.grade || '-'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-400">Score dynamique : {full?.owaspZap?.score ?? '-'} / 100</div>
-                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
-                      <div>Alertes DAST : <strong className={full?.owaspZap?.alertsCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.owaspZap?.alertsCount ?? 0}</strong></div>
-                      <div>Probes SQLi : <span className={full?.owaspZap?.sqliProbesPassed ? 'text-emerald-400' : 'text-rose-400'}>{full?.owaspZap?.sqliProbesPassed ? 'Sécurisé' : 'Vulnérable'}</span></div>
-                      <div className="text-gray-400 text-[11px]">
-                        Probes XSS: {full?.owaspZap?.xssProbesPassed ? 'Sécurisé' : 'Vulnérable'} • Endpoints: {full?.owaspZap?.endpointsScanned ?? 0}
+                  {(() => {
+                    const zapData = full?.owaspZap || full?.owaspzap;
+                    const alertCount = zapData?.exposedEndpoints?.length ?? zapData?.alertsCount ?? 0;
+                    return (
+                      <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-white">OWASP ZAP (DAST)</span>
+                          <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(zapData?.grade)}`}>
+                            {zapData?.grade || '-'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400">Score dynamique : {zapData?.score ?? '-'} / 100</div>
+                        <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                          <div>Alertes DAST : <strong className={alertCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{alertCount}</strong></div>
+                          <div>Probes SQLi : <span className={zapData?.hasSqlError === false || zapData?.sqliProbesPassed ? 'text-emerald-400' : 'text-rose-400'}>{zapData?.hasSqlError === false || zapData?.sqliProbesPassed ? 'Sécurisé' : 'Vulnérable'}</span></div>
+                          <div className="text-gray-400 text-[11px]">
+                            Probes XSS: {zapData?.hasXssReflection === false || zapData?.xssProbesPassed ? 'Sécurisé' : 'Vulnérable'}
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-gray-400 pt-0.5">Scanner dynamique applicatif</div>
                       </div>
-                    </div>
-                    <div className="text-[11px] text-gray-400 pt-0.5">Scanner dynamique applicatif</div>
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
