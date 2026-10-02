@@ -1046,6 +1046,11 @@ function UnifiedProjectCard({
           </a>
         </div>
 
+        {/* Audit & Sécurité Web (SecurityHeaders.com & outils d'analyse) */}
+        <div className="mb-6">
+          <SiteSecurityAuditSection domain={item.domain || item.link} />
+        </div>
+
         {/* 1-Click Kill-Switch Maintenance Toggle */}
         {isAdmin && (
           <div className="mb-4">
@@ -1270,3 +1275,240 @@ function UnifiedProjectCard({
     </div>
   );
 }
+
+// Section d'audit de sécurité et note SecurityHeaders.com par site
+function SiteSecurityAuditSection({ domain }) {
+  const [auditData, setAuditData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const cleanDomain = (domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .split(':')[0];
+
+  const runAudit = async () => {
+    if (!cleanDomain) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/site-status/audit-headers?domain=${encodeURIComponent(cleanDomain)}`);
+      const data = await res.json();
+      if (data.success) {
+        setAuditData(data);
+      } else {
+        setError(data.error || 'Erreur lors de l’audit');
+      }
+    } catch (err) {
+      setError(`Serveur injoignable : ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const defaultTools = [
+    {
+      id: 'securityheaders',
+      name: 'SecurityHeaders.com',
+      url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
+      icon: '🛡️',
+      desc: 'Audit officiel SecurityHeaders',
+    },
+    {
+      id: 'observatory',
+      name: 'Mozilla Observatory',
+      url: `https://observatory.mozilla.org/analyze/${cleanDomain}`,
+      icon: '🦊',
+      desc: 'Conformité & CSP',
+    },
+    {
+      id: 'ssllabs',
+      name: 'SSL Labs',
+      url: `https://www.ssllabs.com/ssltest/analyze.html?d=${cleanDomain}`,
+      icon: '🔒',
+      desc: 'Certificat & TLS',
+    },
+    {
+      id: 'pagespeed',
+      name: 'PageSpeed',
+      url: `https://pagespeed.web.dev/analysis?url=https://${cleanDomain}`,
+      icon: '⚡',
+      desc: 'Performance UX',
+    },
+  ];
+
+  const tools = auditData?.tools || defaultTools;
+
+  return (
+    <div className="pt-4 border-t border-white/5 space-y-3">
+      {/* Header section with toggle and audit button */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-gray-400 flex items-center gap-1.5">
+            <span>🛡️</span>
+            <span>AUDIT &amp; SÉCURITÉ WEB</span>
+          </span>
+          {auditData && (
+            <span
+              className={`text-[11px] font-mono px-2 py-0.5 rounded font-black border ${
+                auditData.grade === 'A+' || auditData.grade === 'A'
+                  ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300'
+                  : auditData.grade === 'B'
+                  ? 'bg-cyan-950/70 border-cyan-400 text-cyan-300'
+                  : auditData.grade === 'C'
+                  ? 'bg-amber-950/70 border-amber-400 text-amber-300'
+                  : 'bg-rose-950/70 border-rose-400 text-rose-300'
+              }`}
+            >
+              Note : {auditData.grade} ({auditData.score}/100)
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={runAudit}
+            disabled={loading || !cleanDomain}
+            className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 transition flex items-center gap-1 disabled:opacity-50"
+            title="Tester les en-têtes HTTP de sécurité du site en direct"
+          >
+            {loading ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                <span>Test en cours...</span>
+              </>
+            ) : (
+              <>
+                <span>⚡</span>
+                <span>{auditData ? 'Re-tester' : 'Tester Headers'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Audit Result Display */}
+      {auditData && (
+        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2.5 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl font-black border shadow-lg ${
+                  auditData.grade === 'A+' || auditData.grade === 'A'
+                    ? 'bg-emerald-950/80 border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                    : auditData.grade === 'B'
+                    ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                    : auditData.grade === 'C'
+                    ? 'bg-amber-950/80 border-amber-400 text-amber-300'
+                    : 'bg-rose-950/80 border-rose-400 text-rose-300'
+                }`}
+              >
+                {auditData.grade}
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>SecurityHeaders :</span>
+                  <span className="text-cyan-300 font-mono">Note {auditData.grade} ({auditData.score} / 100)</span>
+                </div>
+                <div className="text-[10px] text-gray-400 font-mono">
+                  {auditData.checkedAt ? new Date(auditData.checkedAt).toLocaleTimeString('fr-FR') : ''} • https://{cleanDomain}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowDetails(!showDetails)}
+              className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline"
+            >
+              {showDetails ? 'Masquer détails' : 'Détails headers'}
+            </button>
+          </div>
+
+          {/* Quick Header Badges */}
+          {auditData.checks && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+              {Object.entries(auditData.checks).map(([key, check]) => (
+                <div
+                  key={key}
+                  className={`px-2 py-1 rounded-lg border text-[10px] font-mono flex items-center justify-between ${
+                    check.present
+                      ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-950/30 border-rose-500/20 text-rose-400/80'
+                  }`}
+                  title={check.desc}
+                >
+                  <span className="truncate">{key.toUpperCase()}</span>
+                  <span>{check.present ? '✓' : '✗'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Expanded Header Details */}
+          {showDetails && auditData.checks && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-800 text-[11px] font-mono">
+              {Object.entries(auditData.checks).map(([key, check]) => (
+                <div key={key} className="p-2 rounded-lg bg-slate-950/70 border border-slate-800">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-200">{check.name}</span>
+                    <span className={check.present ? 'text-emerald-400' : 'text-rose-400'}>
+                      {check.present ? '✓ Présent' : '✗ Absent'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{check.desc}</p>
+                  {check.value && (
+                    <div className="mt-1 text-[10px] text-cyan-300/80 bg-slate-900 p-1.5 rounded truncate select-all">
+                      {check.value}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="text-[11px] font-mono text-rose-400 bg-rose-950/30 border border-rose-800/40 p-2.5 rounded-xl">
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* External Audit Tools Buttons */}
+      <div className="space-y-1.5">
+        <span className="text-[10px] font-mono uppercase text-gray-500 block">
+          Auditer sur des plateformes externes :
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {tools.map((tool) => {
+            const isSecHeaders = tool.id === 'securityheaders';
+            return (
+              <a
+                key={tool.id}
+                href={tool.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`text-[11px] font-mono px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition ${
+                  isSecHeaders
+                    ? 'bg-gradient-to-r from-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 border-cyan-400/60 text-cyan-200 font-bold shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-gray-400 hover:text-gray-200'
+                }`}
+                title={tool.desc || tool.name}
+              >
+                <span>{tool.icon || '🔗'}</span>
+                <span>{tool.name}</span>
+                <span className="text-[9px] opacity-70">↗</span>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+

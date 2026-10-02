@@ -912,3 +912,206 @@ export const deleteSite = (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, message: 'Site supprimé de l’admin', sites });
 };
+
+// GET /api/site-status/audit-headers?domain=...
+export const auditSiteHeaders = async (req, res) => {
+  const rawDomain = req.query.domain || '';
+  const cleanDomain = rawDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .split(':')[0];
+
+  if (!cleanDomain) {
+    return res.status(400).json({ success: false, error: 'Domaine manquant' });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+
+    let response;
+    try {
+      response = await fetch(`https://${cleanDomain}`, {
+        method: 'HEAD',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
+        },
+      });
+    } catch {
+      response = await fetch(`https://${cleanDomain}`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
+        },
+      });
+    }
+
+    clearTimeout(timeout);
+
+    const headers = {};
+    for (const [key, value] of response.headers.entries()) {
+      headers[key.toLowerCase()] = value;
+    }
+
+    const hsts = headers['strict-transport-security'];
+    const xcto = headers['x-content-type-options'];
+    const xfo = headers['x-frame-options'];
+    const csp = headers['content-security-policy'];
+    const rp = headers['referrer-policy'];
+    const pp = headers['permissions-policy'];
+
+    // Barème conforme à SecurityHeaders.com
+    const checks = {
+      hsts: {
+        name: 'Strict-Transport-Security (HSTS)',
+        present: Boolean(hsts),
+        value: hsts || null,
+        desc: 'Force le chiffrement HTTPS et empêche les attaques Man-in-the-middle',
+        weight: 30,
+      },
+      xcto: {
+        name: 'X-Content-Type-Options',
+        present: Boolean(xcto),
+        value: xcto || null,
+        desc: 'Empêche le reniflage de type MIME (nosniff)',
+        weight: 15,
+      },
+      xfo: {
+        name: 'X-Frame-Options',
+        present: Boolean(xfo),
+        value: xfo || null,
+        desc: 'Interdit l’intégration iframe malveillante (Clickjacking)',
+        weight: 20,
+      },
+      csp: {
+        name: 'Content-Security-Policy (CSP)',
+        present: Boolean(csp),
+        value: csp || null,
+        desc: 'Restreint les sources de scripts et bloque les failles XSS',
+        weight: 25,
+      },
+      rp: {
+        name: 'Referrer-Policy',
+        present: Boolean(rp),
+        value: rp || null,
+        desc: 'Contrôle la transmission de l’en-tête Referer lors des navigations',
+        weight: 10,
+      },
+      pp: {
+        name: 'Permissions-Policy',
+        present: Boolean(pp),
+        value: pp || null,
+        desc: 'Désactive les fonctionnalités matérielles inutilisées (caméra, micro)',
+        weight: 5,
+      },
+    };
+
+    let score = 0;
+    if (checks.hsts.present) score += checks.hsts.weight;
+    if (checks.xcto.present) score += checks.xcto.weight;
+    if (checks.xfo.present) score += checks.xfo.weight;
+    if (checks.csp.present) score += checks.csp.weight;
+    if (checks.rp.present) score += checks.rp.weight;
+    if (checks.pp.present) score += checks.pp.weight;
+
+    let grade = 'F';
+    let gradeColor = 'text-rose-400 bg-rose-950/40 border-rose-500/40';
+
+    if (checks.hsts.present && checks.xfo.present && checks.xcto.present && checks.csp.present) {
+      grade = 'A+';
+      gradeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.35)]';
+    } else if (checks.hsts.present && (checks.xfo.present || checks.xcto.present)) {
+      grade = 'A';
+      gradeColor = 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
+    } else if (checks.hsts.present) {
+      grade = 'B';
+      gradeColor = 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
+    } else if (checks.xfo.present || checks.xcto.present) {
+      grade = 'C';
+      gradeColor = 'text-amber-400 bg-amber-950/40 border-amber-500/40';
+    } else if (score > 10) {
+      grade = 'D';
+      gradeColor = 'text-orange-400 bg-orange-950/40 border-orange-500/40';
+    }
+
+    const tools = [
+      {
+        id: 'securityheaders',
+        name: 'SecurityHeaders.com',
+        url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
+        category: 'Sécurité HTTP',
+        icon: '🛡️',
+        desc: 'Audit officiel des en-têtes de sécurité HTTP',
+      },
+      {
+        id: 'observatory',
+        name: 'Mozilla Observatory',
+        url: `https://observatory.mozilla.org/analyze/${cleanDomain}`,
+        category: 'Conformité & Bonnes Pratiques',
+        icon: '🦊',
+        desc: 'Audit de sécurité globale et TLS par Mozilla',
+      },
+      {
+        id: 'ssllabs',
+        name: 'SSL Labs (Qualys)',
+        url: `https://www.ssllabs.com/ssltest/analyze.html?d=${cleanDomain}`,
+        category: 'Certificat & Chiffrement TLS',
+        icon: '🔒',
+        desc: 'Test approfondi du certificat SSL et de la configuration TLS',
+      },
+      {
+        id: 'pagespeed',
+        name: 'Google PageSpeed Insights',
+        url: `https://pagespeed.web.dev/analysis?url=https://${cleanDomain}`,
+        category: 'Performance & UX',
+        icon: '⚡',
+        desc: 'Score de rapidité, SEO et Core Web Vitals',
+      },
+      {
+        id: 'dnschecker',
+        name: 'DNS Checker',
+        url: `https://dnschecker.org/#A/${cleanDomain}`,
+        category: 'Propagation DNS',
+        icon: '🌐',
+        desc: 'Vérification de la résolution DNS sur 30+ serveurs mondiaux',
+      },
+    ];
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.json({
+      success: true,
+      domain: cleanDomain,
+      grade,
+      score,
+      gradeColor,
+      checks,
+      tools,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(200).json({
+      success: false,
+      domain: cleanDomain,
+      grade: '?',
+      score: 0,
+      gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
+      error: `Hôte injoignable ou temporairement indisponible: ${err.message}`,
+      tools: [
+        {
+          id: 'securityheaders',
+          name: 'SecurityHeaders.com',
+          url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
+          category: 'Sécurité HTTP',
+          icon: '🛡️',
+          desc: 'Audit officiel des en-têtes de sécurité HTTP',
+        },
+      ],
+    });
+  }
+};
+
