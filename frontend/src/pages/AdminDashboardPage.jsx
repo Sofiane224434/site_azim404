@@ -1830,10 +1830,10 @@ function AuditTestsTab({ sites, showToast }) {
     const sObs = full?.obs || auditsObs[sDom];
     const sSsl = full?.ssl || auditsSSL[sDom];
 
-    const gradeToScore = { 'A+': 100, 'A': 92, 'A-': 88, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
+    const gradeToScore = { 'A+': 100, 'A': 90, 'A-': 85, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
     const scoreToGrade = (s) => {
-      if (s >= 90) return 'A+';
-      if (s >= 80) return 'A';
+      if (s >= 100) return 'A+';
+      if (s >= 85) return 'A';
       if (s >= 70) return 'B';
       if (s >= 55) return 'C';
       if (s >= 40) return 'D';
@@ -1844,7 +1844,8 @@ function AuditTestsTab({ sites, showToast }) {
     const avgOf = (items) => {
       const valid = items.filter((x) => x != null && typeof x === 'number');
       if (valid.length === 0) return { grade: '?', score: null };
-      const avg = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+      const rawAvg = valid.reduce((a, b) => a + b, 0) / valid.length;
+      const avg = rawAvg >= 100 ? 100 : Math.min(99, Math.round(rawAvg));
       return { score: avg, grade: scoreToGrade(avg) };
     };
 
@@ -1883,11 +1884,12 @@ function AuditTestsTab({ sites, showToast }) {
 
     if (validScores.length === 0) return { grade: '?', score: null, label: 'Non analysé' };
 
-    const avg = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
+    const rawAvg = validScores.reduce((a, b) => a + b, 0) / validScores.length;
+    const avg = rawAvg >= 100 ? 100 : Math.min(99, Math.round(rawAvg));
     let grade = 'F';
     let label = 'Critique (Vulnérabilités)';
-    if (avg >= 90) { grade = 'A+'; label = 'Excellente protection (Tous audits validés)'; }
-    else if (avg >= 80) { grade = 'A'; label = 'Solide & Sécurisé'; }
+    if (avg >= 100) { grade = 'A+'; label = 'Excellente protection (Score parfait 100/100)'; }
+    else if (avg >= 85) { grade = 'A'; label = 'Solide & Sécurisé'; }
     else if (avg >= 70) { grade = 'B'; label = 'Bonne sécurité globale'; }
     else if (avg >= 55) { grade = 'C'; label = 'Moyen (Améliorations requises)'; }
     else if (avg >= 40) { grade = 'D'; label = 'Faible (Alertes détectées)'; }

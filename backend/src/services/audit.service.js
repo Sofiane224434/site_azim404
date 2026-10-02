@@ -12,8 +12,8 @@ const REPO_ROOT = path.resolve(__dirname, '../../../');
 
 // Helper : Note et couleur standardisée
 export function scoreToGrade(score) {
-  if (score >= 90) return 'A+';
-  if (score >= 80) return 'A';
+  if (score >= 100) return 'A+';
+  if (score >= 85) return 'A';
   if (score >= 70) return 'B';
   if (score >= 55) return 'C';
   if (score >= 40) return 'D';
@@ -147,15 +147,12 @@ export async function auditPageSpeed(domain) {
   const hasMetaDesc = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i.test(html);
   const hasGzip = Boolean(probe.headers['content-encoding']);
 
-  let score = 70;
-  if (latency < 250) score += 15;
-  else if (latency < 600) score += 5;
-  else if (latency > 1500) score -= 20;
-
-  if (hasViewport) score += 10;
-  else score -= 15;
-
-  if (hasTitle && hasMetaDesc) score += 5;
+  // Calcul stable et déterministe basé sur l'architecture et les balises du site
+  let score = 30; // Réponse serveur 200 OK
+  if (hasViewport) score += 25;
+  if (hasTitle && hasMetaDesc) score += 20;
+  if (hasGzip) score += 15;
+  if (pageSizeKb > 0 && pageSizeKb < 150) score += 10;
 
   score = Math.max(10, Math.min(100, score));
   const grade = scoreToGrade(score);
@@ -1021,7 +1018,8 @@ export function computeCategoryScores(all) {
   const avgOfTools = (tools, defaultGrade = '?') => {
     const valid = tools.map(getToolScore).filter((s) => s !== null);
     if (valid.length === 0) return { score: null, grade: defaultGrade };
-    const avg = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+    const rawAvg = valid.reduce((a, b) => a + b, 0) / valid.length;
+    const avg = rawAvg >= 100 ? 100 : Math.min(99, Math.round(rawAvg));
     return { score: avg, grade: scoreToGrade(avg) };
   };
 
@@ -1043,13 +1041,18 @@ export function computeCategoryScores(all) {
   const cat6 = avgOfTools([snyk, pr, zap]);
 
   const catScores = [cat1.score, cat2.score, cat3.score, cat4.score, cat5.score, cat6.score].filter((s) => s !== null);
-  const globalScore = catScores.length > 0 ? Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length) : null;
+  let globalScore = null;
+  if (catScores.length > 0) {
+    const rawAvg = catScores.reduce((a, b) => a + b, 0) / catScores.length;
+    // 100/100 strict requis pour A+ (aucun arrondi supérieur vers 100)
+    globalScore = rawAvg >= 100 ? 100 : Math.min(99, Math.round(rawAvg));
+  }
   const globalGrade = globalScore !== null ? scoreToGrade(globalScore) : '?';
 
   let globalLabel = 'Non analysé';
   if (globalScore !== null) {
-    if (globalScore >= 90) globalLabel = 'Excellente protection (Tous audits validés)';
-    else if (globalScore >= 80) globalLabel = 'Solide & Sécurisé';
+    if (globalScore >= 100) globalLabel = 'Excellente protection (Score parfait 100/100)';
+    else if (globalScore >= 85) globalLabel = 'Solide & Sécurisé';
     else if (globalScore >= 70) globalLabel = 'Bonne sécurité globale';
     else if (globalScore >= 55) globalLabel = 'Moyen (Améliorations requises)';
     else if (globalScore >= 40) globalLabel = 'Faible (Alertes détectées)';
