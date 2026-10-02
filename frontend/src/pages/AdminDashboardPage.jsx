@@ -1097,42 +1097,6 @@ function UnifiedProjectCard({
           </a>
         </div>
 
-        {/* Note & Accès SecurityHeaders.com */}
-        {((domain || item.domain || item.link) ? (
-          <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-cyan-950/30 via-slate-900/60 to-slate-950 border border-cyan-500/20 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2.5">
-              <span className="text-base">🛡️</span>
-              <div>
-                <span className="text-xs font-bold text-white block">Note SecurityHeaders.com</span>
-                <span className="text-[11px] text-cyan-300/80 font-mono">
-                  {((domain || item.domain) || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={`https://securityheaders.com/?q=${encodeURIComponent(((domain || item.domain || item.link) || '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''))}&followRedirects=on`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-400/40 font-bold transition flex items-center gap-1 shadow-sm"
-                title="Consulter directement le rapport sur SecurityHeaders.com"
-              >
-                <span>Voir la note</span>
-                <span className="text-[9px]">↗</span>
-              </a>
-              {onSelectTab && (
-                <button
-                  type="button"
-                  onClick={() => onSelectTab('security')}
-                  className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-700 transition"
-                  title="Consulter le tableau de bord SecurityHeaders de tous vos sites"
-                >
-                  Onglet Sécurité ➔
-                </button>
-              )}
-            </div>
-          </div>
-        ) : null)}
 
         {/* 1-Click Kill-Switch Maintenance Toggle */}
         {isAdmin && (

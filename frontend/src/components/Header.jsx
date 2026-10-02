@@ -59,7 +59,7 @@ export default function Header() {
           {/* Bouton d'accès Administration visible, élégant et explicite */}
           <button
             onClick={() => navigate('/admin')}
-            className={`px-3.5 py-2 rounded-xl border text-xs font-mono font-bold transition-all flex items-center gap-2 ${
+            className={`cursor-pointer px-3.5 py-2 rounded-xl border text-xs font-mono font-bold transition-all flex items-center gap-2 ${
               isAdmin
                 ? 'bg-cyan-950 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.35)] hover:bg-cyan-900'
                 : 'bg-slate-900/90 border-slate-700 text-gray-200 hover:text-white hover:border-cyan-400 hover:bg-slate-800 shadow-sm'
