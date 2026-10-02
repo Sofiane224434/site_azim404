@@ -12,7 +12,7 @@ import re
 SNIPPET_PATH = "/etc/nginx/snippets/azim_maintenance.conf"
 SNIPPET_CONTENT = """# Azim404 Dynamic Maintenance System
 auth_request /_azim_maintenance_check;
-error_page 503 = @azim_maintenance_screen;
+error_page 403 =503 @azim_maintenance_screen;
 
 location = /_azim_maintenance_check {
     internal;

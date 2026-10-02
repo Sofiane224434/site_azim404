@@ -228,7 +228,7 @@ export const checkMaintenanceStatus = (req, res) => {
     }
 
     // Le site est bien en travaux pour le visiteur public
-    return res.status(503).send('MAINTENANCE_ACTIVE');
+    return res.status(403).send('MAINTENANCE_ACTIVE');
   }
 
   return res.status(200).send('OK');
