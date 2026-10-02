@@ -1158,6 +1158,9 @@ function AuditTestsTab({ sites, showToast }) {
   const [auditsSH, setAuditsSH] = useState({});
   const [auditsObs, setAuditsObs] = useState({});
   const [auditsSSL, setAuditsSSL] = useState({});
+  const [auditsFull, setAuditsFull] = useState({});
+  const [systemAudit, setSystemAudit] = useState(null);
+  const [systemAuditLoading, setSystemAuditLoading] = useState(false);
   const [loadingMap, setLoadingMap] = useState({});
   const [globalLoading, setGlobalLoading] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
@@ -1170,7 +1173,22 @@ function AuditTestsTab({ sites, showToast }) {
     return { ...s, cleanDomain: dom };
   }).filter((s) => Boolean(s.cleanDomain));
 
-  // 1. Chargement instantané du résumé en cache au premier affichage (sans relancer de scan lourd)
+  const fetchJSON = async (url, timeout = 35000) => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    return res.json();
+  };
+
+  const fetchSystemAudit = async () => {
+    setSystemAuditLoading(true);
+    try {
+      const data = await fetchJSON('/api/site-status/audit-system', 15000);
+      if (data?.success) setSystemAudit(data);
+    } catch {} finally {
+      setSystemAuditLoading(false);
+    }
+  };
+
+  // Chargement instantané du résumé en cache au premier affichage
   useEffect(() => {
     const loadCache = async () => {
       try {
@@ -1180,13 +1198,15 @@ function AuditTestsTab({ sites, showToast }) {
           const shMap = {};
           const obsMap = {};
           const sslMap = {};
+          const fullMap = {};
           const times = {};
 
           for (const [d, tools] of Object.entries(data.cache)) {
             if (tools.sh) shMap[d] = tools.sh;
             if (tools.obs) obsMap[d] = tools.obs;
             if (tools.ssl) sslMap[d] = tools.ssl;
-            const dates = [tools.sh?.checkedAt, tools.obs?.checkedAt, tools.ssl?.checkedAt].filter(Boolean);
+            if (tools.full) fullMap[d] = tools.full;
+            const dates = [tools.sh?.checkedAt, tools.obs?.checkedAt, tools.ssl?.checkedAt, tools.full?.checkedAt].filter(Boolean);
             if (dates.length > 0) {
               times[d] = dates.sort().reverse()[0];
             }
@@ -1195,57 +1215,233 @@ function AuditTestsTab({ sites, showToast }) {
           setAuditsSH(shMap);
           setAuditsObs(obsMap);
           setAuditsSSL(sslMap);
+          setAuditsFull(fullMap);
           setLastCheckTimes(times);
         }
       } catch {}
     };
     loadCache();
+    fetchSystemAudit();
   }, []);
 
-  const fetchJSON = async (url, timeout = 25000) => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
-    return res.json();
+  // Calcul ou récupération de la Note Globale unifiée
+  const getSiteGlobal = (sDom) => {
+    const full = auditsFull[sDom];
+    if (full?.globalGrade) {
+      return {
+        grade: full.globalGrade,
+        score: full.globalScore,
+        label: full.globalLabel,
+      };
+    }
+
+    const sSh = auditsSH[sDom];
+    const sObs = auditsObs[sDom];
+    const sSsl = auditsSSL[sDom];
+
+    const gradeToScore = { 'A+': 100, 'A': 92, 'A-': 88, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
+    const scores = [];
+
+    if (sSh && sSh.success) scores.push(typeof sSh.score === 'number' ? sSh.score : (gradeToScore[sSh.grade] ?? 50));
+    if (sObs && sObs.success) scores.push(typeof sObs.score === 'number' ? sObs.score : (gradeToScore[sObs.grade] ?? 50));
+    if (sSsl && sSsl.success) scores.push(gradeToScore[sSsl.grade] ?? 90);
+
+    if (scores.length === 0) return { grade: '?', score: null, label: 'Non analysé' };
+
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    let grade = 'F';
+    let label = 'Critique (Vulnérabilités)';
+    if (avg >= 90) { grade = 'A+'; label = 'Excellente protection'; }
+    else if (avg >= 80) { grade = 'A'; label = 'Solide & Sécurisé'; }
+    else if (avg >= 70) { grade = 'B'; label = 'Bonne sécurité'; }
+    else if (avg >= 55) { grade = 'C'; label = 'Moyen (Améliorations requises)'; }
+    else if (avg >= 40) { grade = 'D'; label = 'Faible (En-têtes manquants)'; }
+    else if (avg >= 20) { grade = 'E'; label = 'Vulnérable'; }
+
+    return { grade, score: avg, label };
   };
 
-  // Analyse d'un domaine en parallèle (toutes les API lancées en même temps)
+  // Analyse 1-CLIC d'un domaine : lance en parallèle tout le scan serveur et externe
   const runAuditDomain = async (dom, force = true) => {
     if (!dom) return;
     setLoadingMap((prev) => ({ ...prev, [dom]: true }));
 
     try {
       const forceQuery = force ? '&force=true' : '';
-      const [shRes, obsRes, sslRes] = await Promise.allSettled([
-        fetchJSON(`/api/site-status/audit-headers?domain=${encodeURIComponent(dom)}${forceQuery}`, 15000),
-        fetchJSON(`/api/site-status/audit-observatory?domain=${encodeURIComponent(dom)}${forceQuery}`, 30000),
-        fetchJSON(`/api/site-status/audit-ssllabs?domain=${encodeURIComponent(dom)}${forceQuery}`, 45000),
-      ]);
+      const data = await fetchJSON(`/api/site-status/audit-full?domain=${encodeURIComponent(dom)}${forceQuery}`, 35000);
 
-      const now = new Date().toISOString();
-
-      if (shRes.status === 'fulfilled' && shRes.value) {
-        setAuditsSH((prev) => ({ ...prev, [dom]: shRes.value }));
+      if (data?.success) {
+        setAuditsFull((prev) => ({ ...prev, [dom]: data }));
+        if (data.sh) setAuditsSH((prev) => ({ ...prev, [dom]: data.sh }));
+        if (data.obs) setAuditsObs((prev) => ({ ...prev, [dom]: data.obs }));
+        if (data.ssl) setAuditsSSL((prev) => ({ ...prev, [dom]: data.ssl }));
+        setLastCheckTimes((prev) => ({ ...prev, [dom]: data.checkedAt || new Date().toISOString() }));
       }
-      if (obsRes.status === 'fulfilled' && obsRes.value) {
-        setAuditsObs((prev) => ({ ...prev, [dom]: obsRes.value }));
-      }
-      if (sslRes.status === 'fulfilled' && sslRes.value) {
-        setAuditsSSL((prev) => ({ ...prev, [dom]: sslRes.value }));
-      }
-
-      setLastCheckTimes((prev) => ({ ...prev, [dom]: now }));
     } catch (err) {
-      showToast?.(`Erreur analyse ${dom}`);
+      showToast?.(`Erreur lors de l’audit de ${dom}`);
     } finally {
       setLoadingMap((prev) => ({ ...prev, [dom]: false }));
     }
   };
 
-  // Analyse globale ASYNC PARALLÈLE (tous les sites scannés en même temps sans boucle lente)
+  // Analyse 1-CLIC Globale : lance tous les sites en parallèle + audit système
   const runAuditAll = async () => {
     setGlobalLoading(true);
-    await Promise.allSettled(validSites.map((site) => runAuditDomain(site.cleanDomain, true)));
+    await Promise.allSettled([
+      ...validSites.map((site) => runAuditDomain(site.cleanDomain, true)),
+      fetchSystemAudit(),
+    ]);
     setGlobalLoading(false);
-    showToast?.('Analyses mises à jour');
+    showToast?.('Tous les audits ont été actualisés');
+  };
+
+  // Utilitaires de téléchargement Markdown
+  const downloadMarkdownFile = (filename, content) => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Exporter en .md le rapport complet d'un site
+  const exportSiteMarkdown = (siteDom) => {
+    const site = validSites.find((s) => s.cleanDomain === siteDom) || { cleanDomain: siteDom, title: siteDom };
+    const sSh = auditsSH[siteDom];
+    const sObs = auditsObs[siteDom];
+    const sSsl = auditsSSL[siteDom];
+    const global = getSiteGlobal(siteDom);
+    const now = new Date().toLocaleString('fr-FR');
+
+    let md = `# Rapport d'Audit & Sécurité — ${site.title || siteDom}\n\n`;
+    md += `> Date du rapport : ${now} • Généré via la console Azim404\n\n`;
+
+    md += `## 1. Synthèse Globale\n\n`;
+    md += `- **Domaine :** \`${siteDom}\`\n`;
+    md += `- **Note Globale :** **${global.grade}** (${global.score != null ? `${global.score}/100` : 'N/A'}) — *${global.label}*\n`;
+    md += `- **Dernière analyse :** ${lastCheckTimes[siteDom] ? new Date(lastCheckTimes[siteDom]).toLocaleString('fr-FR') : 'À l’instant'}\n\n`;
+
+    md += `### Résultats par référentiel d'audit\n\n`;
+    md += `| Outil d'Audit | Note | Score | Statut / Détails |\n`;
+    md += `|---|---|---|---|\n`;
+    md += `| **SecurityHeaders** | **${sSh?.grade || '-'}** | ${sSh?.score != null ? `${sSh.score}/100` : '-'} | ${sSh?.success ? 'En-têtes HTTP analysés' : (sSh?.error || 'Non disponible')} |\n`;
+    md += `| **Mozilla Observatory (MDN)** | **${sObs?.grade || '-'}** | ${sObs?.score != null ? `${sObs.score}/100` : '-'} | ${sObs?.success ? `${sObs.tests_passed || 0} réussis, ${sObs.tests_failed || 0} échoués` : (sObs?.error || 'Non disponible')} |\n`;
+    md += `| **Qualys SSL Labs / TLS** | **${sSsl?.grade || '-'}** | - | ${sSsl?.protocol || 'TLSv1.3'} (${sSsl?.issuer || "Let's Encrypt"}${sSsl?.daysRemaining ? ` - Expire dans ${sSsl.daysRemaining}j` : ''}) |\n\n`;
+
+    md += `## 2. Détail des En-têtes HTTP de Sécurité\n\n`;
+    if (sSh?.checks) {
+      md += `| En-tête | Statut | Poids | Description & Rôle de protection |\n`;
+      md += `|---|---|---|---|\n`;
+      for (const [k, c] of Object.entries(sSh.checks)) {
+        md += `| \`${c.name || k}\` | **${c.present ? 'PRÉSENT' : 'MANQUANT'}** | ${c.weight} pts | ${c.desc} |\n`;
+      }
+      md += `\n`;
+    } else {
+      md += `*Aucun en-tête n'a encore été analysé pour ce domaine.*\n\n`;
+    }
+
+    md += `## 3. Erreurs, Anomalies & Vulnérabilités Détectées\n\n`;
+    const errors = [];
+    if (sSh?.checks) {
+      for (const [k, c] of Object.entries(sSh.checks)) {
+        if (!c.present) {
+          errors.push(`- **En-tête manquant :** \`${c.name || k}\` (${c.desc})`);
+        }
+      }
+    }
+    if (sObs?.tests_failed > 0) {
+      errors.push(`- **Mozilla Observatory :** ${sObs.tests_failed} test(s) échoué(s) sur ${sObs.tests_quantity || 12} vérifications.`);
+    }
+    if (sSsl?.tlsValid === false) {
+      errors.push(`- **Certificat TLS :** Certificat SSL invalide ou expiré.`);
+    }
+    if (sSh?.cookieSecurity && sSh.cookieSecurity.hasCookies && (!sSh.cookieSecurity.secure || !sSh.cookieSecurity.httpOnly)) {
+      errors.push(`- **Cookies non protégés :** Certains cookies ne possèdent pas les attributs requis (Secure, HttpOnly, SameSite).`);
+    }
+
+    if (errors.length > 0) {
+      md += errors.join('\n') + '\n\n';
+    } else {
+      md += `*Aucune erreur critique détectée. Tous les critères obligatoires sont validés.*\n\n`;
+    }
+
+    md += `## 4. Recommandations d'Amélioration (Pour Note A+)\n\n`;
+    if (!sSh?.checks?.hsts?.present) {
+      md += `- **HSTS :** Configurer \`Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\`\n`;
+    }
+    if (!sSh?.checks?.csp?.present) {
+      md += `- **CSP :** Définir une stratégie \`Content-Security-Policy\` restrictive pour bloquer les injections XSS.\n`;
+    }
+    if (!sSh?.checks?.xfo?.present) {
+      md += `- **X-Frame-Options :** Configurer \`SAMEORIGIN\` pour bloquer le Clickjacking.\n`;
+    }
+    if (!sSh?.checks?.xcto?.present) {
+      md += `- **X-Content-Type-Options :** Configurer \`nosniff\` pour empêcher le MIME-sniffing.\n`;
+    }
+    if (!sSh?.checks?.rp?.present) {
+      md += `- **Referrer-Policy :** Configurer \`strict-origin-when-cross-origin\`.\n`;
+    }
+    if (!sSh?.checks?.pp?.present) {
+      md += `- **Permissions-Policy :** Désactiver les capteurs matériels non sollicités (camera, micro, géolocalisation).\n`;
+    }
+    md += `\n`;
+
+    md += `## 5. Liens d'Audit Directs\n\n`;
+    md += `- [SecurityHeaders](https://securityheaders.com/?q=${encodeURIComponent(siteDom)}&followRedirects=on)\n`;
+    md += `- [Mozilla Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(siteDom)})\n`;
+    md += `- [Qualys SSL Labs](https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(siteDom)})\n`;
+    md += `- [Google PageSpeed](https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(siteDom)}%2F)\n`;
+    md += `- [Scanner 2gdpr](https://2gdpr.com/check?domain=${encodeURIComponent(siteDom)})\n`;
+
+    downloadMarkdownFile(`audit-${siteDom.replace(/[^a-z0-9]/gi, '_')}.md`, md);
+    showToast?.(`Rapport .md exporté pour ${siteDom}`);
+  };
+
+  // Exporter en .md le rapport global de l'infrastructure
+  const exportGlobalMarkdown = () => {
+    const now = new Date().toLocaleString('fr-FR');
+    let md = `# Rapport Global des Audits & Sécurité — Azim404\n\n`;
+    md += `> Date du rapport : ${now} • Infrastructure globale\n\n`;
+
+    md += `## 1. Synthèse par Site & Domaine\n\n`;
+    md += `| Site / Domaine | Note Globale | Score | SecurityHeaders | Observatory | SSL Labs | Dernière analyse |\n`;
+    md += `|---|---|---|---|---|---|---|\n`;
+
+    for (const site of validSites) {
+      const sDom = site.cleanDomain;
+      const global = getSiteGlobal(sDom);
+      const sSh = auditsSH[sDom];
+      const sObs = auditsObs[sDom];
+      const sSsl = auditsSSL[sDom];
+      const dateStr = lastCheckTimes[sDom] ? new Date(lastCheckTimes[sDom]).toLocaleDateString('fr-FR') : 'Non analysé';
+
+      md += `| **${site.title || sDom}** (\`${sDom}\`) | **${global.grade}** | ${global.score != null ? `${global.score}/100` : '-'} | ${sSh?.grade || '-'} | ${sObs?.grade || '-'} | ${sSsl?.grade || '-'} | ${dateStr} |\n`;
+    }
+    md += `\n`;
+
+    if (systemAudit?.vulnerabilities) {
+      md += `## 2. Audit Dépendances & Code (npm audit)\n\n`;
+      md += `- **Vulnérabilités totales :** ${systemAudit.vulnerabilities.total}\n`;
+      md += `- **Critiques :** ${systemAudit.vulnerabilities.critical}\n`;
+      md += `- **Élevées :** ${systemAudit.vulnerabilities.high}\n`;
+      md += `- **Modérées :** ${systemAudit.vulnerabilities.moderate}\n`;
+      md += `- **Faibles :** ${systemAudit.vulnerabilities.low}\n\n`;
+
+      if (systemAudit.topAdvisories?.length > 0) {
+        md += `### Principales alertes de sécurité détectées :\n\n`;
+        for (const adv of systemAudit.topAdvisories) {
+          md += `- **[${adv.severity.toUpperCase()}]** \`${adv.name}\` : ${adv.title} (${adv.range})\n`;
+        }
+        md += `\n`;
+      }
+    }
+
+    downloadMarkdownFile(`audit-global-${new Date().toISOString().slice(0, 10)}.md`, md);
+    showToast?.('Rapport global .md exporté');
   };
 
   const gradeColor = (grade) => {
@@ -1277,46 +1473,57 @@ function AuditTestsTab({ sites, showToast }) {
   const sh = dom ? auditsSH[dom] : null;
   const obs = dom ? auditsObs[dom] : null;
   const ssl = dom ? auditsSSL[dom] : null;
+  const selectedGlobal = dom ? getSiteGlobal(dom) : null;
   const currentSiteLastCheck = dom ? lastCheckTimes[dom] : null;
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+      {/* Header Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/5 pb-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Audits & Tests</h2>
+          <h2 className="text-lg font-bold text-white">Audits & Tests de Sécurité</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Sécurité (SecurityHeaders, Observatory, SSL Labs), SEO, Accessibilité, RGPD et Qualité logicielle.
+            Analyses automatisées en 1 clic : En-têtes, Mozilla Observatory, Qualys SSL Labs, SEO, RGPD & Dépendances.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={runAuditAll}
-          disabled={globalLoading}
-          className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-medium transition flex items-center gap-2 shrink-0"
-        >
-          {globalLoading ? (
-            <>
-              <span className="w-3 h-3 rounded-full border border-white border-t-transparent animate-spin" />
-              <span>Analyse en cours...</span>
-            </>
-          ) : (
-            <span>Tout actualiser</span>
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={exportGlobalMarkdown}
+            className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs sm:text-sm font-medium border border-slate-700 transition"
+          >
+            Exporter rapport global (.md)
+          </button>
+          <button
+            type="button"
+            onClick={runAuditAll}
+            disabled={globalLoading}
+            className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white text-xs sm:text-sm font-medium transition flex items-center gap-2 shrink-0"
+          >
+            {globalLoading ? (
+              <>
+                <span className="w-3 h-3 rounded-full border border-white border-t-transparent animate-spin" />
+                <span>Analyses en cours...</span>
+              </>
+            ) : (
+              <span>Lancer l'audit complet (1 clic)</span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Table des résultats */}
       <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-gray-400 font-mono text-xs bg-slate-900/40">
                 <th className="py-3 px-4">SITE / DOMAINE</th>
+                <th className="py-3 px-3 text-center">NOTE GLOBALE</th>
                 <th className="py-3 px-3 text-center">SECURITY HEADERS</th>
                 <th className="py-3 px-3 text-center">OBSERVATORY</th>
-                <th className="py-3 px-3 text-center">SSL LABS</th>
+                <th className="py-3 px-3 text-center">SSL LABS / TLS</th>
                 <th className="py-3 px-4 text-center">DERNIÈRE ANALYSE</th>
                 <th className="py-3 px-4 text-right">ACTIONS</th>
               </tr>
@@ -1327,6 +1534,7 @@ function AuditTestsTab({ sites, showToast }) {
                 const sSh = auditsSH[sDom];
                 const sObs = auditsObs[sDom];
                 const sSsl = auditsSSL[sDom];
+                const sGlobal = getSiteGlobal(sDom);
                 const isLoading = loadingMap[sDom];
                 const isSelected = selectedDomain === sDom;
                 const lastCheck = lastCheckTimes[sDom];
@@ -1339,6 +1547,17 @@ function AuditTestsTab({ sites, showToast }) {
                     <td className="py-3 px-4">
                       <div className="font-semibold text-white">{site.title || site.name || sDom}</div>
                       <div className="text-xs font-mono text-gray-400">{sDom}</div>
+                    </td>
+
+                    <td className="py-3 px-3 text-center">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className={`w-10 h-7 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
+                          {sGlobal.grade}
+                        </span>
+                        {sGlobal.score != null && (
+                          <span className="text-xs font-mono text-gray-300 font-medium">{sGlobal.score}/100</span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3 text-center">
@@ -1360,7 +1579,7 @@ function AuditTestsTab({ sites, showToast }) {
                         <GradeBadge
                           grade={sObs?.grade}
                           loading={isLoading && !sObs}
-                          href={`https://observatory.mozilla.org/analyze/${encodeURIComponent(sDom)}`}
+                          href={sObs?.url || `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(sDom)}`}
                           title={`Mozilla Observatory — ${sObs?.grade || 'Non analysé'}`}
                         />
                         {sObs?.score != null && (
@@ -1370,12 +1589,17 @@ function AuditTestsTab({ sites, showToast }) {
                     </td>
 
                     <td className="py-3 px-3 text-center">
-                      <GradeBadge
-                        grade={sSsl?.grade}
-                        loading={isLoading && !sSsl}
-                        href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(sDom)}`}
-                        title={`Qualys SSL Labs — ${sSsl?.grade || 'Non analysé'}`}
-                      />
+                      <div className="inline-flex items-center gap-1.5">
+                        <GradeBadge
+                          grade={sSsl?.grade}
+                          loading={isLoading && !sSsl}
+                          href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(sDom)}`}
+                          title={`Qualys SSL Labs — ${sSsl?.grade || 'Non analysé'}`}
+                        />
+                        {sSsl?.protocol && (
+                          <span className="text-xs font-mono text-gray-400 hidden sm:inline">{sSsl.protocol}</span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3 px-4 text-center">
@@ -1415,28 +1639,45 @@ function AuditTestsTab({ sites, showToast }) {
         </div>
       </div>
 
-      {/* DETAIL VIEW OF ALL 6 TEST CATEGORIES */}
+      {/* DETAIL MODAL / VUE APPROFONDIE */}
       {selectedDomain && (
         <div className="p-5 rounded-xl border border-cyan-500/40 bg-slate-950 space-y-5 animate-fade-in shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-800 pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">{selectedSite?.title || selectedDomain}</span>
-                <span className="text-xs font-mono text-cyan-400">({selectedDomain})</span>
+          {/* Header de la vue détaillée avec Synthèse Note Globale & Actions */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <span className={`w-14 h-14 rounded-xl border text-xl font-black flex items-center justify-center ${gradeColor(selectedGlobal?.grade)}`}>
+                {selectedGlobal?.grade || '?'}
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white">{selectedSite?.title || selectedDomain}</h3>
+                  <code className="text-xs font-mono text-cyan-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                    {selectedDomain}
+                  </code>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-300 mt-1">
+                  <span>Note Globale : <strong>{selectedGlobal?.score != null ? `${selectedGlobal.score}/100` : 'N/A'}</strong> ({selectedGlobal?.label})</span>
+                  <span>•</span>
+                  <span className="text-gray-400">Dernier scan : {formatLastCheck(currentSiteLastCheck)}</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Dernière analyse : {formatLastCheck(currentSiteLastCheck)}
-              </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() => exportSiteMarkdown(selectedDomain)}
+                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs sm:text-sm font-medium border border-slate-700 transition"
+              >
+                Exporter ce site (.md)
+              </button>
               <button
                 type="button"
                 onClick={() => runAuditDomain(selectedDomain, true)}
                 disabled={loadingMap[selectedDomain]}
                 className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-xs sm:text-sm text-white font-medium transition"
               >
-                {loadingMap[selectedDomain] ? 'Analyse...' : 'Actualiser ce site'}
+                {loadingMap[selectedDomain] ? 'Analyse 1-clic...' : 'Tout ré-analyser (1 clic)'}
               </button>
               <button
                 type="button"
@@ -1448,7 +1689,7 @@ function AuditTestsTab({ sites, showToast }) {
             </div>
           </div>
 
-          {/* Filters */}
+          {/* Filtres de catégories */}
           <div className="flex flex-wrap gap-2">
             {[
               { id: 'ALL', label: 'Toutes les catégories' },
@@ -1456,8 +1697,8 @@ function AuditTestsTab({ sites, showToast }) {
               { id: '2', label: '2. SEO & Performance' },
               { id: '3', label: '3. RGPD & Cookies' },
               { id: '4', label: '4. Fuites Git' },
-              { id: '5', label: '5. Qualité de code' },
-              { id: '6', label: '6. Vulnérabilités' },
+              { id: '5', label: '5. Qualité logicielle' },
+              { id: '6', label: '6. Vulnérabilités & Packages' },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -1479,11 +1720,12 @@ function AuditTestsTab({ sites, showToast }) {
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '1') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-sm font-bold text-cyan-300 font-mono">1. SÉCURITÉ RÉSEAU, TLS & EN-TÊTES</h4>
-                  <span className="text-xs font-mono text-gray-400">Automatisé</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">1. SÉCURITÉ RÉSEAU, TLS & EN-TÊTES HTTP</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* SecurityHeaders */}
                   <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-bold text-white">SecurityHeaders</span>
@@ -1491,7 +1733,7 @@ function AuditTestsTab({ sites, showToast }) {
                         {sh?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">Score : {sh?.score ?? '-'} / 100</div>
+                    <div className="text-xs text-gray-400">Score en-têtes : {sh?.score ?? '-'} / 100</div>
                     <a
                       href={`https://securityheaders.com/?q=${encodeURIComponent(selectedDomain)}&followRedirects=on`}
                       target="_blank"
@@ -1502,6 +1744,7 @@ function AuditTestsTab({ sites, showToast }) {
                     </a>
                   </div>
 
+                  {/* Mozilla Observatory */}
                   <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-bold text-white">Mozilla Observatory</span>
@@ -1509,9 +1752,12 @@ function AuditTestsTab({ sites, showToast }) {
                         {obs?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">Score : {obs?.score ?? '-'} / 100</div>
+                    <div className="text-xs text-gray-400">
+                      Score MDN : {obs?.score ?? '-'} / 100
+                      {obs?.tests_passed != null && ` • ${obs.tests_passed} réussis / ${obs.tests_failed || 0} échoués`}
+                    </div>
                     <a
-                      href={`https://observatory.mozilla.org/analyze/${encodeURIComponent(selectedDomain)}`}
+                      href={obs?.url || `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-cyan-400 hover:underline block font-mono"
@@ -1520,14 +1766,18 @@ function AuditTestsTab({ sites, showToast }) {
                     </a>
                   </div>
 
+                  {/* Qualys SSL Labs & TLS */}
                   <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-white">Qualys SSL Labs</span>
+                      <span className="text-sm font-bold text-white">Qualys SSL Labs / TLS</span>
                       <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(ssl?.grade)}`}>
                         {ssl?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">Certificat TLS & chiffrement</div>
+                    <div className="text-xs text-gray-400 truncate">
+                      {ssl?.protocol || 'TLSv1.3'} • {ssl?.issuer || "Let's Encrypt"}
+                      {ssl?.daysRemaining ? ` (${ssl.daysRemaining}j restants)` : ''}
+                    </div>
                     <a
                       href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
@@ -1539,6 +1789,7 @@ function AuditTestsTab({ sites, showToast }) {
                   </div>
                 </div>
 
+                {/* Détail complet des en-têtes */}
                 {sh?.checks && (
                   <div className="space-y-2 pt-2">
                     <span className="text-xs font-mono text-gray-400 block">DÉTAIL DES EN-TÊTES DE SÉCURITÉ :</span>
@@ -1627,6 +1878,29 @@ function AuditTestsTab({ sites, showToast }) {
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">3. RGPD & COOKIES</h4>
                 </div>
+
+                {sh?.cookieSecurity && (
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs flex flex-wrap gap-4 items-center font-mono">
+                    <span className="text-gray-400">Analyse HTTP Cookies :</span>
+                    <span className={sh.cookieSecurity.hasCookies ? 'text-white' : 'text-emerald-400'}>
+                      {sh.cookieSecurity.hasCookies ? 'Cookies déposés détectés' : 'Aucun cookie public détecté'}
+                    </span>
+                    {sh.cookieSecurity.hasCookies && (
+                      <>
+                        <span className={sh.cookieSecurity.secure ? 'text-emerald-400' : 'text-rose-400'}>
+                          Secure : {sh.cookieSecurity.secure ? 'Oui' : 'Non'}
+                        </span>
+                        <span className={sh.cookieSecurity.httpOnly ? 'text-emerald-400' : 'text-rose-400'}>
+                          HttpOnly : {sh.cookieSecurity.httpOnly ? 'Oui' : 'Non'}
+                        </span>
+                        <span className={sh.cookieSecurity.sameSite ? 'text-emerald-400' : 'text-rose-400'}>
+                          SameSite : {sh.cookieSecurity.sameSite ? 'Oui' : 'Non'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                     <div className="text-sm font-bold text-white">2gdpr Scanner</div>
@@ -1730,12 +2004,61 @@ function AuditTestsTab({ sites, showToast }) {
               </div>
             )}
 
-            {/* CAT 6: VULNÉRABILITÉS */}
+            {/* CAT 6: VULNÉRABILITÉS & PACKAGES */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '6') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">6. BASE DE DONNÉES & VULNÉRABILITÉS</h4>
+                  <button
+                    type="button"
+                    onClick={fetchSystemAudit}
+                    disabled={systemAuditLoading}
+                    className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline"
+                  >
+                    {systemAuditLoading ? 'Audit npm en cours...' : 'Re-scanner npm audit'}
+                  </button>
                 </div>
+
+                {systemAudit?.vulnerabilities && (
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center text-xs font-mono">
+                      <span className="text-white font-bold">RÉSULTAT NPM AUDIT (PACKAGES FRONTEND)</span>
+                      <span className="text-gray-400">{systemAudit.vulnerabilities.total} vulnérabilité(s)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs font-mono">
+                      <span className="px-2 py-0.5 rounded bg-rose-950/40 border border-rose-500/30 text-rose-300">
+                        Critique : {systemAudit.vulnerabilities.critical}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-orange-950/40 border border-orange-500/30 text-orange-300">
+                        Élevée : {systemAudit.vulnerabilities.high}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-amber-950/40 border border-amber-500/30 text-amber-300">
+                        Modérée : {systemAudit.vulnerabilities.moderate}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-gray-300">
+                        Faible : {systemAudit.vulnerabilities.low}
+                      </span>
+                    </div>
+
+                    {systemAudit.topAdvisories?.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <span className="text-[11px] font-mono text-gray-500 block">PACKAGES SIGNALÉS :</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto">
+                          {systemAudit.topAdvisories.map((adv, idx) => (
+                            <div key={idx} className="p-2 rounded bg-slate-900 border border-slate-800 text-xs space-y-0.5 truncate">
+                              <div className="flex justify-between">
+                                <span className="font-bold text-white truncate">{adv.name}</span>
+                                <span className="text-xs uppercase font-mono text-rose-400">{adv.severity}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 truncate">{adv.title}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                     <div className="text-sm font-bold text-white">npm audit / Snyk</div>

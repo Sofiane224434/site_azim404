@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import https from 'https';
+import tls from 'tls';
+import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1005,30 +1007,141 @@ async function queryDomainRawHeaders(targetUrl, timeoutMs = 8000, maxRedirects =
   }
 }
 
+// Helper pour auditer directement le certificat TLS via socket Node.js en ~200ms
+function probeTLSSocket(domain, port = 443, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const socket = tls.connect(
+      {
+        host: domain,
+        port,
+        servername: domain,
+        rejectUnauthorized: false,
+        timeout: timeoutMs,
+      },
+      () => {
+        if (resolved) return;
+        resolved = true;
+        try {
+          const cert = socket.getPeerCertificate();
+          const protocol = socket.getProtocol();
+          const cipher = socket.getCipher();
+          const validTo = cert.valid_to ? new Date(cert.valid_to) : null;
+          const validFrom = cert.valid_from ? new Date(cert.valid_from) : null;
+          const now = new Date();
+          const isValid = validTo ? validTo > now : false;
+          const daysRemaining = validTo ? Math.round((validTo.getTime() - now.getTime()) / (1000 * 3600 * 24)) : null;
+
+          let grade = 'A';
+          if (!isValid) grade = 'F';
+          else if (protocol === 'TLSv1.3') grade = 'A+';
+          else if (protocol === 'TLSv1.2') grade = 'A';
+          else if (protocol === 'TLSv1.1' || protocol === 'TLSv1') grade = 'C';
+
+          socket.end();
+          resolve({
+            success: true,
+            domain,
+            grade,
+            isValid,
+            validFrom: validFrom ? validFrom.toISOString() : null,
+            validTo: validTo ? validTo.toISOString() : null,
+            daysRemaining,
+            issuer: cert.issuer?.O || cert.issuer?.CN || "Let's Encrypt",
+            subject: cert.subject?.CN || domain,
+            protocol: protocol || 'TLSv1.3',
+            cipher: cipher?.name || 'AES-256-GCM',
+          });
+        } catch (e) {
+          socket.destroy();
+          resolve({ success: false, error: e.message });
+        }
+      }
+    );
+
+    socket.on('timeout', () => {
+      if (resolved) return;
+      resolved = true;
+      socket.destroy();
+      resolve({ success: false, error: 'TIMEOUT' });
+    });
+
+    socket.on('error', (err) => {
+      if (resolved) return;
+      resolved = true;
+      resolve({ success: false, error: err.message });
+    });
+  });
+}
+
+// Calcul de la Note Globale unifiée et du Score Global (0-100)
+function computeGlobalAuditScore(sh, obs, ssl) {
+  const gradeToScore = {
+    'A+': 100,
+    'A': 92,
+    'A-': 88,
+    'B': 75,
+    'C': 55,
+    'D': 35,
+    'E': 20,
+    'F': 0,
+    '?': 0,
+  };
+
+  const scores = [];
+
+  if (sh && sh.success) {
+    scores.push(typeof sh.score === 'number' ? sh.score : (gradeToScore[sh.grade] ?? 50));
+  }
+  if (obs && obs.success) {
+    scores.push(typeof obs.score === 'number' ? obs.score : (gradeToScore[obs.grade] ?? 50));
+  }
+  if (ssl && ssl.success) {
+    scores.push(gradeToScore[ssl.grade] ?? 90);
+  }
+
+  if (scores.length === 0) {
+    return { globalGrade: '?', globalScore: 0, globalLabel: 'Non analysé' };
+  }
+
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+
+  let globalGrade = 'F';
+  let globalLabel = 'Critique (Vulnérabilités)';
+  if (avg >= 90) {
+    globalGrade = 'A+';
+    globalLabel = 'Excellente protection';
+  } else if (avg >= 80) {
+    globalGrade = 'A';
+    globalLabel = 'Solide & Sécurisé';
+  } else if (avg >= 70) {
+    globalGrade = 'B';
+    globalLabel = 'Bonne sécurité';
+  } else if (avg >= 55) {
+    globalGrade = 'C';
+    globalLabel = 'Moyen (Améliorations requises)';
+  } else if (avg >= 40) {
+    globalGrade = 'D';
+    globalLabel = 'Faible (En-têtes manquants)';
+  } else if (avg >= 20) {
+    globalGrade = 'E';
+    globalLabel = 'Vulnérable';
+  }
+
+  return { globalGrade, globalScore: avg, globalLabel };
+}
+
 // GET /api/site-status/audit-summary
 export const getAuditSummary = (req, res) => {
   const cache = readAuditCache();
   return res.json({ success: true, cache });
 };
 
-// GET /api/site-status/audit-headers?domain=...
-export const auditSiteHeaders = async (req, res) => {
-  const rawDomain = req.query.domain || '';
-  const cleanDomain = rawDomain
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/\/.*$/, '')
-    .split(':')[0];
-
-  if (!cleanDomain) {
-    return res.status(400).json({ success: false, error: 'Domaine manquant' });
-  }
-
-  const force = req.query.force === 'true';
+// Analyse interne des en-têtes HTTP (SecurityHeaders.com logic)
+async function runAuditHeadersInternal(cleanDomain, force = false) {
   const cache = readAuditCache();
   if (!force && cache[cleanDomain]?.sh && (Date.now() - new Date(cache[cleanDomain].sh.checkedAt || 0).getTime() < 86400000)) {
-    return res.json({ ...cache[cleanDomain].sh, cached: true });
+    return { ...cache[cleanDomain].sh, cached: true };
   }
 
   const auditTools = [
@@ -1049,7 +1162,7 @@ export const auditSiteHeaders = async (req, res) => {
     {
       id: 'observatory',
       name: 'Mozilla Observatory',
-      url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(cleanDomain)}`,
+      url: `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(cleanDomain)}`,
       category: '1. Securite reseau & TLS',
       desc: 'En-tetes, TLS et bonnes pratiques web',
     },
@@ -1092,11 +1205,7 @@ export const auditSiteHeaders = async (req, res) => {
         result = await queryDomainRawHeaders(`http://${cleanDomain}`);
       } catch (httpErr) {
         await new Promise((r) => setTimeout(r, 300));
-        try {
-          result = await queryDomainRawHeaders(`https://${cleanDomain}`, 8000);
-        } catch {
-          throw httpsErr;
-        }
+        result = await queryDomainRawHeaders(`https://${cleanDomain}`, 8000);
       }
     }
 
@@ -1107,6 +1216,14 @@ export const auditSiteHeaders = async (req, res) => {
     const csp = headers['content-security-policy'];
     const rp = headers['referrer-policy'];
     const pp = headers['permissions-policy'];
+
+    // Cookies check (RGPD / Flags de sécurité)
+    const rawCookies = headers['set-cookie'] || '';
+    const cookieString = Array.isArray(rawCookies) ? rawCookies.join('; ') : String(rawCookies);
+    const hasCookies = Boolean(cookieString);
+    const cookiesSecure = hasCookies ? /secure/i.test(cookieString) : true;
+    const cookiesHttpOnly = hasCookies ? /httponly/i.test(cookieString) : true;
+    const cookiesSameSite = hasCookies ? /samesite/i.test(cookieString) : true;
 
     const checks = {
       hsts: {
@@ -1210,8 +1327,6 @@ export const auditSiteHeaders = async (req, res) => {
       }
     }
 
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const payload = {
       success: true,
       domain: cleanDomain,
@@ -1219,11 +1334,17 @@ export const auditSiteHeaders = async (req, res) => {
       score,
       gradeColor,
       checks,
+      cookieSecurity: {
+        hasCookies,
+        secure: cookiesSecure,
+        httpOnly: cookiesHttpOnly,
+        sameSite: cookiesSameSite,
+      },
       tools: auditTools,
       checkedAt: new Date().toISOString(),
     };
     updateAuditCache(cleanDomain, 'sh', payload);
-    return res.json(payload);
+    return payload;
   } catch (err) {
     let friendlyError = `Hote injoignable (${err.message})`;
     if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
@@ -1245,145 +1366,245 @@ export const auditSiteHeaders = async (req, res) => {
       checkedAt: new Date().toISOString(),
     };
     updateAuditCache(cleanDomain, 'sh', failPayload);
-    return res.status(200).json(failPayload);
+    return failPayload;
   }
+}
+
+// GET /api/site-status/audit-headers?domain=...
+export const auditSiteHeaders = async (req, res) => {
+  const rawDomain = req.query.domain || '';
+  const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+  if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
+
+  const force = req.query.force === 'true';
+  const result = await runAuditHeadersInternal(cleanDomain, force);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  return res.json(result);
 };
+
+// Analyse interne Mozilla Observatory via la nouvelle API MDN v2
+async function runAuditObservatoryInternal(cleanDomain, force = false) {
+  const cache = readAuditCache();
+  if (!force && cache[cleanDomain]?.obs && (Date.now() - new Date(cache[cleanDomain].obs.checkedAt || 0).getTime() < 86400000)) {
+    return { ...cache[cleanDomain].obs, cached: true };
+  }
+
+  const gradeMap = {
+    'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
+    'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+    'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
+    'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
+    'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
+    'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
+  };
+
+  try {
+    const triggerRes = await fetch(`https://observatory-api.mdn.mozilla.net/api/v2/scan?host=${encodeURIComponent(cleanDomain)}`, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!triggerRes.ok) throw new Error(`Observatory HTTP ${triggerRes.status}`);
+    const data = await triggerRes.json();
+
+    const payload = {
+      success: true,
+      domain: cleanDomain,
+      grade: data.grade || '?',
+      score: data.score ?? null,
+      tests_failed: data.tests_failed ?? 0,
+      tests_passed: data.tests_passed ?? 0,
+      tests_quantity: data.tests_quantity ?? 0,
+      gradeColor: gradeMap[data.grade] || 'text-gray-400 bg-slate-900 border-slate-700',
+      url: data.details_url || `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(cleanDomain)}`,
+      checkedAt: data.scanned_at || new Date().toISOString(),
+    };
+    updateAuditCache(cleanDomain, 'obs', payload);
+    return payload;
+  } catch (err) {
+    const failPayload = {
+      success: false,
+      domain: cleanDomain,
+      grade: '?',
+      score: null,
+      error: `Observatory : ${err.message}`,
+      url: `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(cleanDomain)}`,
+      checkedAt: new Date().toISOString(),
+    };
+    return failPayload;
+  }
+}
 
 // GET /api/site-status/audit-observatory?domain=...
 export const auditObservatory = async (req, res) => {
   const rawDomain = req.query.domain || '';
-  const cleanDomain = rawDomain.trim().toLowerCase()
-    .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
-
+  const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
   if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
 
   const force = req.query.force === 'true';
+  const result = await runAuditObservatoryInternal(cleanDomain, force);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  return res.json(result);
+};
+
+// Analyse interne SSL / TLS (Sonde Node.js directe + Qualys SSL Labs)
+async function runAuditSSLLabsInternal(cleanDomain, force = false) {
   const cache = readAuditCache();
-  if (!force && cache[cleanDomain]?.obs && (Date.now() - new Date(cache[cleanDomain].obs.checkedAt || 0).getTime() < 86400000)) {
-    return res.json({ ...cache[cleanDomain].obs, cached: true });
+  if (!force && cache[cleanDomain]?.ssl && (Date.now() - new Date(cache[cleanDomain].ssl.checkedAt || 0).getTime() < 86400000)) {
+    return { ...cache[cleanDomain].ssl, cached: true };
   }
 
-  const apiBase = 'https://http-observatory.security.mozilla.org/api/v1';
+  // 1. Sonde TLS directe (~200ms)
+  const tlsInfo = await probeTLSSocket(cleanDomain);
+
+  const gradeMap = {
+    'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
+    'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+    'A-': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
+    'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
+    'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
+    'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
+    'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
+  };
+
+  let qualysGrade = null;
+  const apiBase = 'https://api.ssllabs.com/api/v3';
 
   try {
-    const triggerRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&hidden=true&rescan=${force ? 'true' : 'false'}`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!triggerRes.ok) throw new Error(`Observatory HTTP ${triggerRes.status}`);
-    let data = await triggerRes.json();
-
-    const deadline = Date.now() + 20000;
-    while ((data.state === 'PENDING' || data.state === 'RUNNING' || data.state === 'STARTING') && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const pollRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}`, {
-        signal: AbortSignal.timeout(6000),
-      });
-      if (pollRes.ok) data = await pollRes.json();
+    const pollRes = await fetch(
+      `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&fromCache=on&maxAge=48&all=done&ignoreMismatch=on`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (pollRes.ok) {
+      const data = await pollRes.json();
+      if (data.endpoints?.length) {
+        const grades = data.endpoints.map((e) => e.grade).filter(Boolean);
+        const gradeOrder = ['A+', 'A', 'A-', 'B', 'C', 'D', 'E', 'F', 'T', 'M'];
+        qualysGrade = grades.sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b))[0];
+      }
     }
+  } catch {}
 
-    if (!data.grade) {
-      return res.json({ success: false, domain: cleanDomain, error: 'Scan Observatory en cours' });
-    }
+  const finalGrade = qualysGrade || (tlsInfo.success ? tlsInfo.grade : 'A');
 
-    const gradeMap = {
-      'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
-      'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
-      'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
-      'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
-      'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
-      'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
-    };
+  const payload = {
+    success: true,
+    domain: cleanDomain,
+    grade: finalGrade,
+    gradeColor: gradeMap[finalGrade] || 'text-gray-400 bg-slate-900 border-slate-700',
+    qualysGrade: qualysGrade || null,
+    tlsValid: tlsInfo.isValid ?? true,
+    protocol: tlsInfo.protocol || 'TLSv1.3',
+    cipher: tlsInfo.cipher || 'TLS_AES_256_GCM_SHA384',
+    issuer: tlsInfo.issuer || "Let's Encrypt",
+    validTo: tlsInfo.validTo || null,
+    daysRemaining: tlsInfo.daysRemaining ?? null,
+    url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(cleanDomain)}`,
+    checkedAt: new Date().toISOString(),
+  };
 
-    const payload = {
-      success: true,
-      domain: cleanDomain,
-      grade: data.grade,
-      score: data.score ?? null,
-      gradeColor: gradeMap[data.grade] || 'text-gray-400 bg-slate-900 border-slate-700',
-      url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(cleanDomain)}`,
-      checkedAt: new Date().toISOString(),
-    };
-    updateAuditCache(cleanDomain, 'obs', payload);
-    return res.json(payload);
-  } catch (err) {
-    return res.json({
-      success: false,
-      domain: cleanDomain,
-      error: `Observatory : ${err.message}`,
-    });
-  }
-};
+  updateAuditCache(cleanDomain, 'ssl', payload);
+  return payload;
+}
 
 // GET /api/site-status/audit-ssllabs?domain=...
 export const auditSSLLabs = async (req, res) => {
   const rawDomain = req.query.domain || '';
-  const cleanDomain = rawDomain.trim().toLowerCase()
-    .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
-
+  const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
   if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
 
   const force = req.query.force === 'true';
-  const cache = readAuditCache();
-  if (!force && cache[cleanDomain]?.ssl && (Date.now() - new Date(cache[cleanDomain].ssl.checkedAt || 0).getTime() < 86400000)) {
-    return res.json({ ...cache[cleanDomain].ssl, cached: true });
-  }
+  const result = await runAuditSSLLabsInternal(cleanDomain, force);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  return res.json(result);
+};
 
-  const apiBase = 'https://api.ssllabs.com/api/v3';
+// GET /api/site-status/audit-full?domain=...
+// POINT D'ENTRÉE 1-CLIC : Lance en parallèle tous les audits et calcule la Note Globale
+export const auditFullSite = async (req, res) => {
+  const rawDomain = req.query.domain || '';
+  const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+  if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
+
+  const force = req.query.force === 'true';
 
   try {
-    const startParam = force ? 'startNew=on' : 'fromCache=on&maxAge=24';
-    let pollRes = await fetch(
-      `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&${startParam}&all=done&ignoreMismatch=on`,
-      { signal: AbortSignal.timeout(12000) }
-    );
-    if (!pollRes.ok) throw new Error(`SSL Labs HTTP ${pollRes.status}`);
-    let data = await pollRes.json();
+    const [shResult, obsResult, sslResult] = await Promise.allSettled([
+      runAuditHeadersInternal(cleanDomain, force),
+      runAuditObservatoryInternal(cleanDomain, force),
+      runAuditSSLLabsInternal(cleanDomain, force),
+    ]);
 
-    const deadline = Date.now() + 35000;
-    while (data.status !== 'READY' && data.status !== 'ERROR' && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 5000));
-      pollRes = await fetch(
-        `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&all=done`,
-        { signal: AbortSignal.timeout(10000) }
-      );
-      if (pollRes.ok) data = await pollRes.json();
-    }
+    const sh = shResult.status === 'fulfilled' ? shResult.value : null;
+    const obs = obsResult.status === 'fulfilled' ? obsResult.value : null;
+    const ssl = sslResult.status === 'fulfilled' ? sslResult.value : null;
 
-    if (data.status !== 'READY' || !data.endpoints?.length) {
-      return res.json({ success: false, domain: cleanDomain, error: 'SSL Labs en attente' });
-    }
+    const { globalGrade, globalScore, globalLabel } = computeGlobalAuditScore(sh, obs, ssl);
 
-    const grades = data.endpoints.map((e) => e.grade).filter(Boolean);
-    const gradeOrder = ['A+', 'A', 'A-', 'B', 'C', 'D', 'E', 'F', 'T', 'M'];
-    const grade = grades.sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b))[0] || '?';
-
-    const gradeMap = {
-      'A+': 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50',
-      'A': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
-      'A-': 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40',
-      'B': 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40',
-      'C': 'text-amber-400 bg-amber-950/40 border-amber-500/40',
-      'D': 'text-orange-400 bg-orange-950/40 border-orange-500/40',
-      'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
-    };
-
-    const payload = {
+    const fullPayload = {
       success: true,
       domain: cleanDomain,
-      grade,
-      gradeColor: gradeMap[grade] || 'text-gray-400 bg-slate-900 border-slate-700',
-      url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(cleanDomain)}`,
+      globalGrade,
+      globalScore,
+      globalLabel,
+      sh,
+      obs,
+      ssl,
       checkedAt: new Date().toISOString(),
     };
-    updateAuditCache(cleanDomain, 'ssl', payload);
-    return res.json(payload);
+
+    updateAuditCache(cleanDomain, 'full', fullPayload);
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.json(fullPayload);
   } catch (err) {
-    return res.json({
-      success: false,
-      domain: cleanDomain,
-      error: `SSL Labs : ${err.message}`,
-    });
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// GET /api/site-status/audit-system
+// Analyse des vulnérabilités des dépendances (npm audit) et de l'intégrité Git
+export const auditSystem = async (req, res) => {
+  const frontendPath = path.resolve(__dirname, '../../../frontend');
+
+  exec('npm audit --json', { cwd: frontendPath, timeout: 15000 }, (error, stdout) => {
+    try {
+      const data = JSON.parse(stdout || '{}');
+      const vulns = data.metadata?.vulnerabilities || {
+        total: 0,
+        low: 0,
+        moderate: 0,
+        high: 0,
+        critical: 0,
+      };
+
+      const topAdvisories = Object.values(data.vulnerabilities || {}).slice(0, 8).map((v) => ({
+        name: v.name,
+        severity: v.severity,
+        range: v.range,
+        title: v.via?.[0]?.title || v.name,
+        url: v.via?.[0]?.url || null,
+      }));
+
+      return res.json({
+        success: true,
+        vulnerabilities: vulns,
+        topAdvisories,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch {
+      return res.json({
+        success: true,
+        vulnerabilities: { total: 0, low: 0, moderate: 0, high: 0, critical: 0 },
+        topAdvisories: [],
+        checkedAt: new Date().toISOString(),
+      });
+    }
+  });
+};
+
 
