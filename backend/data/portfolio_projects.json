@@ -112,14 +112,15 @@
   {
     "id": "nexus-v",
     "title": "Nexus-V",
-    "description": "Deuxième site intégré sous azim404.com/nexus-v. Espace applicatif et passerelle de services secondaires.",
+    "description": "Hub d'automatisation et dashboard de monitoring en temps réel. Accessible via azim404.com/private (ou /nexus-v).",
     "technologies": [
-      "React",
-      "Node.js",
-      "Docker"
+      "Python",
+      "Docker",
+      "Discord API",
+      "SSE Stream"
     ],
     "image": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop",
-    "link": "https://azim404.com/nexus-v",
+    "link": "https://azim404.com/private",
     "domain": "azim404.com/nexus-v",
     "deployType": "subpath",
     "badge": "Sous-chemin",
