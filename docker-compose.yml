@@ -22,6 +22,7 @@ services:
       - NODE_ENV=production
     volumes:
       - ${AZIM_DATA_DIR:-/home/debian/data/azim404}:/app/data
+      - ${AZIM_APPS_DIR:-/home/debian/apps}:/host_apps
     networks:
       - web
 

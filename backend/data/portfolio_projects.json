@@ -20,14 +20,14 @@
     "badge": "Backend & SQL"
   },
   {
-    "id": "moviedb",
-    "title": "MovieDB",
-    "description": "Application interactive de cinéma connectée à l'API TMDB avec recherche temps réel, fiches détaillées et favoris.",
-    "technologies": ["React", "API TMDB", "Tailwind CSS"],
+    "id": "kulturdb",
+    "title": "KulturDB",
+    "description": "Application interactive et médiathèque culturelle connectée avec catalogue, fiches détaillées et favoris.",
+    "technologies": ["React", "Node.js", "Docker"],
     "image": "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=600&h=400&fit=crop",
-    "link": "https://moviedb.azim404.com/",
-    "domain": "moviedb.azim404.com",
-    "badge": "API & Streaming"
+    "link": "https://kulturdb.azim404.com/",
+    "domain": "kulturdb.azim404.com",
+    "badge": "En ligne"
   },
   {
     "id": "marsai",

@@ -273,10 +273,11 @@ export default function AdminDashboardPage() {
         {/* Tab Navigation */}
         <div className="container mx-auto px-4 sm:px-6 flex gap-2 border-t border-white/5 overflow-x-auto">
           {[
-            { id: 'projects', label: '🚀 Démos, Projets & Mode Travaux', badge: displayedProjects.length },
-            { id: 'accounts', label: '👥 Mon Profil & Comptes Privés', badge: isAdmin ? accounts.length + 1 : 1 },
-            { id: 'security', label: '🛡️ SecurityHeaders', badge: displayedProjects.length },
-            { id: 'system', label: '🖥️ Supervision VPS', badge: null },
+            { id: 'projects', label: 'Démos & Projets', badge: displayedProjects.length },
+            { id: 'accounts', label: 'Comptes & Profil', badge: isAdmin ? accounts.length + 1 : 1 },
+            { id: 'security', label: 'SecurityHeaders', badge: displayedProjects.length },
+            { id: 'context', label: 'Contexte Privé', badge: null },
+            { id: 'system', label: 'Supervision VPS', badge: null },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -698,7 +699,12 @@ export default function AdminDashboardPage() {
           />
         )}
 
-        {/* TAB 3: SUPERVISION VPS */}
+        {/* TAB 4: CONTEXTE PRIVÉ & SYNCHRONISATION */}
+        {activeTab === 'context' && (
+          <ContextSyncTab showToast={showToast} />
+        )}
+
+        {/* TAB 5: SUPERVISION VPS */}
         {activeTab === 'system' && (
           <div className="space-y-8 animate-fade-in">
             <div>
@@ -1665,7 +1671,6 @@ function SecurityHeadersTab({ sites, showToast }) {
                   className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-950 via-slate-900 to-blue-950 hover:from-cyan-900 hover:to-blue-900 border border-cyan-400/60 text-cyan-200 font-bold text-xs font-mono shadow-[0_0_15px_rgba(6,182,212,0.2)] transition flex items-center justify-center gap-2 text-center"
                   title="Ouvrir le rapport d'analyse officiel sur SecurityHeaders.com"
                 >
-                  <span>🛡️</span>
                   <span>Voir le rapport officiel sur SecurityHeaders.com</span>
                   <span>↗</span>
                 </a>
@@ -1677,4 +1682,289 @@ function SecurityHeadersTab({ sites, showToast }) {
     </div>
   );
 }
+
+// Onglet dédié à l'édition et la synchronisation du contexte privé (project-context.md)
+function ContextSyncTab({ showToast }) {
+  const [content, setContent] = useState('');
+  const [lastModified, setLastModified] = useState('');
+  const [targets, setTargets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  const fetchContextData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/context');
+      if (res.ok) {
+        const data = await res.json();
+        setContent(data.content || '');
+        setLastModified(data.lastModified || '');
+        setTargets(data.targets || []);
+      }
+    } catch (err) {
+      console.error('Erreur chargement contexte:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContextData();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const res = await fetch('/api/context/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLastModified(data.lastModified);
+        showToast('Fichier contexte enregistré sur le serveur.');
+      } else {
+        showToast(data.error || 'Erreur lors de l’enregistrement');
+      }
+    } catch {
+      showToast('Erreur réseau lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleTarget = async (targetId) => {
+    const nextTargets = targets.map((t) =>
+      t.id === targetId ? { ...t, enabled: !t.enabled } : t
+    );
+    setTargets(nextTargets);
+    try {
+      await fetch('/api/context/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets: nextTargets }),
+      });
+    } catch {}
+  };
+
+  const handleToggleAllTargets = async (enableAll) => {
+    const nextTargets = targets.map((t) => ({ ...t, enabled: enableAll }));
+    setTargets(nextTargets);
+    try {
+      await fetch('/api/context/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets: nextTargets }),
+      });
+    } catch {}
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      setSyncing(true);
+      setSyncResult(null);
+
+      await fetch('/api/context/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      const res = await fetch('/api/context/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      setSyncResult(data);
+      if (data.success) {
+        showToast(`Synchronisé avec succès sur ${data.syncedCount} projet(s).`);
+      }
+    } catch {
+      showToast('Erreur lors de la synchronisation');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const enabledCount = targets.filter((t) => t.enabled).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">Contexte Privé &amp; Synchronisation</h2>
+          <p className="text-xs text-gray-400 mt-1">
+            Gérez le fichier de configuration opérationnel (project-context.md) et synchronisez-le sur l'ensemble de vos projets en un clic.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
+          >
+            {saving ? 'Enregistrement...' : 'Enregistrer le fichier'}
+          </button>
+          <button
+            type="button"
+            onClick={handleSyncAll}
+            disabled={syncing || loading || enabledCount === 0}
+            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md transition disabled:opacity-50"
+          >
+            {syncing ? 'Synchronisation...' : `Synchroniser sur les sites (${enabledCount})`}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-xs font-mono text-gray-400 bg-slate-950 rounded-2xl border border-slate-800">
+          Chargement du fichier contexte...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Editeur de texte (2 colonnes) */}
+          <div className="lg:col-span-2 space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex justify-between items-center text-xs font-mono text-gray-400 border-b border-slate-800 pb-2">
+                <span>Fichier source : project-context.md</span>
+                <span>
+                  {lastModified ? `Mis à jour le ${new Date(lastModified).toLocaleString('fr-FR')}` : ''}
+                </span>
+              </div>
+
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={26}
+                spellCheck={false}
+                className="w-full p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
+                placeholder="Contenu du fichier project-context.md..."
+              />
+
+              <div className="flex justify-between items-center text-[11px] font-mono text-gray-500">
+                <span>{content.split('\n').length} lignes • {content.length} caractères</span>
+                <button
+                  type="button"
+                  onClick={fetchContextData}
+                  className="text-gray-400 hover:text-white underline"
+                >
+                  Recharger depuis le serveur
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Liste des cibles de synchronisation (1 colonne) */}
+          <div className="space-y-4">
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Liste de synchronisation</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {enabledCount} sur {targets.length} projet(s) sélectionné(s)
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllTargets(true)}
+                    className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                  >
+                    Tout cocher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllTargets(false)}
+                    className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                  >
+                    Désélectionner
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                {targets.map((target) => (
+                  <label
+                    key={target.id}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                      target.enabled
+                        ? 'bg-slate-900 border-slate-700 text-white'
+                        : 'bg-slate-950/60 border-slate-800 text-gray-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(target.enabled)}
+                        onChange={() => handleToggleTarget(target.id)}
+                        className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-xs font-medium">{target.name}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-gray-400">/{target.folder}</span>
+                  </label>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSyncAll}
+                disabled={syncing || enabledCount === 0}
+                className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-md disabled:opacity-50"
+              >
+                {syncing ? 'Synchronisation en cours...' : 'Lancer la synchronisation'}
+              </button>
+            </div>
+
+            {/* Rapport du dernier résultat de synchronisation */}
+            {syncResult && (
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 animate-fade-in">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-white">Résultat de la synchronisation</span>
+                  <span className="text-[10px] font-mono text-gray-400">
+                    {new Date(syncResult.syncedAt).toLocaleTimeString('fr-FR')}
+                  </span>
+                </div>
+
+                <div className="text-xs text-emerald-400 font-mono">
+                  {syncResult.syncedCount} projet(s) mis à jour avec la dernière version.
+                </div>
+
+                {syncResult.synced?.length > 0 && (
+                  <div className="text-[11px] text-gray-300 space-y-1">
+                    <span className="text-gray-500 text-[10px] block">Projets synchronisés :</span>
+                    <div className="flex flex-wrap gap-1">
+                      {syncResult.synced.map((name, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-cyan-300">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {syncResult.errors?.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800 text-[11px] text-amber-400 font-mono">
+                    <span className="block text-[10px] text-gray-400">Non synchronisés (dossier absent) :</span>
+                    {syncResult.errors.map((err, i) => (
+                      <span key={i} className="block text-[10px] text-gray-500">
+                        • {err.target} ({err.error})
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 

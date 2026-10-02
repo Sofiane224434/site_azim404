@@ -8,6 +8,7 @@ import emailRoutes from './src/routes/email.routes.js';
 import statusRoutes from './src/routes/status.routes.js';
 import accountsRoutes from './src/routes/accounts.routes.js';
 import projectsRoutes from './src/routes/projects.routes.js';
+import contextRoutes from './src/routes/context.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,6 +51,7 @@ app.use('/api/email', emailRoutes);
 app.use('/api/site-status', statusRoutes);
 app.use('/api/private-accounts', accountsRoutes);
 app.use('/api/portfolio-projects', projectsRoutes);
+app.use('/api/context', contextRoutes);
 
 // 404
 app.use((req, res) => res.status(404).json({ error: 'Route non trouvée' }));
