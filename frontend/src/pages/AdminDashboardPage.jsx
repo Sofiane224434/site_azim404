@@ -4,6 +4,21 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext.jsx';
 import MaintenanceScreen from '../components/MaintenanceScreen.jsx';
 
+// Formatage lisible de la date de derniere analyse
+function formatLastCheck(isoDate) {
+  if (!isoDate) return 'Non analysé';
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return 'Non analysé';
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  if (diffMins < 1) return "À l'instant";
+  if (diffMins < 60) return `Il y a ${diffMins} min`;
+  if (diffHours < 24) return `Il y a ${diffHours}h`;
+  return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 export default function AdminDashboardPage() {
   const {
     user,
@@ -26,7 +41,7 @@ export default function AdminDashboardPage() {
   } = useAdmin();
 
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('projects'); // 'projects', 'security', 'accounts', 'context', 'system'
+  const [activeTab, setActiveTab] = useState('projects');
 
   // Modals & forms
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
@@ -61,7 +76,7 @@ export default function AdminDashboardPage() {
   const [toast, setToast] = useState('');
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3500);
+    setTimeout(() => setToast(''), 3000);
   };
 
   const handleLogout = () => {
@@ -69,7 +84,6 @@ export default function AdminDashboardPage() {
     navigate('/');
   };
 
-  // Add new project/site
   const handleCreateProject = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -102,7 +116,7 @@ export default function AdminDashboardPage() {
       });
     }
 
-    showToast(`Site / Projet "${newTitle}" ajouté avec succès`);
+    showToast(`Projet "${newTitle}" ajouté`);
     setShowAddProjectModal(false);
     setNewTitle('');
     setNewDesc('');
@@ -111,7 +125,6 @@ export default function AdminDashboardPage() {
     setNewDomain('');
   };
 
-  // Update own credentials
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileMsg('');
@@ -121,7 +134,7 @@ export default function AdminDashboardPage() {
       name: myName,
     });
     if (res.success) {
-      showToast('Vos identifiants ont été mis à jour');
+      showToast('Identifiants mis à jour');
       setProfileMsg('Identifiants modifiés avec succès.');
       setMyNewId('');
       setMyNewPass('');
@@ -130,7 +143,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Create new private visitor account
   const handleCreateAccount = async (e) => {
     e.preventDefault();
     setAccountMsg('');
@@ -142,7 +154,7 @@ export default function AdminDashboardPage() {
       allowedProjects: newAccAllowedProjects,
     });
     if (res.success) {
-      showToast(`Compte "${newAccId}" créé avec succès`);
+      showToast(`Compte "${newAccId}" créé`);
       setNewAccId('');
       setNewAccPass('');
       setNewAccName('');
@@ -160,7 +172,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Combine portfolio projects and custom sites into unified list
   const combinedList = [];
   const registeredDomains = new Set();
 
@@ -219,7 +230,7 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-[#030712] text-gray-100 font-sans selection:bg-cyan-500 selection:text-black">
       {/* Toast Alert */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 px-4 py-2 rounded-lg bg-slate-900 border border-cyan-500/50 text-cyan-200 text-xs font-medium shadow-lg backdrop-blur-md flex items-center gap-2">
+        <div className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-lg bg-slate-900 border border-cyan-500/50 text-cyan-200 text-sm font-medium shadow-lg backdrop-blur-md flex items-center gap-2.5">
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
           <span>{toast}</span>
         </div>
@@ -227,10 +238,10 @@ export default function AdminDashboardPage() {
 
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 bg-slate-950/95 border-b border-white/10 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center select-none" title="Retour à l'accueil Azim404">
-              <span className="text-lg font-bold tracking-tight text-white flex items-center">
+            <Link to="/" className="flex items-center select-none" title="Retour à l'accueil">
+              <span className="text-xl font-bold tracking-tight text-white flex items-center">
                 <img
                   src="/images/logo_transparent.png"
                   alt="A"
@@ -240,14 +251,14 @@ export default function AdminDashboardPage() {
               </span>
             </Link>
 
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-400">
-              CONSOLE ADMINISTRATION
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-400">
+              CONSOLE
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-2 text-xs font-mono text-gray-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-gray-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span>{user?.name || user?.identifier}</span>
               <span className="text-gray-600">•</span>
               <span className="uppercase text-cyan-400">{user?.role || 'Membre'}</span>
@@ -255,14 +266,14 @@ export default function AdminDashboardPage() {
 
             <Link
               to="/"
-              className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition"
+              className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition font-medium"
             >
               Site Public
             </Link>
 
             <button
               onClick={handleLogout}
-              className="text-xs px-2.5 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 transition"
+              className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 transition font-medium"
             >
               Déconnexion
             </button>
@@ -270,7 +281,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 border-t border-white/5 overflow-x-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-2 border-t border-white/5 overflow-x-auto">
           {[
             { id: 'projects', label: 'Démos & Projets', badge: displayedProjects.length },
             { id: 'security', label: 'Audits & Tests', badge: displayedProjects.length },
@@ -281,7 +292,7 @@ export default function AdminDashboardPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-2.5 px-3.5 text-xs font-medium whitespace-nowrap transition-all border-b-2 flex items-center gap-2 ${
+              className={`py-3 px-4 text-sm font-medium whitespace-nowrap transition-all border-b-2 flex items-center gap-2 ${
                 activeTab === tab.id
                   ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
                   : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-700'
@@ -289,7 +300,7 @@ export default function AdminDashboardPage() {
             >
               <span>{tab.label}</span>
               {tab.badge !== null && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-gray-300 border border-slate-700 font-mono">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-gray-300 border border-slate-700 font-mono">
                   {tab.badge}
                 </span>
               )}
@@ -303,23 +314,18 @@ export default function AdminDashboardPage() {
         {/* TAB 1: PROJETS & DÉMOS */}
         {activeTab === 'projects' && (
           <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            <div className="flex justify-between items-center gap-4">
               <div>
                 <h2 className="text-lg font-bold text-white">
                   {isAdmin ? 'Démos, Projets & Mode Travaux' : 'Vos Accès Privés & Démos'}
                 </h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {isAdmin
-                    ? 'Gestion des fiches de projets, visibilité portfolio et bascule des travaux en un clic.'
-                    : 'Applications et démonstrations autorisées pour votre compte.'}
-                </p>
               </div>
 
               {isAdmin && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowAddProjectModal(true)}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium transition"
+                    className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs sm:text-sm font-medium transition"
                   >
                     + Ajouter un projet
                   </button>
@@ -329,8 +335,7 @@ export default function AdminDashboardPage() {
                       refreshPortfolioProjects();
                       showToast('Données synchronisées');
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-gray-300 hover:text-white transition"
-                    title="Actualiser depuis le serveur"
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm text-gray-300 hover:text-white transition"
                   >
                     Actualiser
                   </button>
@@ -339,11 +344,8 @@ export default function AdminDashboardPage() {
             </div>
 
             {displayedProjects.length === 0 ? (
-              <div className="p-8 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-2">
-                <h3 className="text-sm font-semibold text-white">Aucun projet assigné</h3>
-                <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                  Votre compte n'a pas encore de démonstrations spécifiques affectées.
-                </p>
+              <div className="p-8 rounded-xl bg-slate-950 border border-slate-800 text-center text-gray-400 text-sm">
+                Aucun projet disponible
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -354,7 +356,7 @@ export default function AdminDashboardPage() {
                     isAdmin={isAdmin}
                     onToggleMaintenance={async (siteId, nextState, patch) => {
                       await toggleSiteMaintenance(siteId, nextState, patch);
-                      showToast(nextState ? `Mode Travaux activé pour ${item.title}` : `${item.title} est en ligne`);
+                      showToast(nextState ? `Mode Travaux activé pour ${item.title}` : `${item.title} remis en ligne`);
                     }}
                     onTogglePortfolioVisibility={async (id, nextVisible) => {
                       await toggleProjectVisibility(id, nextVisible);
@@ -362,14 +364,14 @@ export default function AdminDashboardPage() {
                     }}
                     onSaveProject={async (projData) => {
                       await savePortfolioProject(projData);
-                      showToast(`Projet mis à jour`);
+                      showToast(`Projet sauvegardé`);
                     }}
                     onSaveSiteConfig={async (siteData) => {
                       await saveSiteConfig(siteData);
-                      showToast(`Réglages enregistrés`);
+                      showToast(`Configuration sauvegardée`);
                     }}
                     onDeleteFromAdmin={async (id) => {
-                      if (confirm(`Supprimer "${item.title}" de l'administration ?`)) {
+                      if (confirm(`Supprimer "${item.title}" ?`)) {
                         if (item.isProject) await deletePortfolioProject(id);
                         await removeSite(id);
                         showToast(`Site supprimé`);
@@ -383,7 +385,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: AUDITS & TESTS QUALITÉ (Complet avec notes, 6 catégories et auto-analyse) */}
+        {/* TAB 2: AUDITS & TESTS (Optimisé avec cache, async parallèle, date dernière analyse) */}
         {activeTab === 'security' && (
           <AuditTestsTab sites={displayedProjects} showToast={showToast} />
         )}
@@ -395,26 +397,22 @@ export default function AdminDashboardPage() {
               {/* SECTION A : MON PROFIL */}
               <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                 <div className="border-b border-white/5 pb-3 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Mon Profil & Identifiants</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Mettez à jour votre mot de passe et nom de session.</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono uppercase">
+                  <h3 className="text-sm font-bold text-white">Mon Profil & Identifiants</h3>
+                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-xs font-mono uppercase">
                     {user?.role || 'Membre'}
                   </span>
                 </div>
 
                 <form onSubmit={handleUpdateProfile} className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-mono text-gray-400">IDENTIFIANT DE CONNEXION</label>
+                    <label className="text-xs font-mono text-gray-400">IDENTIFIANT</label>
                     <input
                       type="text"
                       value={myNewId}
                       onChange={(e) => setMyNewId(e.target.value)}
                       placeholder={user?.identifier}
-                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
-                    <p className="text-[10px] text-gray-500">Actuel : {user?.identifier}. Laissez vide pour ne pas modifier.</p>
                   </div>
 
                   <div className="space-y-1">
@@ -424,7 +422,7 @@ export default function AdminDashboardPage() {
                       value={myNewPass}
                       onChange={(e) => setMyNewPass(e.target.value)}
                       placeholder="••••••••••••"
-                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
 
@@ -434,8 +432,8 @@ export default function AdminDashboardPage() {
                       type="text"
                       value={myName}
                       onChange={(e) => setMyName(e.target.value)}
-                      placeholder="Votre nom ou pseudonyme"
-                      className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      placeholder="Votre nom"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
 
@@ -447,32 +445,31 @@ export default function AdminDashboardPage() {
 
                   <button
                     type="submit"
-                    className="w-full py-1.5 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
+                    className="w-full py-2 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-sm transition"
                   >
-                    Sauvegarder mes identifiants
+                    Enregistrer
                   </button>
                 </form>
               </div>
 
-              {/* SECTION B : CRÉATION D'ACCÈS (Admin Only) */}
+              {/* SECTION B : CRÉATION D'ACCÈS */}
               {isAdmin ? (
                 <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                   <div className="border-b border-white/5 pb-3">
-                    <h3 className="text-sm font-bold text-white">Créer un Compte & Affecter du Contenu</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Créez un compte privé et affectez-lui des projets spécifiques.</p>
+                    <h3 className="text-sm font-bold text-white">Créer un Compte & Affecter des Accès</h3>
                   </div>
 
                   <form onSubmit={handleCreateAccount} className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-xs font-mono text-gray-400">IDENTIFIANT</label>
                         <input
                           type="text"
                           value={newAccId}
                           onChange={(e) => setNewAccId(e.target.value)}
-                          placeholder="identifiant"
+                          placeholder="client-xyz"
                           required
-                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                          className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                         />
                       </div>
 
@@ -484,20 +481,20 @@ export default function AdminDashboardPage() {
                           onChange={(e) => setNewAccPass(e.target.value)}
                           placeholder="mot de passe"
                           required
-                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                          className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-xs font-mono text-gray-400">NOM / RÉFÉRENCE</label>
                         <input
                           type="text"
                           value={newAccName}
                           onChange={(e) => setNewAccName(e.target.value)}
-                          placeholder="Nom du contact"
-                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          placeholder="Nom ou société"
+                          className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                         />
                       </div>
 
@@ -506,7 +503,7 @@ export default function AdminDashboardPage() {
                         <select
                           value={newAccPerm}
                           onChange={(e) => setNewAccPerm(e.target.value)}
-                          className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                         >
                           <option value="Accès Démos">Accès Démos Sélectionnées</option>
                           <option value="Client Privé">Client Privé</option>
@@ -529,17 +526,17 @@ export default function AdminDashboardPage() {
                               setNewAccAllowedProjects(combinedList.map((c) => c.id));
                             }
                           }}
-                          className="text-[10px] font-mono text-gray-400 hover:text-white"
+                          className="text-xs font-mono text-gray-400 hover:text-white"
                         >
                           {newAccAllowedProjects.length === combinedList.length ? 'Tout décocher' : 'Tout cocher'}
                         </button>
                       </div>
 
-                      <div className="max-h-32 overflow-y-auto space-y-1 p-2 rounded-lg bg-slate-900 border border-slate-800">
+                      <div className="max-h-36 overflow-y-auto space-y-1 p-2 rounded-lg bg-slate-900 border border-slate-800">
                         {combinedList.map((item) => (
                           <label
                             key={item.id}
-                            className="flex items-center gap-2 p-1 rounded hover:bg-slate-800/50 cursor-pointer text-xs select-none"
+                            className="flex items-center gap-2 p-1 rounded hover:bg-slate-800/50 cursor-pointer text-sm select-none"
                           >
                             <input
                               type="checkbox"
@@ -548,7 +545,7 @@ export default function AdminDashboardPage() {
                               className="rounded border-slate-700 text-cyan-500 focus:ring-0"
                             />
                             <span className="text-white truncate">{item.title}</span>
-                            <span className="text-[10px] font-mono text-gray-500 ml-auto truncate">{item.domain || item.badge}</span>
+                            <span className="text-xs font-mono text-gray-500 ml-auto truncate">{item.domain || item.badge}</span>
                           </label>
                         ))}
                       </div>
@@ -558,16 +555,15 @@ export default function AdminDashboardPage() {
 
                     <button
                       type="submit"
-                      className="w-full py-1.5 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
+                      className="w-full py-2 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-sm transition"
                     >
                       Créer le compte
                     </button>
                   </form>
                 </div>
               ) : (
-                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-gray-400">
-                  <h4 className="font-semibold text-white text-sm mb-1">Gestion des Accès</h4>
-                  <p>Votre compte est un compte membre privé. Seul l'administrateur peut créer ou modifier des accès.</p>
+                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-gray-400">
+                  Votre compte est un compte membre privé. Seul l'administrateur peut créer ou modifier des accès.
                 </div>
               )}
             </div>
@@ -577,13 +573,12 @@ export default function AdminDashboardPage() {
               <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-white">Comptes configurés ({accounts.length + 1})</h3>
-                  <span className="text-[11px] text-gray-500 font-mono">Stockage persistant</span>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
+                      <tr className="border-b border-slate-800 text-gray-400 font-mono text-xs bg-slate-900/40">
                         <th className="py-2.5 px-3">IDENTIFIANT</th>
                         <th className="py-2.5 px-3">NOM / RÉFÉRENCE</th>
                         <th className="py-2.5 px-3">RÔLE</th>
@@ -599,14 +594,14 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="py-2.5 px-3 text-gray-300">{user?.name || 'Administrateur'}</td>
                         <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30 text-cyan-300 text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30 text-cyan-300 text-xs">
                             SUPER ADMIN
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-emerald-400 font-mono text-[11px]">
+                        <td className="py-2.5 px-3 text-emerald-400 font-mono text-xs">
                           Accès total ({combinedList.length} projets)
                         </td>
-                        <td className="py-2.5 px-3 text-right text-gray-500 text-[11px] italic">
+                        <td className="py-2.5 px-3 text-right text-gray-500 text-xs italic">
                           Protégé
                         </td>
                       </tr>
@@ -616,21 +611,21 @@ export default function AdminDashboardPage() {
                           <td className="py-2.5 px-3 font-mono text-white">{acc.identifier}</td>
                           <td className="py-2.5 px-3 text-gray-300">{acc.name || '-'}</td>
                           <td className="py-2.5 px-3">
-                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-gray-300 text-[10px]">
+                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-gray-300 text-xs">
                               {acc.permissions || 'Membre'}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-gray-400 font-mono text-[11px]">
+                          <td className="py-2.5 px-3 text-gray-400 font-mono text-xs">
                             {Array.isArray(acc.allowedProjects) && acc.allowedProjects.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {acc.allowedProjects.map((pId) => (
-                                  <span key={pId} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-[10px]">
+                                  <span key={pId} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-xs">
                                     {pId}
                                   </span>
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-gray-500 italic">Aucun projet</span>
+                              <span className="text-gray-500 italic">Aucun</span>
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right">
@@ -680,14 +675,14 @@ export default function AdminDashboardPage() {
               ].map((srv, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-mono text-gray-400 text-[11px]">Port {srv.port}</span>
-                    <span className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
+                    <span className="font-mono text-gray-400">Port {srv.port}</span>
+                    <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       {srv.status}
                     </span>
                   </div>
-                  <div className="text-xs font-bold text-white">{srv.name}</div>
-                  <div className="text-[11px] font-mono text-cyan-400/80">{srv.ssl}</div>
+                  <div className="text-sm font-bold text-white">{srv.name}</div>
+                  <div className="text-xs font-mono text-cyan-400/80">{srv.ssl}</div>
                 </div>
               ))}
             </div>
@@ -700,10 +695,7 @@ export default function AdminDashboardPage() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-white/5 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-white">Ajouter un Projet ou Site Web</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Contrôlable depuis l'admin avec son mode travaux en 1 clic.</p>
-              </div>
+              <h3 className="text-base font-bold text-white">Ajouter un Projet ou Site Web</h3>
               <button
                 onClick={() => setShowAddProjectModal(false)}
                 className="text-gray-400 hover:text-white p-1 text-sm font-mono"
@@ -721,7 +713,7 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="ex: WikiGame, Nexus Portal..."
                   required
-                  className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -731,8 +723,8 @@ export default function AdminDashboardPage() {
                   rows={2}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Brève description du projet..."
-                  className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="Brève description..."
+                  className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -744,7 +736,7 @@ export default function AdminDashboardPage() {
                     value={newStack}
                     onChange={(e) => setNewStack(e.target.value)}
                     placeholder="React, Node.js, Docker"
-                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
 
@@ -755,7 +747,7 @@ export default function AdminDashboardPage() {
                     value={newBadge}
                     onChange={(e) => setNewBadge(e.target.value)}
                     placeholder="ex: En ligne, En dev..."
-                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
               </div>
@@ -767,24 +759,24 @@ export default function AdminDashboardPage() {
                     type="text"
                     value={newLink}
                     onChange={(e) => setNewLink(e.target.value)}
-                    placeholder="https://monsite.azim404.com/"
-                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    placeholder="https://site.azim404.com/"
+                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-mono text-gray-300">NOM DE DOMAINE (TRAVAUX)</label>
+                  <label className="text-xs font-mono text-gray-300">DOMAINE (TRAVAUX)</label>
                   <input
                     type="text"
                     value={newDomain}
                     onChange={(e) => setNewDomain(e.target.value)}
-                    placeholder="monsite.azim404.com"
-                    className="w-full h-8 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    placeholder="site.azim404.com"
+                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+              <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-sm">
                 <span className="text-white">Afficher sur le portfolio public</span>
                 <input
                   type="checkbox"
@@ -798,13 +790,13 @@ export default function AdminDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddProjectModal(false)}
-                  className="flex-1 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-gray-300 text-xs hover:bg-slate-800"
+                  className="flex-1 py-2 rounded-lg bg-slate-900 border border-slate-800 text-gray-300 text-sm hover:bg-slate-800"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
+                  className="flex-1 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-sm transition"
                 >
                   Enregistrer
                 </button>
@@ -817,15 +809,15 @@ export default function AdminDashboardPage() {
       {/* Preview Modal for Maintenance Screen */}
       {previewSite && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
-          <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
-            <span className="text-xs font-mono text-gray-300">
+          <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex justify-between items-center">
+            <span className="text-sm font-mono text-gray-300">
               Aperçu travaux : <strong className="text-white">{previewSite.domain || previewSite.title}</strong>
             </span>
             <button
               onClick={() => setPreviewSite(null)}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-gray-200 transition font-mono"
+              className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-gray-200 transition font-mono"
             >
-              Fermer l'aperçu
+              Fermer
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -842,7 +834,7 @@ export default function AdminDashboardPage() {
   );
 }
 
-// Composant Carte Unifiée
+// Composant Carte Projet
 function UnifiedProjectCard({
   item,
   isAdmin,
@@ -922,7 +914,7 @@ function UnifiedProjectCard({
 
   return (
     <div
-      className={`p-4 sm:p-5 rounded-xl border flex flex-col justify-between transition-all ${
+      className={`p-5 rounded-xl border flex flex-col justify-between transition-all ${
         item.inMaintenance
           ? 'bg-slate-950 border-amber-500/40 shadow-sm'
           : 'bg-slate-950/80 border-slate-800'
@@ -933,11 +925,11 @@ function UnifiedProjectCard({
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-mono uppercase text-gray-400 truncate">
+              <span className="text-xs font-mono uppercase text-gray-400 truncate">
                 {item.domain || 'Projet'}
               </span>
               {item.isProject && (
-                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                   item.visibleOnPortfolio
                     ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/30'
                     : 'bg-slate-900 text-gray-400 border-slate-700'
@@ -946,15 +938,15 @@ function UnifiedProjectCard({
                 </span>
               )}
             </div>
-            <h3 className="text-sm font-bold text-white mt-0.5 truncate">{item.title}</h3>
+            <h3 className="text-base font-bold text-white mt-1 truncate">{item.title}</h3>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-[10px] font-medium">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-xs font-medium">
               {item.badge}
             </span>
             {item.inMaintenance && (
-              <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 text-[10px] font-mono">
+              <span className="px-2.5 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-mono font-medium">
                 TRAVAUX
               </span>
             )}
@@ -962,16 +954,16 @@ function UnifiedProjectCard({
         </div>
 
         {/* Description */}
-        <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+        <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
           {item.description}
         </p>
 
         {/* Stack */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {(item.technologies || []).map((tech, idx) => (
             <span
               key={idx}
-              className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-gray-300 border border-slate-800 font-mono"
+              className="text-xs px-2 py-0.5 rounded bg-slate-900 text-gray-300 border border-slate-800 font-mono"
             >
               {tech}
             </span>
@@ -984,7 +976,7 @@ function UnifiedProjectCard({
             href={bypassUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 transition"
+            className="text-xs font-mono px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 transition"
           >
             Accès Bypass
           </a>
@@ -993,13 +985,13 @@ function UnifiedProjectCard({
             href={item.link || `https://${item.domain}/`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-400 hover:text-white transition"
+            className="text-xs font-mono px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition"
           >
             Lien direct
           </a>
         </div>
 
-        {/* 1-Click Travaux Toggle */}
+        {/* Travaux Toggle */}
         {isAdmin && (
           <div className="pt-2">
             <button
@@ -1014,7 +1006,7 @@ function UnifiedProjectCard({
                   targetPages,
                 });
               }}
-              className={`w-full py-1.5 px-3 rounded-lg text-xs font-semibold tracking-wide transition ${
+              className={`w-full py-2 px-3 rounded-lg text-sm font-semibold tracking-wide transition ${
                 item.inMaintenance
                   ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
                   : 'bg-amber-700 hover:bg-amber-600 text-white'
@@ -1031,7 +1023,7 @@ function UnifiedProjectCard({
         {isAdmin && (
           <div className="pt-2 border-t border-slate-800/80 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-mono text-gray-500 text-[11px]">CONFIGURATION</span>
+              <span className="font-mono text-gray-500">PARAMÈTRES</span>
               <button
                 onClick={() => setIsEditing(!isEditing)}
                 className="text-cyan-400 hover:text-cyan-300 text-xs font-mono"
@@ -1041,84 +1033,84 @@ function UnifiedProjectCard({
             </div>
 
             {isEditing && (
-              <div className="space-y-2.5 pt-2 bg-slate-900/50 p-3 rounded-lg border border-slate-800 text-xs">
+              <div className="space-y-3 pt-2 bg-slate-900/50 p-3.5 rounded-lg border border-slate-800 text-sm">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-gray-400">TITRE</label>
+                  <label className="text-xs font-mono text-gray-400">TITRE</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full h-7 px-2.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full h-8 px-3 rounded bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-gray-400">DESCRIPTION</label>
+                  <label className="text-xs font-mono text-gray-400">DESCRIPTION</label>
                   <textarea
                     rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full p-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full p-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-gray-400">STACK</label>
+                    <label className="text-xs font-mono text-gray-400">STACK</label>
                     <input
                       type="text"
                       value={technologies}
                       onChange={(e) => setTechnologies(e.target.value)}
-                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-gray-400">STATUT</label>
+                    <label className="text-xs font-mono text-gray-400">STATUT</label>
                     <input
                       type="text"
                       value={badge}
                       onChange={(e) => setBadge(e.target.value)}
-                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-gray-400">LIEN</label>
+                    <label className="text-xs font-mono text-gray-400">LIEN</label>
                     <input
                       type="text"
                       value={link}
                       onChange={(e) => setLink(e.target.value)}
-                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-gray-400">DOMAINE</label>
+                    <label className="text-xs font-mono text-gray-400">DOMAINE</label>
                     <input
                       type="text"
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      className="w-full h-7 px-2 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full h-8 px-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-1 border-t border-slate-800">
-                  <label className="text-[10px] font-mono text-gray-400">MESSAGE DE TRAVAUX</label>
+                  <label className="text-xs font-mono text-gray-400">MESSAGE DE TRAVAUX</label>
                   <textarea
                     rows={2}
                     value={mMessage}
                     onChange={(e) => setMMessage(e.target.value)}
-                    className="w-full p-2 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full p-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
 
                 <button
                   onClick={handleSaveAll}
-                  className="w-full py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-xs transition"
+                  className="w-full py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-sm transition"
                 >
-                  Enregistrer les modifications
+                  Enregistrer
                 </button>
               </div>
             )}
@@ -1131,7 +1123,7 @@ function UnifiedProjectCard({
         <div className="pt-3 mt-3 border-t border-slate-800 flex justify-between items-center text-xs">
           <button
             onClick={onPreview}
-            className="text-gray-400 hover:text-white transition font-mono text-[11px]"
+            className="text-gray-400 hover:text-white transition font-mono"
           >
             Aperçu travaux
           </button>
@@ -1140,7 +1132,7 @@ function UnifiedProjectCard({
             {item.isProject && (
               <button
                 onClick={() => onTogglePortfolioVisibility(item.id, !item.visibleOnPortfolio)}
-                className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-gray-300 hover:text-white transition"
+                className="font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-gray-300 hover:text-white transition"
               >
                 {item.visibleOnPortfolio ? 'Masquer portfolio' : 'Afficher portfolio'}
               </button>
@@ -1149,7 +1141,7 @@ function UnifiedProjectCard({
             {item.id !== 'portfolio' && item.id !== 'azim404' && (
               <button
                 onClick={() => onDeleteFromAdmin(item.id)}
-                className="text-[11px] text-rose-400/80 hover:text-rose-300 font-mono transition"
+                className="text-rose-400/80 hover:text-rose-300 font-mono transition px-1 py-0.5"
               >
                 Supprimer
               </button>
@@ -1161,55 +1153,16 @@ function UnifiedProjectCard({
   );
 }
 
-// Onglet Audit & Tests complet (Référentiel complet 6 catégories avec notes et vue d'ensemble)
+// Onglet Audit & Tests optimisé (parallélisme async, cache backend, date dernière analyse)
 function AuditTestsTab({ sites, showToast }) {
-  const [auditsSH, setAuditsSH] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('azim_sh_cache') || '{}'); } catch { return {}; }
-  });
-  const [auditsObs, setAuditsObs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('azim_obs_cache') || '{}'); } catch { return {}; }
-  });
-  const [auditsSSL, setAuditsSSL] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('azim_ssl_cache') || '{}'); } catch { return {}; }
-  });
-
+  const [auditsSH, setAuditsSH] = useState({});
+  const [auditsObs, setAuditsObs] = useState({});
+  const [auditsSSL, setAuditsSSL] = useState({});
   const [loadingMap, setLoadingMap] = useState({});
   const [globalLoading, setGlobalLoading] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('ALL');
-  const hasAutoRun = useRef(false);
-
-  const saveTo = (setter, key, domain, data) => {
-    setter((prev) => {
-      const updated = { ...prev, [domain]: data };
-      try { localStorage.setItem(key, JSON.stringify(updated)); } catch {}
-      return updated;
-    });
-  };
-
-  const fetchJSON = async (url, timeout = 30000) => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
-    return res.json();
-  };
-
-  const runAuditDomain = async (dom) => {
-    if (!dom) return;
-    setLoadingMap((prev) => ({ ...prev, [dom]: true }));
-    try {
-      const [shData, obsData, sslData] = await Promise.allSettled([
-        fetchJSON(`/api/site-status/audit-headers?domain=${encodeURIComponent(dom)}`, 12000),
-        fetchJSON(`/api/site-status/audit-observatory?domain=${encodeURIComponent(dom)}`, 35000),
-        fetchJSON(`/api/site-status/audit-ssllabs?domain=${encodeURIComponent(dom)}`, 100000),
-      ]);
-      if (shData.status === 'fulfilled') saveTo(setAuditsSH, 'azim_sh_cache', dom, shData.value);
-      if (obsData.status === 'fulfilled') saveTo(setAuditsObs, 'azim_obs_cache', dom, obsData.value);
-      if (sslData.status === 'fulfilled') saveTo(setAuditsSSL, 'azim_ssl_cache', dom, sslData.value);
-    } catch (err) {
-      saveTo(setAuditsSH, 'azim_sh_cache', dom, { success: false, domain: dom, grade: '?', error: err.message });
-    } finally {
-      setLoadingMap((prev) => ({ ...prev, [dom]: false }));
-    }
-  };
+  const [lastCheckTimes, setLastCheckTimes] = useState({});
 
   const validSites = sites.map((s) => {
     const dom = (s.domain || (s.link ? new URL(s.link.startsWith('http') ? s.link : `https://${s.link}`).hostname : ''))
@@ -1217,21 +1170,83 @@ function AuditTestsTab({ sites, showToast }) {
     return { ...s, cleanDomain: dom };
   }).filter((s) => Boolean(s.cleanDomain));
 
-  const runAuditAll = async () => {
-    setGlobalLoading(true);
-    for (const site of validSites) {
-      await runAuditDomain(site.cleanDomain);
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    setGlobalLoading(false);
-    showToast?.('Analyse globale terminée');
+  // 1. Chargement instantané du résumé en cache au premier affichage (sans relancer de scan lourd)
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const res = await fetch('/api/site-status/audit-summary');
+        const data = await res.json();
+        if (data.success && data.cache) {
+          const shMap = {};
+          const obsMap = {};
+          const sslMap = {};
+          const times = {};
+
+          for (const [d, tools] of Object.entries(data.cache)) {
+            if (tools.sh) shMap[d] = tools.sh;
+            if (tools.obs) obsMap[d] = tools.obs;
+            if (tools.ssl) sslMap[d] = tools.ssl;
+            const dates = [tools.sh?.checkedAt, tools.obs?.checkedAt, tools.ssl?.checkedAt].filter(Boolean);
+            if (dates.length > 0) {
+              times[d] = dates.sort().reverse()[0];
+            }
+          }
+
+          setAuditsSH(shMap);
+          setAuditsObs(obsMap);
+          setAuditsSSL(sslMap);
+          setLastCheckTimes(times);
+        }
+      } catch {}
+    };
+    loadCache();
+  }, []);
+
+  const fetchJSON = async (url, timeout = 25000) => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    return res.json();
   };
 
-  useEffect(() => {
-    if (hasAutoRun.current || validSites.length === 0) return;
-    hasAutoRun.current = true;
-    runAuditAll();
-  }, [validSites.length]);
+  // Analyse d'un domaine en parallèle (toutes les API lancées en même temps)
+  const runAuditDomain = async (dom, force = true) => {
+    if (!dom) return;
+    setLoadingMap((prev) => ({ ...prev, [dom]: true }));
+
+    try {
+      const forceQuery = force ? '&force=true' : '';
+      const [shRes, obsRes, sslRes] = await Promise.allSettled([
+        fetchJSON(`/api/site-status/audit-headers?domain=${encodeURIComponent(dom)}${forceQuery}`, 15000),
+        fetchJSON(`/api/site-status/audit-observatory?domain=${encodeURIComponent(dom)}${forceQuery}`, 30000),
+        fetchJSON(`/api/site-status/audit-ssllabs?domain=${encodeURIComponent(dom)}${forceQuery}`, 45000),
+      ]);
+
+      const now = new Date().toISOString();
+
+      if (shRes.status === 'fulfilled' && shRes.value) {
+        setAuditsSH((prev) => ({ ...prev, [dom]: shRes.value }));
+      }
+      if (obsRes.status === 'fulfilled' && obsRes.value) {
+        setAuditsObs((prev) => ({ ...prev, [dom]: obsRes.value }));
+      }
+      if (sslRes.status === 'fulfilled' && sslRes.value) {
+        setAuditsSSL((prev) => ({ ...prev, [dom]: sslRes.value }));
+      }
+
+      setLastCheckTimes((prev) => ({ ...prev, [dom]: now }));
+    } catch (err) {
+      showToast?.(`Erreur analyse ${dom}`);
+    } finally {
+      setLoadingMap((prev) => ({ ...prev, [dom]: false }));
+    }
+  };
+
+  // Analyse globale ASYNC PARALLÈLE (tous les sites scannés en même temps sans boucle lente)
+  const runAuditAll = async () => {
+    setGlobalLoading(true);
+    await Promise.allSettled(validSites.map((site) => runAuditDomain(site.cleanDomain, true)));
+    setGlobalLoading(false);
+    showToast?.('Analyses mises à jour');
+  };
 
   const gradeColor = (grade) => {
     if (!grade || grade === '?' || grade === '-') return 'text-gray-400 bg-slate-900 border-slate-700';
@@ -1246,11 +1261,11 @@ function AuditTestsTab({ sites, showToast }) {
   const GradeBadge = ({ grade, loading, href, title: badgeTitle }) => (
     <a href={href} target="_blank" rel="noopener noreferrer" title={badgeTitle} className="inline-flex">
       {loading ? (
-        <span className="w-9 h-6 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
-          <span className="w-2.5 h-2.5 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
+        <span className="w-10 h-7 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
+          <span className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
         </span>
       ) : (
-        <span className={`w-9 h-6 rounded border text-[11px] font-black flex items-center justify-center transition ${gradeColor(grade)}`}>
+        <span className={`w-10 h-7 rounded border text-xs font-bold flex items-center justify-center transition ${gradeColor(grade)}`}>
           {grade || '-'}
         </span>
       )}
@@ -1262,15 +1277,16 @@ function AuditTestsTab({ sites, showToast }) {
   const sh = dom ? auditsSH[dom] : null;
   const obs = dom ? auditsObs[dom] : null;
   const ssl = dom ? auditsSSL[dom] : null;
+  const currentSiteLastCheck = dom ? lastCheckTimes[dom] : null;
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Audits & Conformité Technique</h2>
+          <h2 className="text-lg font-bold text-white">Audits & Tests</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Sécurité (SecurityHeaders, Observatory, SSL Labs), SEO, Accessibilité, RGPD et Qualité de code.
+            Sécurité (SecurityHeaders, Observatory, SSL Labs), SEO, Accessibilité, RGPD et Qualité logicielle.
           </p>
         </div>
 
@@ -1278,31 +1294,31 @@ function AuditTestsTab({ sites, showToast }) {
           type="button"
           onClick={runAuditAll}
           disabled={globalLoading}
-          className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white text-xs font-medium transition flex items-center gap-2 shrink-0"
+          className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-medium transition flex items-center gap-2 shrink-0"
         >
           {globalLoading ? (
             <>
-              <span className="w-2.5 h-2.5 rounded-full border border-white border-t-transparent animate-spin" />
+              <span className="w-3 h-3 rounded-full border border-white border-t-transparent animate-spin" />
               <span>Analyse en cours...</span>
             </>
           ) : (
-            <span>Tout analyser</span>
+            <span>Tout actualiser</span>
           )}
         </button>
       </div>
 
-      {/* Overview Table */}
+      {/* Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
-                <th className="py-2.5 px-3">SITE / DOMAINE</th>
-                <th className="py-2.5 px-3 text-center">SECURITY HEADERS</th>
-                <th className="py-2.5 px-3 text-center">OBSERVATORY</th>
-                <th className="py-2.5 px-3 text-center">SSL LABS</th>
-                <th className="py-2.5 px-3 text-center">ENSEMBLE DES TESTS</th>
-                <th className="py-2.5 px-3 text-right">ACTION</th>
+              <tr className="border-b border-slate-800 text-gray-400 font-mono text-xs bg-slate-900/40">
+                <th className="py-3 px-4">SITE / DOMAINE</th>
+                <th className="py-3 px-3 text-center">SECURITY HEADERS</th>
+                <th className="py-3 px-3 text-center">OBSERVATORY</th>
+                <th className="py-3 px-3 text-center">SSL LABS</th>
+                <th className="py-3 px-4 text-center">DERNIÈRE ANALYSE</th>
+                <th className="py-3 px-4 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -1313,37 +1329,34 @@ function AuditTestsTab({ sites, showToast }) {
                 const sSsl = auditsSSL[sDom];
                 const isLoading = loadingMap[sDom];
                 const isSelected = selectedDomain === sDom;
+                const lastCheck = lastCheckTimes[sDom];
 
                 return (
                   <tr
                     key={site.id || sDom}
                     className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
                   >
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-white truncate max-w-[200px]">
-                        {site.title || site.name || sDom}
-                      </div>
-                      <div className="text-[10px] font-mono text-gray-500 truncate max-w-[200px]">
-                        {sDom}
-                      </div>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-white">{site.title || site.name || sDom}</div>
+                      <div className="text-xs font-mono text-gray-400">{sDom}</div>
                     </td>
 
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="py-3 px-3 text-center">
+                      <div className="inline-flex items-center gap-1.5">
                         <GradeBadge
                           grade={sSh?.grade}
                           loading={isLoading && !sSh}
                           href={`https://securityheaders.com/?q=${encodeURIComponent(sDom)}&followRedirects=on`}
-                          title={`SecurityHeaders — ${sSh?.grade || 'Non analysé'}${sSh?.score != null ? ` (${sSh.score}/100)` : ''}`}
+                          title={`SecurityHeaders — ${sSh?.grade || 'Non analysé'}`}
                         />
                         {sSh?.score != null && (
-                          <span className="text-[10px] font-mono text-gray-400">{sSh.score}/100</span>
+                          <span className="text-xs font-mono text-gray-400">{sSh.score}/100</span>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="py-3 px-3 text-center">
+                      <div className="inline-flex items-center gap-1.5">
                         <GradeBadge
                           grade={sObs?.grade}
                           loading={isLoading && !sObs}
@@ -1351,12 +1364,12 @@ function AuditTestsTab({ sites, showToast }) {
                           title={`Mozilla Observatory — ${sObs?.grade || 'Non analysé'}`}
                         />
                         {sObs?.score != null && (
-                          <span className="text-[10px] font-mono text-gray-400">{sObs.score}/100</span>
+                          <span className="text-xs font-mono text-gray-400">{sObs.score}/100</span>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-2.5 px-3 text-center">
+                    <td className="py-3 px-3 text-center">
                       <GradeBadge
                         grade={sSsl?.grade}
                         loading={isLoading && !sSsl}
@@ -1365,29 +1378,34 @@ function AuditTestsTab({ sites, showToast }) {
                       />
                     </td>
 
-                    <td className="py-2.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDomain(isSelected ? null : sDom)}
-                        className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
-                          isSelected
-                            ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                            : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        {isSelected ? 'Masquer le détail' : 'Voir les 6 catégories'}
-                      </button>
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-xs font-mono text-gray-400">
+                        {formatLastCheck(lastCheck)}
+                      </span>
                     </td>
 
-                    <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => runAuditDomain(sDom)}
-                        disabled={isLoading}
-                        className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline disabled:opacity-50"
-                      >
-                        {isLoading ? 'Analyse...' : 'Analyser'}
-                      </button>
+                    <td className="py-3 px-4 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDomain(isSelected ? null : sDom)}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                            isSelected
+                              ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                              : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
+                          }`}
+                        >
+                          {isSelected ? 'Fermer' : 'Détails'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => runAuditDomain(sDom, true)}
+                          disabled={isLoading}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                        >
+                          {isLoading ? 'Analyse...' : 'Actualiser'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1397,47 +1415,45 @@ function AuditTestsTab({ sites, showToast }) {
         </div>
       </div>
 
-      {/* FULL TEST SUITE DETAIL PANEL */}
+      {/* DETAIL VIEW OF ALL 6 TEST CATEGORIES */}
       {selectedDomain && (
         <div className="p-5 rounded-xl border border-cyan-500/40 bg-slate-950 space-y-5 animate-fade-in shadow-xl">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-800 pb-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-cyan-400 uppercase">ENSEMBLE DES TESTS</span>
-                <span className="text-xs text-gray-500">•</span>
                 <span className="text-sm font-bold text-white">{selectedSite?.title || selectedDomain}</span>
-                <span className="text-xs font-mono text-gray-400">({selectedDomain})</span>
+                <span className="text-xs font-mono text-cyan-400">({selectedDomain})</span>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                Audit complet selon le référentiel : Sécurité réseau, Référencement/Accessibilité, RGPD, Git, Qualité de code et Vulnérabilités.
+                Dernière analyse : {formatLastCheck(currentSiteLastCheck)}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => runAuditDomain(selectedDomain)}
+                onClick={() => runAuditDomain(selectedDomain, true)}
                 disabled={loadingMap[selectedDomain]}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-gray-200 transition"
+                className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-xs sm:text-sm text-white font-medium transition"
               >
-                {loadingMap[selectedDomain] ? 'Analyse en cours...' : 'Relancer pour ce site'}
+                {loadingMap[selectedDomain] ? 'Analyse...' : 'Actualiser ce site'}
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedDomain(null)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-gray-400 hover:text-white"
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm text-gray-400 hover:text-white"
               >
                 Fermer
               </button>
             </div>
           </div>
 
-          {/* Category Filters */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2">
             {[
               { id: 'ALL', label: 'Toutes les catégories' },
               { id: '1', label: '1. Sécurité & TLS' },
-              { id: '2', label: '2. SEO & Accessibilité' },
+              { id: '2', label: '2. SEO & Performance' },
               { id: '3', label: '3. RGPD & Cookies' },
               { id: '4', label: '4. Fuites Git' },
               { id: '5', label: '5. Qualité de code' },
@@ -1447,7 +1463,7 @@ function AuditTestsTab({ sites, showToast }) {
                 key={cat.id}
                 type="button"
                 onClick={() => setActiveCategoryFilter(cat.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono transition border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition border ${
                   activeCategoryFilter === cat.id
                     ? 'bg-cyan-950 border-cyan-500/50 text-cyan-300'
                     : 'bg-slate-900 border-slate-800 text-gray-400 hover:text-white'
@@ -1459,88 +1475,78 @@ function AuditTestsTab({ sites, showToast }) {
           </div>
 
           <div className="space-y-4">
-            {/* CAT 1: SÉCURITÉ RÉSEAU, TLS & EN-TÊTES */}
+            {/* CAT 1: SÉCURITÉ RÉSEAU & TLS */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '1') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">1. SÉCURITÉ RÉSEAU, TLS & EN-TÊTES</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Auto-analysé</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">1. SÉCURITÉ RÉSEAU, TLS & EN-TÊTES</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* SecurityHeaders */}
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-white">SecurityHeaders</span>
-                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(sh?.grade)}`}>
+                      <span className="text-sm font-bold text-white">SecurityHeaders</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(sh?.grade)}`}>
                         {sh?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-[11px] text-gray-400">
-                      Score : <strong className="text-white">{sh?.score ?? '-'} / 100</strong>
-                    </div>
+                    <div className="text-xs text-gray-400">Score : {sh?.score ?? '-'} / 100</div>
                     <a
                       href={`https://securityheaders.com/?q=${encodeURIComponent(selectedDomain)}&followRedirects=on`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
-                      Rapport officiel securityheaders.com
+                      Rapport securityheaders.com
                     </a>
                   </div>
 
-                  {/* Mozilla Observatory */}
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-white">Mozilla Observatory</span>
-                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(obs?.grade)}`}>
+                      <span className="text-sm font-bold text-white">Mozilla Observatory</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(obs?.grade)}`}>
                         {obs?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-[11px] text-gray-400">
-                      Score : <strong className="text-white">{obs?.score ?? '-'} / 100</strong>
-                    </div>
+                    <div className="text-xs text-gray-400">Score : {obs?.score ?? '-'} / 100</div>
                     <a
                       href={`https://observatory.mozilla.org/analyze/${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
                       Rapport Mozilla Observatory
                     </a>
                   </div>
 
-                  {/* Qualys SSL Labs */}
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-white">Qualys SSL Labs</span>
-                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(ssl?.grade)}`}>
+                      <span className="text-sm font-bold text-white">Qualys SSL Labs</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(ssl?.grade)}`}>
                         {ssl?.grade || '-'}
                       </span>
                     </div>
-                    <div className="text-[11px] text-gray-400">
-                      Certificat TLS & suites de chiffrement
-                    </div>
+                    <div className="text-xs text-gray-400">Certificat TLS & chiffrement</div>
                     <a
                       href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
-                      Rapport complet Qualys SSL Labs
+                      Rapport Qualys SSL Labs
                     </a>
                   </div>
                 </div>
 
-                {/* En-têtes HTTP décortiqués */}
                 {sh?.checks && (
                   <div className="space-y-2 pt-2">
-                    <span className="text-[11px] font-mono text-gray-400 block">DÉTAIL DES 6 EN-TÊTES DE SÉCURITÉ :</span>
+                    <span className="text-xs font-mono text-gray-400 block">DÉTAIL DES EN-TÊTES DE SÉCURITÉ :</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {Object.entries(sh.checks).map(([key, check]) => (
                         <div
                           key={key}
-                          className={`p-2 rounded-lg border text-xs space-y-1 ${
+                          className={`p-2.5 rounded-lg border text-xs space-y-1 ${
                             check.present
                               ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
                               : 'bg-rose-950/15 border-rose-500/20 text-rose-300'
@@ -1548,13 +1554,13 @@ function AuditTestsTab({ sites, showToast }) {
                         >
                           <div className="flex justify-between items-center font-mono">
                             <span className="font-bold">{check.name || key.toUpperCase()}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800">
+                            <span className="text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
                               {check.present ? 'Présent' : 'Manquant'}
                             </span>
                           </div>
-                          <p className="text-[10px] text-gray-400 leading-tight">{check.desc}</p>
+                          <p className="text-xs text-gray-400 leading-snug">{check.desc}</p>
                           {check.value && (
-                            <code className="text-[10px] font-mono text-gray-300 block truncate bg-slate-950 px-1 py-0.5 rounded">
+                            <code className="text-xs font-mono text-gray-300 block truncate bg-slate-950 px-1 py-0.5 rounded">
                               {check.value}
                             </code>
                           )}
@@ -1566,49 +1572,47 @@ function AuditTestsTab({ sites, showToast }) {
               </div>
             )}
 
-            {/* CAT 2: RÉFÉRENCEMENT, ACCESSIBILITÉ & PERFORMANCE */}
+            {/* CAT 2: RÉFÉRENCEMENT & PERFORMANCE */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '2') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">2. RÉFÉRENCEMENT (SEO), ACCESSIBILITÉ & PERFORMANCE</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Audits web</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">2. RÉFÉRENCEMENT (SEO), ACCESSIBILITÉ & PERFORMANCE</h4>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">Google PageSpeed / Lighthouse</div>
-                    <p className="text-[11px] text-gray-400">Core Web Vitals, SEO technique, performance et accessibilité de base.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">Google PageSpeed / Lighthouse</div>
+                    <p className="text-xs text-gray-400">Core Web Vitals, SEO, accessibilité et performance.</p>
                     <a
                       href={`https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(selectedDomain)}%2F`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
                       Lancer l'audit PageSpeed
                     </a>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">WAVE WebAIM</div>
-                    <p className="text-[11px] text-gray-400">Audit visuel précis de l'accessibilité : contrastes, balises ARIA, hiérarchie.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">WAVE WebAIM</div>
+                    <p className="text-xs text-gray-400">Accessibilité visuelle, contrastes et balises ARIA.</p>
                     <a
                       href={`https://wave.webaim.org/report#/https://${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
                       Lancer l'audit WAVE
                     </a>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">Google Search Console & Ahrefs</div>
-                    <p className="text-[11px] text-gray-400">Détection des erreurs d'indexation, liens cassés et balises canoniques.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">Google Search Console & Ahrefs</div>
+                    <p className="text-xs text-gray-400">Erreurs d'indexation, liens cassés et balises canoniques.</p>
                     <a
                       href="https://search.google.com/search-console"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
                       Ouvrir Search Console
                     </a>
@@ -1621,154 +1625,129 @@ function AuditTestsTab({ sites, showToast }) {
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '3') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">3. RGPD & COOKIES</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Conformité vie privée</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">3. RGPD & COOKIES</h4>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">2gdpr Scanner</div>
-                    <p className="text-[11px] text-gray-400">Scanne la conformité RGPD, cookies déposés avant consentement et trackers tiers.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">2gdpr Scanner</div>
+                    <p className="text-xs text-gray-400">Conformité RGPD et cookies déposés avant consentement.</p>
                     <a
                       href={`https://2gdpr.com/check?domain=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
-                      Scanner sur 2gdpr.com
+                      Scanner sur 2gdpr
                     </a>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">Cookiebot Scanner</div>
-                    <p className="text-[11px] text-gray-400">Vérifie l'exhaustivité des mentions légales de cookies et la conformité ePrivacy.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">Cookiebot Scanner</div>
+                    <p className="text-xs text-gray-400">Analyse des cookies et conformité ePrivacy.</p>
                     <a
                       href="https://www.cookiebot.com/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
-                      Ouvrir Cookiebot Scanner
+                      Ouvrir Cookiebot
                     </a>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">Blacklight (The Markup)</div>
-                    <p className="text-[11px] text-gray-400">Détecte précisément trackers publicitaires, keyloggers et canvas fingerprinting.</p>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">Blacklight (The Markup)</div>
+                    <p className="text-xs text-gray-400">Détection de trackers et fingerprinting.</p>
                     <a
                       href={`https://themarkup.org/blacklight?url=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono"
                     >
-                      Lancer le test Blacklight
+                      Lancer Blacklight
                     </a>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* CAT 4: COMMITS, SECRETS & FUITES GIT */}
+            {/* CAT 4: FUITES GIT */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '4') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">4. COMMITS, SECRETS & FUITES GIT</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Sécurité du code source</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">4. COMMITS, SECRETS & FUITES GIT</h4>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">TruffleHog (CLI)</div>
-                    <p className="text-[11px] text-gray-400">Scanne l'historique complet des commits pour détecter clés API, tokens et mots de passe.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">TruffleHog (CLI)</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
                       trufflehog git file://.
                     </code>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">Gitleaks (CLI / CI)</div>
-                    <p className="text-[11px] text-gray-400">Détection automatique ultra-rapide des secrets oubliés dans les commits.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">Gitleaks (CLI)</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
                       gitleaks detect -v
                     </code>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold text-white">GitGuardian</div>
-                    <p className="text-[11px] text-gray-400">Monitoring continu des dépôts GitHub/GitLab pour bloquer les fuites en temps réel.</p>
-                    <span className="text-[10px] font-mono text-gray-500 block">Monitoring recommandé en webhook</span>
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-sm font-bold text-white">GitGuardian</div>
+                    <p className="text-xs text-gray-400">Monitoring continu des dépôts GitHub/GitLab.</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* CAT 5: QUALITÉ DE CODE & ARCHITECTURE */}
+            {/* CAT 5: QUALITÉ DE CODE */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '5') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">5. FONCTIONS NON UTILISÉES, QUALITÉ & ARCHITECTURE</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Analyse statique</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">5. FONCTIONS NON UTILISÉES, QUALITÉ & ARCHITECTURE</h4>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">Knip</div>
-                    <p className="text-[11px] text-gray-400">Détecte automatiquement fichiers orphelins, exports et types inutilisés.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">Knip</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">Depcheck</div>
-                    <p className="text-[11px] text-gray-400">Liste les dépendances installées mais jamais importées dans le projet.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">Depcheck</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">ESLint (no-unused-vars)</div>
-                    <p className="text-[11px] text-gray-400">Traque les variables, paramètres et fonctions mortes fichier par fichier.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">ESLint</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">SonarQube / SonarCloud</div>
-                    <p className="text-[11px] text-gray-400">Dette technique, code smells, duplication et failles de sécurité statiques.</p>
-                    <span className="text-[10px] font-mono text-gray-500 block">Audit continu recommandé</span>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">SonarQube / SonarCloud</div>
+                    <p className="text-xs text-gray-400">Dette technique et analyse statique.</p>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">Madge</div>
-                    <p className="text-[11px] text-gray-400">Graphe visuel des dépendances et détection des dépendances circulaires.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx madge --circular .</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">Madge</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx madge --circular .</code>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* CAT 6: VULNÉRABILITÉS & BASE DE DONNÉES */}
+            {/* CAT 6: VULNÉRABILITÉS */}
             {(activeCategoryFilter === 'ALL' || activeCategoryFilter === '6') && (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono">6. BASE DE DONNÉES & VULNÉRABILITÉS APPLICATIVES</h4>
-                  <span className="text-[11px] font-mono text-gray-500">Sécurité applicative</span>
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono">6. BASE DE DONNÉES & VULNÉRABILITÉS</h4>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">npm audit / Snyk</div>
-                    <p className="text-[11px] text-gray-400">Scanne les vulnérabilités de sécurité connues (CVE) dans les packages.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">npm audit / Snyk</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">Prisma Doctor / Index SQL</div>
-                    <p className="text-[11px] text-gray-400">Audit des requêtes lentes, index manquants et détection des N+1 queries.</p>
-                    <code className="text-[10px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">Prisma Doctor / SQL</div>
+                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
                   </div>
-
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="text-xs font-bold text-white">OWASP ZAP</div>
-                    <p className="text-[11px] text-gray-400">Scanner dynamique (DAST) pour tester failles XSS, injections SQL et API exposée.</p>
-                    <span className="text-[10px] font-mono text-gray-500 block">Scanner dynamique DAST</span>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-sm font-bold text-white">OWASP ZAP</div>
+                    <p className="text-xs text-gray-400">Scanner dynamique DAST.</p>
                   </div>
                 </div>
               </div>
@@ -1842,7 +1821,7 @@ function ContextSyncTab({ showToast }) {
       const data = await res.json();
       if (data.success) {
         setLastModified(data.lastModified);
-        showToast(data.message || 'Fichier enregistré avec succès');
+        showToast(data.message || 'Fichier enregistré');
         fetchContextData(activeFile);
       } else {
         showToast(data.error || 'Erreur lors de l’enregistrement');
@@ -1875,15 +1854,15 @@ function ContextSyncTab({ showToast }) {
         setTargets(data.targets);
         setNewTargetName('');
         setNewTargetFolder('');
-        showToast(data.message || 'Projet ajouté à la synchronisation');
+        showToast(data.message || 'Projet ajouté');
       }
     } catch {
-      showToast('Erreur lors de l’ajout du projet cible');
+      showToast('Erreur lors de l’ajout du projet');
     }
   };
 
   const handleDeleteTarget = async (id, name) => {
-    if (!confirm(`Retirer "${name}" de la liste de synchronisation ?`)) return;
+    if (!confirm(`Retirer "${name}" de la liste ?`)) return;
     try {
       const res = await fetch(`/api/context/targets/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -2000,7 +1979,7 @@ function ContextSyncTab({ showToast }) {
         const bridgeRes = await fetch('http://127.0.0.1:5001/sync', { method: 'POST' });
         const bridgeData = await bridgeRes.json();
         if (bridgeData.success) {
-          showToast(`${bridgeData.syncedCount} projet(s) locaux synchronisés via bridge local`);
+          showToast(`${bridgeData.syncedCount} projet(s) locaux synchronisés`);
           setLocalBrowserSyncing(false);
           return;
         }
@@ -2019,7 +1998,7 @@ function ContextSyncTab({ showToast }) {
       const bundleRes = await fetch('/api/context/bundle');
       const bundleData = await bundleRes.json();
       if (!bundleData.success || !bundleData.bundle) {
-        throw new Error("Impossible de charger les fichiers de contexte depuis le serveur.");
+        throw new Error("Impossible de charger les fichiers de contexte.");
       }
       const bundleFiles = bundleData.bundle;
       const enabledTargets = targets.filter((t) => t.enabled);
@@ -2081,7 +2060,7 @@ function ContextSyncTab({ showToast }) {
       if (localUpdatedCount > 0) {
         showToast(`${localUpdatedCount} projet(s) locaux synchronisés`);
       } else {
-        showToast("Aucun sous-dossier correspondant trouvé dans le répertoire sélectionné.");
+        showToast("Aucun sous-dossier correspondant trouvé.");
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -2118,10 +2097,7 @@ function ContextSyncTab({ showToast }) {
       {/* Header Toolbar */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/5 pb-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Dossier Contexte Privé & Synchronisation</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Édition centralisée et synchronisation automatique avec injection .gitignore.
-          </p>
+          <h2 className="text-lg font-bold text-white">Contexte Privé & Synchronisation</h2>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -2135,14 +2111,14 @@ function ContextSyncTab({ showToast }) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
+            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
           >
             Importer .md
           </button>
           <button
             type="button"
             onClick={handleDownloadBundle}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
+            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
           >
             Export JSON
           </button>
@@ -2150,7 +2126,7 @@ function ContextSyncTab({ showToast }) {
             type="button"
             onClick={handleBrowserLocalSync}
             disabled={localBrowserSyncing || loading}
-            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs font-medium border border-cyan-500/40 transition disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs sm:text-sm font-medium border border-cyan-500/40 transition disabled:opacity-50"
           >
             {localBrowserSyncing ? 'Synchronisation...' : 'Synchro directe PC'}
           </button>
@@ -2158,7 +2134,7 @@ function ContextSyncTab({ showToast }) {
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-medium border border-slate-700 transition"
           >
             {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
@@ -2166,7 +2142,7 @@ function ContextSyncTab({ showToast }) {
             type="button"
             onClick={handleSyncAll}
             disabled={syncing || loading || enabledCount === 0}
-            className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium transition disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs sm:text-sm font-medium transition disabled:opacity-50"
           >
             {syncing ? 'Synchronisation...' : `Synchroniser (${enabledCount})`}
           </button>
@@ -2174,7 +2150,7 @@ function ContextSyncTab({ showToast }) {
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-xs font-mono text-gray-400 bg-slate-950 rounded-xl border border-slate-800">
+        <div className="p-8 text-center text-sm font-mono text-gray-400 bg-slate-950 rounded-xl border border-slate-800">
           Chargement du dossier contexte...
         </div>
       ) : (
@@ -2187,7 +2163,7 @@ function ContextSyncTab({ showToast }) {
                   key={f.filename}
                   type="button"
                   onClick={() => handleSelectFile(f.filename)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono transition border ${
+                  className={`px-3 py-1 rounded-lg text-xs font-mono transition border ${
                     activeFile === f.filename
                       ? 'bg-cyan-950 border-cyan-500/50 text-cyan-300'
                       : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
@@ -2199,7 +2175,7 @@ function ContextSyncTab({ showToast }) {
               <button
                 type="button"
                 onClick={() => setShowNewFileModal(true)}
-                className="px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-gray-400 hover:text-white"
+                className="px-3 py-1 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-gray-400 hover:text-white"
               >
                 + Fichier
               </button>
@@ -2212,19 +2188,19 @@ function ContextSyncTab({ showToast }) {
                   placeholder="nom-fichier.md"
                   value={newFileName}
                   onChange={(e) => setNewFileName(e.target.value)}
-                  className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono flex-1 focus:outline-none focus:border-cyan-500"
+                  className="px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono flex-1 focus:outline-none focus:border-cyan-500"
                 />
                 <button
                   type="button"
                   onClick={handleCreateFile}
-                  className="px-2.5 py-1 rounded bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium"
+                  className="px-3 py-1.5 rounded bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-medium"
                 >
                   Créer
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowNewFileModal(false)}
-                  className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+                  className="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white"
                 >
                   Annuler
                 </button>
@@ -2232,9 +2208,9 @@ function ContextSyncTab({ showToast }) {
             )}
 
             {/* Editor */}
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs font-mono text-gray-400 border-b border-slate-800 pb-2">
-                <span>Fichier actif : {activeFile}</span>
+                <span>Fichier : {activeFile}</span>
                 <span>{lastModified ? `Mis à jour le ${new Date(lastModified).toLocaleDateString('fr-FR')}` : ''}</span>
               </div>
 
@@ -2243,11 +2219,11 @@ function ContextSyncTab({ showToast }) {
                 onChange={(e) => setContent(e.target.value)}
                 rows={16}
                 spellCheck={false}
-                className="w-full p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
+                className="w-full p-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
                 placeholder={`Contenu du fichier ${activeFile}...`}
               />
 
-              <div className="flex justify-between items-center text-[10px] font-mono text-gray-500">
+              <div className="flex justify-between items-center text-xs font-mono text-gray-500">
                 <span>{content.split('\n').length} lignes • {content.length} caractères</span>
                 <button
                   type="button"
@@ -2265,28 +2241,28 @@ function ContextSyncTab({ showToast }) {
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <div>
-                  <h3 className="text-xs font-bold text-white">Projets cibles</h3>
-                  <p className="text-[10px] text-gray-400">{enabledCount}/{targets.length} activé(s)</p>
+                  <h3 className="text-sm font-bold text-white">Projets cibles</h3>
+                  <p className="text-xs text-gray-400">{enabledCount}/{targets.length} activé(s)</p>
                 </div>
                 <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleToggleAllTargets(true)}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                    className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
                   >
                     Tout
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleAllTargets(false)}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
+                    className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-gray-300 hover:text-white border border-slate-800"
                   >
                     Rien
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                 {targets.map((target) => (
                   <div
                     key={target.id}
@@ -2296,7 +2272,7 @@ function ContextSyncTab({ showToast }) {
                         : 'bg-slate-950 border-slate-800 text-gray-500'
                     }`}
                   >
-                    <label className="flex items-center gap-2 cursor-pointer flex-1 mr-2 text-xs truncate">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 mr-2 text-sm truncate">
                       <input
                         type="checkbox"
                         checked={Boolean(target.enabled)}
@@ -2306,11 +2282,11 @@ function ContextSyncTab({ showToast }) {
                       <span className="truncate">{target.name}</span>
                     </label>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono text-gray-400">/{target.folder}</span>
+                      <span className="text-xs font-mono text-gray-400">/{target.folder}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteTarget(target.id, target.name)}
-                        className="text-gray-500 hover:text-rose-400 font-mono text-xs"
+                        className="text-gray-500 hover:text-rose-400 font-mono text-xs px-1"
                       >
                         Retirer
                       </button>
@@ -2320,28 +2296,28 @@ function ContextSyncTab({ showToast }) {
               </div>
 
               {/* Add target form */}
-              <form onSubmit={handleAddTarget} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 space-y-2">
-                <span className="text-[10px] font-mono text-gray-300 block">AJOUTER UN PROJET CIBLE</span>
+              <form onSubmit={handleAddTarget} className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-2">
+                <span className="text-xs font-mono text-gray-300 block">AJOUTER UN PROJET</span>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Nom"
                     value={newTargetName}
                     onChange={(e) => setNewTargetName(e.target.value)}
-                    className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    className="px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                   />
                   <input
                     type="text"
                     placeholder="Dossier"
                     value={newTargetFolder}
                     onChange={(e) => setNewTargetFolder(e.target.value)}
-                    className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    className="px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={!newTargetName.trim() || !newTargetFolder.trim()}
-                  className="w-full py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 transition disabled:opacity-40"
+                  className="w-full py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 transition disabled:opacity-40"
                 >
                   Ajouter à la liste
                 </button>
@@ -2349,14 +2325,14 @@ function ContextSyncTab({ showToast }) {
             </div>
 
             {syncResult && (
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs animate-fade-in">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1 text-sm animate-fade-in">
                 <div className="font-bold text-white flex justify-between">
                   <span>Résultat synchronisation</span>
-                  <span className="text-[10px] font-mono text-gray-400">
+                  <span className="text-xs font-mono text-gray-400">
                     {new Date(syncResult.syncedAt).toLocaleTimeString('fr-FR')}
                   </span>
                 </div>
-                <div className="text-emerald-400 font-mono text-[11px]">
+                <div className="text-emerald-400 font-mono text-xs">
                   {syncResult.syncedCount} projet(s) mis à jour
                 </div>
               </div>
@@ -2370,44 +2346,44 @@ function ContextSyncTab({ showToast }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
-              <h3 className="text-sm font-bold text-white">Synchronisation dans Brave Browser</h3>
+              <h3 className="text-base font-bold text-white">Synchronisation dans Brave Browser</h3>
               <button
                 type="button"
                 onClick={() => setShowBraveModal(false)}
-                className="text-gray-400 hover:text-white text-xs font-mono"
+                className="text-gray-400 hover:text-white text-sm font-mono"
               >
                 Fermer
               </button>
             </div>
 
-            <p className="text-xs text-gray-300 leading-relaxed">
+            <p className="text-sm text-gray-300 leading-relaxed">
               Brave désactive l'accès direct aux dossiers par défaut. Pour activer l'accès direct ou lancer le script :
             </p>
 
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
               <span className="text-xs font-semibold text-cyan-300 block">Option 1 : Activer le flag Brave</span>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-cyan-400 select-all truncate">
+                <code className="flex-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-cyan-400 select-all truncate">
                   brave://flags/#file-system-access-api
                 </code>
                 <button
                   type="button"
                   onClick={handleCopyBraveFlag}
-                  className="px-2.5 py-1 rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-medium shrink-0"
+                  className="px-3 py-1 rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-medium shrink-0"
                 >
                   {copiedBraveFlag ? 'Copié' : 'Copier'}
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400">Passez sur Enabled puis relancez Brave.</p>
+              <p className="text-xs text-gray-400">Passez sur Enabled puis relancez Brave.</p>
             </div>
 
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
               <span className="text-xs font-semibold text-white block">Option 2 : Script sync.bat</span>
-              <p className="text-[11px] text-gray-400">Double-cliquez sur sync.bat à la racine du projet.</p>
+              <p className="text-xs text-gray-400">Double-cliquez sur sync.bat à la racine du projet.</p>
               <button
                 type="button"
                 onClick={handleDownloadSyncBat}
-                className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition"
+                className="w-full py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition"
               >
                 Télécharger sync.bat
               </button>
@@ -2417,7 +2393,7 @@ function ContextSyncTab({ showToast }) {
               <button
                 type="button"
                 onClick={() => setShowBraveModal(false)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700"
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700"
               >
                 Fermer
               </button>

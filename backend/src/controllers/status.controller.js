@@ -9,6 +9,28 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const STATUS_FILE = path.join(DATA_DIR, 'site_status.json');
 const PROJECTS_FILE = path.join(DATA_DIR, 'portfolio_projects.json');
+const AUDIT_CACHE_FILE = path.join(DATA_DIR, 'audit_cache.json');
+
+function readAuditCache() {
+  try {
+    if (fs.existsSync(AUDIT_CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(AUDIT_CACHE_FILE, 'utf-8'));
+    }
+  } catch {}
+  return {};
+}
+
+function updateAuditCache(domain, tool, data) {
+  try {
+    const cache = readAuditCache();
+    if (!cache[domain]) cache[domain] = {};
+    cache[domain][tool] = { ...data, cachedAt: new Date().toISOString() };
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(AUDIT_CACHE_FILE, JSON.stringify(cache, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Erreur audit_cache:', err.message);
+  }
+}
 
 const VALID_BYPASS_KEYS = ['azim404', 'admin404', 'azim2026', 'admin'];
 
@@ -983,6 +1005,12 @@ async function queryDomainRawHeaders(targetUrl, timeoutMs = 8000, maxRedirects =
   }
 }
 
+// GET /api/site-status/audit-summary
+export const getAuditSummary = (req, res) => {
+  const cache = readAuditCache();
+  return res.json({ success: true, cache });
+};
+
 // GET /api/site-status/audit-headers?domain=...
 export const auditSiteHeaders = async (req, res) => {
   const rawDomain = req.query.domain || '';
@@ -995,6 +1023,12 @@ export const auditSiteHeaders = async (req, res) => {
 
   if (!cleanDomain) {
     return res.status(400).json({ success: false, error: 'Domaine manquant' });
+  }
+
+  const force = req.query.force === 'true';
+  const cache = readAuditCache();
+  if (!force && cache[cleanDomain]?.sh && (Date.now() - new Date(cache[cleanDomain].sh.checkedAt || 0).getTime() < 86400000)) {
+    return res.json({ ...cache[cleanDomain].sh, cached: true });
   }
 
   const auditTools = [
@@ -1051,18 +1085,15 @@ export const auditSiteHeaders = async (req, res) => {
 
   try {
     let result;
-    // Tentative 1 : HTTPS direct
     try {
       result = await queryDomainRawHeaders(`https://${cleanDomain}`);
     } catch (httpsErr) {
-      // Tentative 2 : HTTP standard si HTTPS refuse ou échoue
       try {
         result = await queryDomainRawHeaders(`http://${cleanDomain}`);
       } catch (httpErr) {
-        // Nouvelle tentative avec pause courte de 400ms pour éviter les erreurs de socket transitoires
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 300));
         try {
-          result = await queryDomainRawHeaders(`https://${cleanDomain}`, 10000);
+          result = await queryDomainRawHeaders(`https://${cleanDomain}`, 8000);
         } catch {
           throw httpsErr;
         }
@@ -1077,27 +1108,26 @@ export const auditSiteHeaders = async (req, res) => {
     const rp = headers['referrer-policy'];
     const pp = headers['permissions-policy'];
 
-    // Barème conforme à SecurityHeaders.com
     const checks = {
       hsts: {
         name: 'Strict-Transport-Security (HSTS)',
         present: Boolean(hsts),
         value: hsts || null,
-        desc: 'Force le chiffrement HTTPS et empêche les attaques Man-in-the-middle',
+        desc: 'Force le chiffrement HTTPS et empeche les attaques Man-in-the-middle',
         weight: 30,
       },
       xcto: {
         name: 'X-Content-Type-Options',
         present: Boolean(xcto),
         value: xcto || null,
-        desc: 'Empêche le reniflage de type MIME (nosniff)',
+        desc: 'Empeche le reniflage de type MIME (nosniff)',
         weight: 15,
       },
       xfo: {
         name: 'X-Frame-Options',
         present: Boolean(xfo),
         value: xfo || null,
-        desc: 'Interdit l’intégration iframe malveillante (Clickjacking)',
+        desc: 'Interdit l’integration iframe malveillante (Clickjacking)',
         weight: 20,
       },
       csp: {
@@ -1111,19 +1141,18 @@ export const auditSiteHeaders = async (req, res) => {
         name: 'Referrer-Policy',
         present: Boolean(rp),
         value: rp || null,
-        desc: 'Contrôle la transmission de l’en-tête Referer lors des navigations',
+        desc: 'Controle la transmission de l’en-tete Referer lors des navigations',
         weight: 10,
       },
       pp: {
         name: 'Permissions-Policy',
         present: Boolean(pp),
         value: pp || null,
-        desc: 'Désactive les fonctionnalités matérielles inutilisées (caméra, micro)',
+        desc: 'Desactive les fonctionnalites materielles inutilisees (camera, micro)',
         weight: 5,
       },
     };
 
-    // Barème STRICT et OFFICIEL conforme à SecurityHeaders.com (Scott Helme)
     const hasHsts = checks.hsts.present;
     const hasCsp = checks.csp.present;
     const hasXfo = checks.xfo.present;
@@ -1146,28 +1175,21 @@ export const auditSiteHeaders = async (req, res) => {
       const maxAgeMatch = hstsVal.match(/max-age=(\d+)/i);
       const maxAgeSeconds = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 0;
       const hasSubDomains = /includesubdomains/i.test(hstsVal);
-      const isHstsStrong = hasHsts && maxAgeSeconds >= 10886400; // >= 18 semaines
+      const isHstsStrong = hasHsts && maxAgeSeconds >= 10886400;
 
-      // Règle 1 : A+ nécessite CSP + HSTS (avec includeSubDomains & >= 6 mois) + XFO + XCTO + RP + PP
       if (hasCsp && hasHsts && hasXfo && hasXcto && hasRp && hasPp && maxAgeSeconds >= 15768000 && hasSubDomains) {
         grade = 'A+';
-        gradeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.35)]';
+        gradeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50';
         score = 100;
-      }
-      // Règle 2 : A nécessite obligatoirement CSP + HSTS + XFO + XCTO (sans CSP, le maximum est B)
-      else if (hasCsp && isHstsStrong && hasXfo && hasXcto) {
+      } else if (hasCsp && isHstsStrong && hasXfo && hasXcto) {
         grade = 'A';
         gradeColor = 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
         score = 85 + (hasRp ? 10 : 0) + (hasPp ? 5 : 0);
-      }
-      // Règle 3 : B (Quand CSP manque, la note est plafonnée à B sur SecurityHeaders.com)
-      else if (hasHsts && (hasXfo || hasXcto)) {
+      } else if (hasHsts && (hasXfo || hasXcto)) {
         grade = 'B';
         gradeColor = 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
         score = 65 + (hasXfo && hasXcto ? 10 : 0) + (hasRp ? 5 : 0);
-      }
-      // Règle 4 : C (Manque HSTS ou manque 2 en-têtes majeurs)
-      else if (hasXfo || hasXcto || hasCsp) {
+      } else if (hasXfo || hasXcto || hasCsp) {
         if (presentHeadersCount >= 2) {
           grade = 'C';
           gradeColor = 'text-amber-400 bg-amber-950/40 border-amber-500/40';
@@ -1177,15 +1199,11 @@ export const auditSiteHeaders = async (req, res) => {
           gradeColor = 'text-orange-400 bg-orange-950/40 border-orange-500/40';
           score = 30;
         }
-      }
-      // Règle 5 : E (1 seul en-tête faible)
-      else if (presentHeadersCount === 1) {
+      } else if (presentHeadersCount === 1) {
         grade = 'E';
         gradeColor = 'text-orange-500 bg-orange-950/40 border-orange-500/40';
         score = 15;
-      }
-      // Règle 6 : F (0 en-tête de sécurité ou HTTP)
-      else {
+      } else {
         grade = 'F';
         gradeColor = 'text-rose-400 bg-rose-950/40 border-rose-500/40';
         score = 0;
@@ -1194,7 +1212,7 @@ export const auditSiteHeaders = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.json({
+    const payload = {
       success: true,
       domain: cleanDomain,
       grade,
@@ -1203,18 +1221,20 @@ export const auditSiteHeaders = async (req, res) => {
       checks,
       tools: auditTools,
       checkedAt: new Date().toISOString(),
-    });
+    };
+    updateAuditCache(cleanDomain, 'sh', payload);
+    return res.json(payload);
   } catch (err) {
-    let friendlyError = `Hôte injoignable (${err.message})`;
+    let friendlyError = `Hote injoignable (${err.message})`;
     if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
-      friendlyError = `Nom de domaine non configuré : aucun enregistrement DNS trouvé pour "${cleanDomain}". Vérifiez la zone DNS de votre domaine.`;
+      friendlyError = `DNS introuvable pour "${cleanDomain}".`;
     } else if (err.code === 'ECONNREFUSED') {
-      friendlyError = `Connexion refusée : aucun service web actif sur le port 443/80 de "${cleanDomain}".`;
+      friendlyError = `Connexion refusee sur "${cleanDomain}".`;
     } else if (err.message === 'TIMEOUT') {
-      friendlyError = `Délai dépassé (timeout 7s) : le serveur "${cleanDomain}" ne répond pas.`;
+      friendlyError = `Timeout serveur sur "${cleanDomain}".`;
     }
 
-    return res.status(200).json({
+    const failPayload = {
       success: false,
       domain: cleanDomain,
       grade: '?',
@@ -1222,7 +1242,10 @@ export const auditSiteHeaders = async (req, res) => {
       gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
       error: friendlyError,
       tools: auditTools,
-    });
+      checkedAt: new Date().toISOString(),
+    };
+    updateAuditCache(cleanDomain, 'sh', failPayload);
+    return res.status(200).json(failPayload);
   }
 };
 
@@ -1234,29 +1257,33 @@ export const auditObservatory = async (req, res) => {
 
   if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
 
+  const force = req.query.force === 'true';
+  const cache = readAuditCache();
+  if (!force && cache[cleanDomain]?.obs && (Date.now() - new Date(cache[cleanDomain].obs.checkedAt || 0).getTime() < 86400000)) {
+    return res.json({ ...cache[cleanDomain].obs, cached: true });
+  }
+
   const apiBase = 'https://http-observatory.security.mozilla.org/api/v1';
 
   try {
-    // Declencher le scan (force rescan)
-    const triggerRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&hidden=true&rescan=true`, {
+    const triggerRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&hidden=true&rescan=${force ? 'true' : 'false'}`, {
       method: 'POST',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     });
-    if (!triggerRes.ok) throw new Error(`Observatory trigger HTTP ${triggerRes.status}`);
+    if (!triggerRes.ok) throw new Error(`Observatory HTTP ${triggerRes.status}`);
     let data = await triggerRes.json();
 
-    // Attente max 25s que le scan soit termine
-    const deadline = Date.now() + 25000;
+    const deadline = Date.now() + 20000;
     while ((data.state === 'PENDING' || data.state === 'RUNNING' || data.state === 'STARTING') && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 2000));
       const pollRes = await fetch(`${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}`, {
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       });
       if (pollRes.ok) data = await pollRes.json();
     }
 
     if (!data.grade) {
-      return res.json({ success: false, domain: cleanDomain, error: 'Scan Observatory non termine ou echec' });
+      return res.json({ success: false, domain: cleanDomain, error: 'Scan Observatory en cours' });
     }
 
     const gradeMap = {
@@ -1268,7 +1295,7 @@ export const auditObservatory = async (req, res) => {
       'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
     };
 
-    return res.json({
+    const payload = {
       success: true,
       domain: cleanDomain,
       grade: data.grade,
@@ -1276,7 +1303,9 @@ export const auditObservatory = async (req, res) => {
       gradeColor: gradeMap[data.grade] || 'text-gray-400 bg-slate-900 border-slate-700',
       url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(cleanDomain)}`,
       checkedAt: new Date().toISOString(),
-    });
+    };
+    updateAuditCache(cleanDomain, 'obs', payload);
+    return res.json(payload);
   } catch (err) {
     return res.json({
       success: false,
@@ -1294,33 +1323,37 @@ export const auditSSLLabs = async (req, res) => {
 
   if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
 
+  const force = req.query.force === 'true';
+  const cache = readAuditCache();
+  if (!force && cache[cleanDomain]?.ssl && (Date.now() - new Date(cache[cleanDomain].ssl.checkedAt || 0).getTime() < 86400000)) {
+    return res.json({ ...cache[cleanDomain].ssl, cached: true });
+  }
+
   const apiBase = 'https://api.ssllabs.com/api/v3';
 
   try {
-    // Lancer l'analyse
+    const startParam = force ? 'startNew=on' : 'fromCache=on&maxAge=24';
     let pollRes = await fetch(
-      `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&startNew=on&all=done&ignoreMismatch=on`,
-      { signal: AbortSignal.timeout(15000) }
+      `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&${startParam}&all=done&ignoreMismatch=on`,
+      { signal: AbortSignal.timeout(12000) }
     );
     if (!pollRes.ok) throw new Error(`SSL Labs HTTP ${pollRes.status}`);
     let data = await pollRes.json();
 
-    // Polling max 90s (SSL Labs est lent)
-    const deadline = Date.now() + 90000;
+    const deadline = Date.now() + 35000;
     while (data.status !== 'READY' && data.status !== 'ERROR' && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, 5000));
       pollRes = await fetch(
         `${apiBase}/analyze?host=${encodeURIComponent(cleanDomain)}&all=done`,
-        { signal: AbortSignal.timeout(15000) }
+        { signal: AbortSignal.timeout(10000) }
       );
       if (pollRes.ok) data = await pollRes.json();
     }
 
     if (data.status !== 'READY' || !data.endpoints?.length) {
-      return res.json({ success: false, domain: cleanDomain, error: 'SSL Labs : scan non termine ou aucun endpoint' });
+      return res.json({ success: false, domain: cleanDomain, error: 'SSL Labs en attente' });
     }
 
-    // Prendre la meilleure note parmi les endpoints
     const grades = data.endpoints.map((e) => e.grade).filter(Boolean);
     const gradeOrder = ['A+', 'A', 'A-', 'B', 'C', 'D', 'E', 'F', 'T', 'M'];
     const grade = grades.sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b))[0] || '?';
@@ -1335,14 +1368,16 @@ export const auditSSLLabs = async (req, res) => {
       'F': 'text-rose-400 bg-rose-950/40 border-rose-500/40',
     };
 
-    return res.json({
+    const payload = {
       success: true,
       domain: cleanDomain,
       grade,
       gradeColor: gradeMap[grade] || 'text-gray-400 bg-slate-900 border-slate-700',
       url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(cleanDomain)}`,
       checkedAt: new Date().toISOString(),
-    });
+    };
+    updateAuditCache(cleanDomain, 'ssl', payload);
+    return res.json(payload);
   } catch (err) {
     return res.json({
       success: false,

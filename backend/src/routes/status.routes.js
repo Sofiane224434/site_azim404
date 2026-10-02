@@ -10,6 +10,7 @@ import {
   auditSiteHeaders,
   auditObservatory,
   auditSSLLabs,
+  getAuditSummary,
 } from '../controllers/status.controller.js';
 
 const router = Router();
@@ -17,6 +18,7 @@ const router = Router();
 router.get('/', getAllStatus);
 router.get('/check', checkMaintenanceStatus);
 router.get('/maintenance-screen', renderMaintenanceScreen);
+router.get('/audit-summary', getAuditSummary);
 router.get('/audit-headers', auditSiteHeaders);
 router.get('/audit-observatory', auditObservatory);
 router.get('/audit-ssllabs', auditSSLLabs);
