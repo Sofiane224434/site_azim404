@@ -40,6 +40,8 @@ sync/
 shared-context/
 *contexte*prive*.md
 conception/contexte-projets-prive.md
+/AGENTS.md
+/GEMINI.md
 *.key
 *.pem
 id_rsa
