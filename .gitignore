@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -33,18 +33,10 @@ dist-ssr
 # Cache de traduction
 /scripts/.translate-cache.json
 
-
-# Always keep SEO guide tracked
-SEO.md
-
-/agent
 /conception/aides
-# Private context and secrets
-.env.local
-.env.*.local
-agent/
-shared-context/
+
+# Private context and secrets (non versionnes)
 sync/
-project-context.md
+shared-context/
 *contexte*prive*.md
 conception/contexte-projets-prive.md

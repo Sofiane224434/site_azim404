@@ -164,13 +164,8 @@ export const saveContextContent = async (req, res) => {
     fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
     fs.writeFileSync(targetFilePath, content, 'utf8');
 
-    // Sauvegarde miroir project-context.md
-    if (activeFilename === 'project-context.md') {
-      fs.writeFileSync(MASTER_CONTEXT_FILE, content, 'utf8');
-      if (fs.existsSync(LOCAL_AGENT_DIR)) {
-        fs.writeFileSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'), content, 'utf8');
-      }
-    }
+    // Mise a jour du fichier dans le dossier sync uniquement
+    fs.writeFileSync(targetFilePath, content, 'utf8');
 
     // Sauvegarde en base de données SQL
     await dbSaveContextFile(activeFilename, content);
@@ -230,9 +225,6 @@ export const propagateContext = async (req, res) => {
           const src = path.join(CONTEXT_FOLDER, file);
           const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
-          if (file === 'project-context.md') {
-            fs.copyFileSync(src, path.join(hostAppPath, 'project-context.md'));
-          }
         }
         targetSuccess = true;
       } catch (err) {
@@ -252,9 +244,6 @@ export const propagateContext = async (req, res) => {
           const src = path.join(CONTEXT_FOLDER, file);
           const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
-          if (file === 'project-context.md') {
-            fs.copyFileSync(src, path.join(localProjectPath, 'project-context.md'));
-          }
         }
         targetSuccess = true;
       } catch (err) {

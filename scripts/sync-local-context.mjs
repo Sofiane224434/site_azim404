@@ -26,9 +26,9 @@ async function syncLocal() {
   }
 
   if (!bundle || Object.keys(bundle).length === 0) {
-    const fallbackPath = path.join(__dirname, '../agent/project-context.md');
+    const fallbackPath = path.join(__dirname, '../sync/project-context.md');
     if (fs.existsSync(fallbackPath)) {
-      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/agent/project-context.md');
+      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/sync/');
       bundle = { 'project-context.md': fs.readFileSync(fallbackPath, 'utf8') };
     }
   }
@@ -100,9 +100,6 @@ async function syncLocal() {
 
       for (const [filename, content] of Object.entries(bundle)) {
         fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
-        if (filename === 'project-context.md') {
-          fs.writeFileSync(path.join(projectPath, 'project-context.md'), content, 'utf8');
-        }
       }
 
       syncedCount++;
