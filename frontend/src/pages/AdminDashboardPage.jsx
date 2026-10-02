@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext.jsx';
 import MaintenanceScreen from '../components/MaintenanceScreen.jsx';
@@ -1323,7 +1323,7 @@ function UnifiedProjectCard({
   );
 }
 
-// Onglet complet dédié aux notes & audits SecurityHeaders.com (à gauche de Supervision VPS)
+// Onglet audit de securite - vue table compacte avec auto-analyse
 function SecurityHeadersTab({ sites, showToast }) {
   const [audits, setAudits] = useState(() => {
     try {
@@ -1336,16 +1336,23 @@ function SecurityHeadersTab({ sites, showToast }) {
 
   const [loadingMap, setLoadingMap] = useState({});
   const [globalLoading, setGlobalLoading] = useState(false);
-  const [expandedDetails, setExpandedDetails] = useState({});
+  const [expandedDomain, setExpandedDomain] = useState(null);
+  const hasAutoRun = useRef(false);
+
+  const AUDIT_TOOLS = (dom) => [
+    { id: 'securityheaders', name: 'SecurityHdr', desc: 'En-têtes HTTP (note A+ à F)', url: `https://securityheaders.com/?q=${encodeURIComponent(dom)}&followRedirects=on` },
+    { id: 'ssllabs', name: 'SSL Labs', desc: 'Audit SSL/TLS complet', url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(dom)}` },
+    { id: 'observatory', name: 'Observatory', desc: 'En-têtes, TLS, bonnes pratiques', url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(dom)}` },
+    { id: 'pagespeed', name: 'PageSpeed', desc: 'Core Web Vitals, SEO, accessibilité', url: `https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(dom)}%2F` },
+    { id: 'wave', name: 'WAVE', desc: 'Accessibilité visuelle (ARIA, contrastes)', url: `https://wave.webaim.org/report#/https://${encodeURIComponent(dom)}` },
+    { id: 'blacklight', name: 'Blacklight', desc: 'Trackers, fingerprinting', url: `https://themarkup.org/blacklight?url=${encodeURIComponent(dom)}` },
+    { id: '2gdpr', name: '2GDPR', desc: 'Conformité RGPD et cookies', url: `https://2gdpr.com/?url=${encodeURIComponent(dom)}` },
+  ];
 
   const saveAudit = (domain, data) => {
     setAudits((prev) => {
       const updated = { ...prev, [domain]: data };
-      try {
-        localStorage.setItem('azim_securityheaders_cache', JSON.stringify(updated));
-      } catch {
-        // quota fallback
-      }
+      try { localStorage.setItem('azim_securityheaders_cache', JSON.stringify(updated)); } catch {}
       return updated;
     });
   };
@@ -1367,365 +1374,180 @@ function SecurityHeadersTab({ sites, showToast }) {
   };
 
   const runAudit = async (rawDomain) => {
-    const cleanDomain = (rawDomain || '')
-      .trim()
-      .toLowerCase()
-      .replace(/^https?:\/\//, '')
-      .replace(/\/.*$/, '')
-      .split(':')[0];
-
+    const cleanDomain = (rawDomain || '').trim().toLowerCase()
+      .replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
     if (!cleanDomain) return;
-
     setLoadingMap((prev) => ({ ...prev, [cleanDomain]: true }));
     try {
       const data = await fetchWithRetry(`/api/site-status/audit-headers?domain=${encodeURIComponent(cleanDomain)}`, 3, 600);
       saveAudit(cleanDomain, data);
-      if (data.success) {
-        showToast?.(`Note SecurityHeaders pour ${cleanDomain} : ${data.grade} (${data.score}/100)`);
-      }
     } catch (err) {
-      saveAudit(cleanDomain, {
-        success: false,
-        domain: cleanDomain,
-        grade: '?',
-        score: 0,
-        gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
-        error: `Erreur de connexion : ${err.message}`,
-        tools: [{
-          id: 'securityheaders',
-          name: 'SecurityHeaders.com',
-          url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
-        }],
-      });
+      saveAudit(cleanDomain, { success: false, domain: cleanDomain, grade: '?', score: 0, error: `Erreur : ${err.message}` });
     } finally {
       setLoadingMap((prev) => ({ ...prev, [cleanDomain]: false }));
     }
   };
 
-  const runAuditAll = async () => {
-    setGlobalLoading(true);
-    for (const item of sites) {
-      const dom = (item.domain || (item.link ? new URL(item.link.startsWith('http') ? item.link : `https://${item.link}`).hostname : ''))
-        .trim()
-        .toLowerCase()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/.*$/, '')
-        .split(':')[0];
-
-      if (dom) {
-        await runAudit(dom);
-        // Pause de 300ms entre chaque audit pour garantir le succès réseau et éviter toute erreur
-        await new Promise((r) => setTimeout(r, 300));
-      }
-    }
-    setGlobalLoading(false);
-    showToast?.('Analyse SecurityHeaders terminée pour tous vos sites !');
-  };
-
   const validSites = sites.map((s) => {
     const dom = (s.domain || (s.link ? new URL(s.link.startsWith('http') ? s.link : `https://${s.link}`).hostname : ''))
-      .trim()
-      .toLowerCase()
-      .replace(/^https?:\/\//, '')
-      .replace(/\/.*$/, '')
-      .split(':')[0];
+      .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
     return { ...s, cleanDomain: dom };
   }).filter((s) => Boolean(s.cleanDomain));
 
+  const runAuditAll = async () => {
+    setGlobalLoading(true);
+    for (const site of validSites) {
+      await runAudit(site.cleanDomain);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    setGlobalLoading(false);
+    showToast?.('Analyse terminée pour tous les sites');
+  };
+
+  // Auto-analyse au premier affichage
+  useEffect(() => {
+    if (hasAutoRun.current || validSites.length === 0) return;
+    hasAutoRun.current = true;
+    runAuditAll();
+  }, [validSites.length]);
+
+  const gradeColor = (grade) => {
+    if (grade === 'A+' || grade === 'A') return 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
+    if (grade === 'B') return 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
+    if (grade === 'C') return 'text-amber-400 bg-amber-950/40 border-amber-500/40';
+    if (grade === 'D' || grade === 'F') return 'text-rose-400 bg-rose-950/40 border-rose-500/40';
+    return 'text-gray-400 bg-slate-900 border-slate-700';
+  };
+
   const testedCount = validSites.filter((s) => audits[s.cleanDomain]?.success).length;
-  const excellentCount = validSites.filter((s) => {
-    const g = audits[s.cleanDomain]?.grade;
-    return g === 'A+' || g === 'A';
-  }).length;
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+    <div className="space-y-5 animate-fade-in">
+      {/* Header */}
+      <div className="flex justify-between items-center gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🛡️</span>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
-              Notes &amp; Audits SecurityHeaders.com
-            </h2>
-          </div>
-          <p className="text-sm text-gray-400 mt-1 max-w-3xl">
-            Retrouvez en <strong className="text-white">première information la note officielle</strong> émise pour chacun de vos sites web et sous-domaines selon les recommandations de <strong className="text-cyan-300">SecurityHeaders.com</strong>.
+          <h2 className="text-lg font-bold text-white">Audit de securite</h2>
+          <p className="text-xs text-gray-400 mt-0.5 font-mono">
+            {testedCount}/{validSites.length} sites analyses — SecurityHeaders analyse automatiquement, les autres outils s'ouvrent en un clic
           </p>
         </div>
-
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={runAuditAll}
-            disabled={globalLoading}
-            className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center gap-2 disabled:opacity-50"
-          >
-            {globalLoading ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                <span>Analyse en cours...</span>
-              </>
-            ) : (
-              <>
-                <span>⚡</span>
-                <span>Analyser tous les sites (1 clic)</span>
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={runAuditAll}
+          disabled={globalLoading}
+          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50 shrink-0"
+        >
+          {globalLoading ? (
+            <>
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+              <span>Analyse...</span>
+            </>
+          ) : (
+            <span>Relancer l'analyse</span>
+          )}
+        </button>
       </div>
 
-      {/* Summary KPI Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-mono text-gray-400 block">SITES SURVEILLÉS</span>
-            <span className="text-xl font-bold text-white mt-0.5 block">{validSites.length} domaines</span>
-          </div>
-          <span className="text-2xl">🌐</span>
+      {/* Table compacte */}
+      <div className="rounded-2xl border border-slate-800 overflow-hidden">
+        {/* En-tête table */}
+        <div className="grid text-[10px] font-mono text-gray-500 px-4 py-2 bg-slate-950 border-b border-slate-800"
+          style={{ gridTemplateColumns: '1fr 56px repeat(7, 80px) 28px' }}>
+          <span>DOMAINE</span>
+          <span className="text-center">NOTE</span>
+          <span className="text-center">SHdr</span>
+          <span className="text-center">SSL</span>
+          <span className="text-center">Obsvr</span>
+          <span className="text-center">Speed</span>
+          <span className="text-center">WAVE</span>
+          <span className="text-center">BLight</span>
+          <span className="text-center">RGPD</span>
+          <span />
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/30 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-mono text-emerald-400 block">NOTE EXCELLENTE (A+ / A)</span>
-            <span className="text-xl font-bold text-emerald-300 mt-0.5 block">{excellentCount} site(s)</span>
-          </div>
-          <span className="text-2xl">🏆</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-mono text-cyan-400 block">SITES AUDITÉS</span>
-            <span className="text-xl font-bold text-cyan-300 mt-0.5 block">{testedCount} / {validSites.length}</span>
-          </div>
-          <span className="text-2xl">🛡️</span>
-        </div>
-      </div>
-
-      {/* Grid of sites */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lignes */}
         {validSites.map((site) => {
           const dom = site.cleanDomain;
           const audit = audits[dom];
           const isLoading = loadingMap[dom];
-          const isExpanded = expandedDetails[dom];
-
-          const gradeBadgeClass =
-            audit?.grade === 'A+' || audit?.grade === 'A'
-              ? 'bg-emerald-950/80 border-emerald-400 text-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]'
-              : audit?.grade === 'B'
-              ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.3)]'
-              : audit?.grade === 'C'
-              ? 'bg-amber-950/80 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
-              : audit?.grade === 'D' || audit?.grade === 'F'
-              ? 'bg-rose-950/80 border-rose-400 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.3)]'
-              : 'bg-slate-900 border-slate-700 text-gray-400';
+          const tools = AUDIT_TOOLS(dom);
 
           return (
-            <div
-              key={site.id || dom}
-              className="p-6 rounded-3xl bg-slate-950/90 border border-slate-800 shadow-xl flex flex-col justify-between space-y-5"
-            >
-              <div>
-                {/* 1. EN PREMIÈRE INFO : LA NOTE DONNÉE PAR SECURITYHEADERS */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 flex items-center justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-4">
-                    {/* Grand Badge de Note */}
-                    <div
-                      className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center border font-black transition-all ${gradeBadgeClass}`}
-                    >
-                      <span className="text-3xl leading-none">{audit?.grade || '?'}</span>
-                      <span className="text-[10px] font-mono tracking-tighter opacity-80 mt-0.5">NOTE</span>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-gray-400">NOTE SECURITYHEADERS</span>
-                        {audit?.success && (
-                          <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
-                            {audit.score} / 100
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-base font-extrabold text-white mt-0.5">
-                        {audit?.grade === 'A+' && 'Excellent — Conforme A+'}
-                        {audit?.grade === 'A' && 'Très Bon — Conforme A'}
-                        {audit?.grade === 'B' && 'Bon — HSTS Actif'}
-                        {audit?.grade === 'C' && 'Moyen — En-têtes partiels'}
-                        {audit?.grade === 'D' && 'Faible — À sécuriser'}
-                        {audit?.grade === 'F' && 'Insuffisant — Headers manquants'}
-                        {(!audit || audit?.grade === '?') && 'Non encore analysé'}
-                      </div>
-
-                      <div className="text-[11px] text-gray-400 font-mono mt-0.5">
-                        {audit?.checkedAt ? `Testé à ${new Date(audit.checkedAt).toLocaleTimeString('fr-FR')}` : 'Cliquez sur Tester pour obtenir la note'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bouton pour tester ce site */}
-                  <button
-                    type="button"
-                    onClick={() => runAudit(dom)}
-                    disabled={isLoading}
-                    className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 hover:text-white transition flex items-center gap-1.5 font-mono text-xs disabled:opacity-50"
-                    title="Actualiser la note de ce site"
-                  >
-                    {isLoading ? (
-                      <span className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
-                    ) : (
-                      <span>↻</span>
-                    )}
-                    <span className="hidden sm:inline">Tester</span>
-                  </button>
+            <div key={site.id || dom}>
+              <div
+                className="grid items-center px-4 py-2.5 border-b border-slate-800/60 hover:bg-slate-900/40 transition text-xs"
+                style={{ gridTemplateColumns: '1fr 56px repeat(7, 80px) 28px' }}
+              >
+                {/* Domaine */}
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-200 truncate">{site.title || site.name || dom}</div>
+                  <div className="text-[10px] font-mono text-gray-500 truncate">{dom}</div>
                 </div>
 
-                {/* Titre & Domaine */}
-                <div className="flex justify-between items-start gap-4 mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{site.title || site.name || dom}</h3>
-                    <a
-                      href={`https://${dom}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1 mt-0.5"
-                    >
-                      <span>https://{dom}</span>
-                      <span className="text-[10px]">↗</span>
-                    </a>
-                  </div>
-
-                  {site.inMaintenance && (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-mono font-bold">
-                      TRAVAUX ACTIFS
+                {/* Note SecurityHeaders */}
+                <div className="flex justify-center">
+                  {isLoading ? (
+                    <span className="w-4 h-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                  ) : (
+                    <span className={`w-9 h-7 rounded-lg border text-[11px] font-black flex items-center justify-center ${gradeColor(audit?.grade)}`}>
+                      {audit?.grade || '–'}
                     </span>
                   )}
                 </div>
 
-                {/* Message d'erreur spécifique avec conseils DNS si applicable */}
-                {audit && !audit.success && (
-                  <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/30 space-y-1 mb-4 text-xs font-mono">
-                    <div className="font-bold text-amber-300 flex items-center gap-1.5">
-                      <span>⚠️</span>
-                      <span>{audit.error || 'Erreur lors du test'}</span>
-                    </div>
-                    {audit.error?.includes('DNS') && (
-                      <div className="text-[11px] text-amber-400/80 pl-5">
-                        💡 Conseil : Créez l'enregistrement DNS (type A ou CNAME) pointant vers votre serveur (51.210.244.46).
-                      </div>
-                    )}
+                {/* Liens outils */}
+                {tools.map((tool) => (
+                  <div key={tool.id} className="flex justify-center">
+                    <a
+                      href={tool.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={tool.desc}
+                      className="text-[10px] font-mono text-gray-400 hover:text-cyan-300 transition px-1.5 py-1 rounded-lg hover:bg-slate-800 flex items-center gap-0.5"
+                    >
+                      <span>{tool.name}</span>
+                      <span className="text-[8px]">↗</span>
+                    </a>
                   </div>
-                )}
+                ))}
 
-                {/* Grille des 6 en-têtes HTTP SecurityHeaders */}
-                {audit?.checks && (
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-mono text-gray-400">EN-TÊTES DE SÉCURITÉ CONTRÔLÉS :</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedDetails((prev) => ({ ...prev, [dom]: !prev[dom] }))
-                        }
-                        className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline"
-                      >
-                        {isExpanded ? 'Masquer valeurs' : 'Voir valeurs reçues'}
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {Object.entries(audit.checks).map(([key, check]) => (
-                        <div
-                          key={key}
-                          className={`p-2 rounded-xl border text-[11px] font-mono flex items-center justify-between ${
-                            check.present
-                              ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
-                              : 'bg-rose-950/20 border-rose-500/20 text-rose-400/80'
-                          }`}
-                          title={check.desc}
-                        >
-                          <span className="truncate">{key.toUpperCase()}</span>
-                          <span className="font-bold">{check.present ? '✓' : '✗'}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Dépliage des valeurs brutes */}
-                    {isExpanded && (
-                      <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs font-mono animate-fade-in mt-2">
-                        {Object.entries(audit.checks).map(([key, check]) => (
-                          <div key={key} className="space-y-0.5 border-b border-slate-800 pb-1.5 last:border-0 last:pb-0">
-                            <div className="flex justify-between text-[11px]">
-                              <span className="text-gray-300 font-bold">{check.name}</span>
-                              <span className={check.present ? 'text-emerald-400' : 'text-rose-400'}>
-                                {check.present ? '✓ Présent' : '✗ Absent'}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-gray-500">{check.desc}</p>
-                            {check.value && (
-                              <div className="p-1 rounded bg-black/50 text-[10px] text-cyan-300 select-all truncate">
-                                {check.value}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Bouton détails */}
+                <div className="flex justify-end">
+                  {audit?.checks && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedDomain(expandedDomain === dom ? null : dom)}
+                      title="Voir détail en-têtes"
+                      className="text-[10px] font-mono text-gray-500 hover:text-cyan-400 transition"
+                    >
+                      {expandedDomain === dom ? '▲' : '▼'}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* BOUTON OFFICIEL SECURITYHEADERS.COM (MIS EN AVANT) */}
-              <div className="pt-4 border-t border-slate-800 flex flex-wrap gap-2.5 justify-between items-center">
-                <a
-                  href={`https://securityheaders.com/?q=${encodeURIComponent(dom)}&followRedirects=on`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-950 via-slate-900 to-blue-950 hover:from-cyan-900 hover:to-blue-900 border border-cyan-400/60 text-cyan-200 font-bold text-xs font-mono shadow-[0_0_15px_rgba(6,182,212,0.2)] transition flex items-center justify-center gap-2 text-center"
-                  title="Ouvrir le rapport d'analyse officiel sur SecurityHeaders.com"
-                >
-                  <span>Voir le rapport officiel sur SecurityHeaders.com</span>
-                  <span>↗</span>
-                </a>
-              </div>
-
-              {/* Outils d'audit complémentaires - toujours visibles */}
-              {(() => {
-                const staticTools = [
-                  { id: 'ssllabs', name: 'Qualys SSL Labs', desc: 'Audit SSL/TLS complet', url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(dom)}` },
-                  { id: 'observatory', name: 'Mozilla Observatory', desc: 'En-têtes, TLS et bonnes pratiques', url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(dom)}` },
-                  { id: 'pagespeed', name: 'PageSpeed / Lighthouse', desc: 'Core Web Vitals, SEO, accessibilité', url: `https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(dom)}%2F` },
-                  { id: 'wave', name: 'WAVE Accessibilite', desc: 'Contrastes, ARIA, hiérarchie titres', url: `https://wave.webaim.org/report#/https://${encodeURIComponent(dom)}` },
-                  { id: 'blacklight', name: 'Blacklight', desc: 'Trackers publicitaires, fingerprinting', url: `https://themarkup.org/blacklight?url=${encodeURIComponent(dom)}` },
-                  { id: '2gdpr', name: '2GDPR / Cookiebot', desc: 'Conformité RGPD et cookies', url: `https://2gdpr.com/?url=${encodeURIComponent(dom)}` },
-                ];
-                return (
-                  <div className="pt-3 border-t border-slate-900 space-y-2">
-                    <span className="text-[11px] font-mono text-gray-400 block">Outils d'audit complementaires :</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {staticTools.map((tool) => (
-                        <a
-                          key={tool.id}
-                          href={tool.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-xs transition flex flex-col justify-between gap-1 group"
-                          title={tool.desc}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-200 group-hover:text-cyan-300">{tool.name}</span>
-                            <span className="text-gray-500 text-[10px] font-mono">↗</span>
-                          </div>
-                          <span className="text-[10px] text-gray-400 leading-tight">{tool.desc}</span>
-                        </a>
-                      ))}
+              {/* Détail en-têtes dépliable */}
+              {expandedDomain === dom && audit?.checks && (
+                <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800 grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {Object.entries(audit.checks).map(([key, check]) => (
+                    <div
+                      key={key}
+                      title={check.desc}
+                      className={`p-1.5 rounded-lg border text-[10px] font-mono flex items-center justify-between ${
+                        check.present
+                          ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-950/20 border-rose-500/20 text-rose-400/80'
+                      }`}
+                    >
+                      <span className="truncate">{key.toUpperCase()}</span>
+                      <span>{check.present ? '✓' : '✗'}</span>
                     </div>
-                  </div>
-                );
-              })()}
-
+                  ))}
+                  {audit.error && (
+                    <div className="col-span-full text-[10px] font-mono text-amber-400">{audit.error}</div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1733,6 +1555,10 @@ function SecurityHeadersTab({ sites, showToast }) {
     </div>
   );
 }
+
+
+
+
 
 // Onglet dédié à l'édition et la synchronisation du dossier de contexte privé
 function ContextSyncTab({ showToast }) {
