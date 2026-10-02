@@ -908,6 +908,23 @@ function UnifiedProjectCard({
   const [mTitle, setMTitle] = useState(siteConfig.title || 'Atelier en cours de rénovation');
   const [mMessage, setMMessage] = useState(siteConfig.message || "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...");
 
+  useEffect(() => {
+    if (!isEditing) {
+      setTitle(item.title || '');
+      setDescription(item.description || '');
+      setTechnologies((item.technologies || []).join(', '));
+      setBadge(item.badge || 'En ligne');
+      setLink(item.link || '');
+      setDomain(item.domain || '');
+      setInMaintenance(Boolean(item.inMaintenance));
+      const sc = item.siteConfig || {};
+      setScope(sc.scope || 'ALL');
+      setTargetPages(sc.targetPages || '');
+      setMTitle(sc.title || 'Atelier en cours de rénovation');
+      setMMessage(sc.message || "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...");
+    }
+  }, [item, isEditing]);
+
   const bypassUrl = item.domain ? `https://${item.domain}/?admin_bypass=azim404` : item.link;
 
   const handleSaveAll = () => {
@@ -1037,7 +1054,7 @@ function UnifiedProjectCard({
                 const nextState = !item.inMaintenance;
                 setInMaintenance(nextState);
                 onToggleMaintenance(siteConfig.id || item.id, nextState, {
-                  domain: item.domain,
+                  domain: (domain || item.domain || '').trim(),
                   title: mTitle,
                   message: mMessage,
                   scope,

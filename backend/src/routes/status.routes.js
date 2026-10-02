@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   getAllStatus,
   getSiteStatus,
+  checkMaintenanceStatus,
+  renderMaintenanceScreen,
   saveSite,
   toggleSiteStatus,
   deleteSite,
@@ -10,6 +12,8 @@ import {
 const router = Router();
 
 router.get('/', getAllStatus);
+router.get('/check', checkMaintenanceStatus);
+router.get('/maintenance-screen', renderMaintenanceScreen);
 router.get('/lookup', getSiteStatus);
 router.get('/:site', getSiteStatus);
 router.post('/save', saveSite);
