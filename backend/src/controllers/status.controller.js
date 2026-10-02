@@ -24,6 +24,7 @@ import {
   auditOwaspZap,
   scoreToGrade,
   gradeToColor,
+  computeCategoryScores,
 } from '../services/audit.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1162,6 +1163,39 @@ function computeGlobalAuditScore(arg1, obs, ssl) {
 // GET /api/site-status/audit-summary
 export const getAuditSummary = (req, res) => {
   const cache = readAuditCache();
+  for (const [dom, tools] of Object.entries(cache)) {
+    if (tools.full) {
+      if (!tools.full.categories) {
+        const cats = computeCategoryScores(tools.full);
+        tools.full.categories = {
+          cat1: cats.cat1,
+          cat2: cats.cat2,
+          cat3: cats.cat3,
+          cat4: cats.cat4,
+          cat5: cats.cat5,
+          cat6: cats.cat6,
+        };
+        tools.full.globalGrade = cats.globalGrade;
+        tools.full.globalScore = cats.globalScore;
+        tools.full.globalLabel = cats.globalLabel;
+      }
+    } else {
+      const cats = computeCategoryScores(tools);
+      tools.computedCategories = {
+        cat1: cats.cat1,
+        cat2: cats.cat2,
+        cat3: cats.cat3,
+        cat4: cats.cat4,
+        cat5: cats.cat5,
+        cat6: cats.cat6,
+      };
+      tools.computedGlobal = {
+        globalGrade: cats.globalGrade,
+        globalScore: cats.globalScore,
+        globalLabel: cats.globalLabel,
+      };
+    }
+  }
   return res.json({ success: true, cache });
 };
 
@@ -1645,14 +1679,22 @@ export const auditFullSite = async (req, res) => {
       owaspZap: owaspzap,
     };
 
-    const { globalGrade, globalScore, globalLabel } = computeGlobalAuditScore(allAudits);
+    const catScores = computeCategoryScores(allAudits);
 
     const fullPayload = {
       success: true,
       domain: cleanDomain,
-      globalGrade,
-      globalScore,
-      globalLabel,
+      globalGrade: catScores.globalGrade,
+      globalScore: catScores.globalScore,
+      globalLabel: catScores.globalLabel,
+      categories: {
+        cat1: catScores.cat1,
+        cat2: catScores.cat2,
+        cat3: catScores.cat3,
+        cat4: catScores.cat4,
+        cat5: catScores.cat5,
+        cat6: catScores.cat6,
+      },
       ...allAudits,
       checkedAt: new Date().toISOString(),
     };

@@ -511,10 +511,24 @@ export async function auditGitleaks() {
     gitignoreContent = fs.readFileSync(path.join(REPO_ROOT, '.gitignore'), 'utf8');
   } catch {}
 
-  const rules = ['.env', 'sync/', 'agent/', '*.key', '*.pem'];
+  const rules = ['.env', 'sync/', '*.key', '*.pem', 'id_rsa'];
   const missingRules = rules.filter((r) => !gitignoreContent.includes(r));
 
-  const score = missingRules.length === 0 ? 100 : Math.max(20, 100 - missingRules.length * 20);
+  // Vérifier l'historique récent des commits pour détecter d'éventuelles fuites
+  let leakedHistoryFiles = [];
+  try {
+    const stdout = await new Promise((res) => {
+      exec('git log -n 30 --name-only --format=""', { cwd: REPO_ROOT }, (err, out) => res(out || ''));
+    });
+    const loggedFiles = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    const sensitive = ['.env', 'id_rsa', 'private.key', 'service-account.json'];
+    leakedHistoryFiles = loggedFiles.filter((f) => sensitive.includes(path.basename(f)));
+  } catch {}
+
+  let score = 100;
+  if (missingRules.length > 0) score -= missingRules.length * 15;
+  if (leakedHistoryFiles.length > 0) score -= leakedHistoryFiles.length * 40;
+  score = Math.max(10, Math.min(100, score));
   const grade = scoreToGrade(score);
 
   return {
@@ -523,9 +537,12 @@ export async function auditGitleaks() {
     grade,
     score,
     gradeColor: gradeToColor(grade),
-    cleanHistory: missingRules.length === 0,
+    cleanHistory: leakedHistoryFiles.length === 0,
     missingGitignoreRules: missingRules,
-    status: missingRules.length === 0 ? 'Dépôt Git sain et règles d’exclusion actives' : `${missingRules.length} règle(s) .gitignore recommandées`,
+    leaksFound: leakedHistoryFiles.length,
+    status: leakedHistoryFiles.length === 0 && missingRules.length === 0
+      ? 'Dépôt Git sain et règles d’exclusion actives'
+      : `${missingRules.length ? `${missingRules.length} règle(s) .gitignore manquante(s)` : ''}${leakedHistoryFiles.length ? ` ${leakedHistoryFiles.length} fichier(s) sensible(s) dans l'historique` : ''}`.trim(),
     checkedAt: new Date().toISOString(),
   };
 }
@@ -576,31 +593,57 @@ export async function auditKnipAndDepcheck() {
   } catch {}
 
   const srcDir = path.join(REPO_ROOT, 'frontend', 'src');
-  const codeFiles = scanFilesRecursively(srcDir, (f) => /\.(jsx?|tsx?)$/i.test(f), 100);
+  const codeFiles = scanFilesRecursively(srcDir, (f) => /\.(jsx?|tsx?|css)$/i.test(f), 150);
+
+  // Inclure aussi les fichiers de configuration racine du frontend
+  const configFiles = [
+    path.join(REPO_ROOT, 'frontend', 'vite.config.js'),
+    path.join(REPO_ROOT, 'frontend', 'index.html'),
+    path.join(REPO_ROOT, 'frontend', 'postcss.config.js'),
+  ].filter((f) => fs.existsSync(f));
+
+  const allScannedFiles = [...codeFiles, ...configFiles];
   let allCode = '';
-  for (const f of codeFiles) {
+  for (const f of allScannedFiles) {
     try {
       allCode += fs.readFileSync(f, 'utf8') + '\n';
     } catch {}
   }
 
+  // Depcheck : vérifier si chaque dépendance est importée (support des sous-chemins comme react-dom/client ou @import)
   const unusedDeps = dependencies.filter((dep) => {
-    const regex = new RegExp(`from\\s+['"]${dep}['"]|require\\s*\\(\\s*['"]${dep}['"]\\)`, 'g');
+    // Échapper les caractères regex
+    const escaped = dep.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`from\\s+['"]${escaped}(\\/[^'"]*)?['"]|require\\s*\\(\\s*['"]${escaped}(\\/[^'"]*)?['"]\\)|@import\\s+['"]${escaped}['"]|['"]${escaped}['"]`, 'g');
     return !regex.test(allCode);
   });
 
-  const depcheckScore = unusedDeps.length === 0 ? 100 : Math.max(40, 100 - unusedDeps.length * 15);
+  const depcheckScore = unusedDeps.length === 0 ? 100 : Math.max(30, 100 - unusedDeps.length * 20);
   const depcheckGrade = scoreToGrade(depcheckScore);
+
+  // Knip : détection réelle des fichiers orphelins dans frontend/src
+  const orphanCandidates = codeFiles.filter((f) => {
+    const base = path.basename(f);
+    if (base === 'main.jsx' || base === 'index.css' || base === 'App.jsx') return false;
+    const nameWithoutExt = base.replace(/\.(jsx?|tsx?)$/, '');
+    const escapedName = nameWithoutExt.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const importRegex = new RegExp(`from\\s+['"][^'"]*\\/${escapedName}(\\.[^'"]+)?['"]|['"][^'"]*\\/${escapedName}['"]`, 'g');
+    return !importRegex.test(allCode);
+  });
+
+  const knipScore = orphanCandidates.length === 0 ? 100 : Math.max(30, 100 - orphanCandidates.length * 20);
+  const knipGrade = scoreToGrade(knipScore);
 
   return {
     knip: {
       success: true,
       name: 'Knip',
-      grade: 'A',
-      score: 95,
-      gradeColor: gradeToColor('A'),
-      orphanFiles: 0,
-      status: 'Exports et fichiers orphelins audités',
+      grade: knipGrade,
+      score: knipScore,
+      gradeColor: gradeToColor(knipGrade),
+      orphanFiles: orphanCandidates.length,
+      orphanList: orphanCandidates.map((f) => path.relative(srcDir, f)),
+      status: orphanCandidates.length === 0 ? 'Aucun fichier orphelin détecté' : `${orphanCandidates.length} fichier(s) orphelin(s)`,
       checkedAt: new Date().toISOString(),
     },
     depcheck: {
@@ -617,48 +660,89 @@ export async function auditKnipAndDepcheck() {
   };
 }
 
-// 5.3 ESLint
+// 5.3 ESLint (Exécution réelle du linter)
 export async function auditESLint() {
-  const srcFiles = scanFilesRecursively(path.join(REPO_ROOT, 'frontend', 'src'), (f) => /\.(jsx?)$/i.test(f), 50);
-  let warnings = 0;
-  let errors = 0;
+  const frontendPath = path.resolve(__dirname, '../../../frontend');
 
-  for (const f of srcFiles) {
-    try {
-      const code = fs.readFileSync(f, 'utf8');
-      if (/debugger;/g.test(code)) errors++;
-      if (/eval\s*\(/g.test(code)) errors++;
-    } catch {}
-  }
+  return new Promise((resolve) => {
+    exec('npx eslint -f json src', { cwd: frontendPath, timeout: 25000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
+      try {
+        const parsed = JSON.parse(stdout || '[]');
+        let errors = 0;
+        let warnings = 0;
+        for (const fileReport of parsed) {
+          errors += fileReport.errorCount || 0;
+          warnings += fileReport.warningCount || 0;
+        }
 
-  const score = Math.max(30, 100 - errors * 25 - warnings * 5);
-  const grade = scoreToGrade(score);
+        const score = Math.max(30, 100 - errors * 25 - warnings * 5);
+        const grade = scoreToGrade(score);
 
-  return {
-    success: true,
-    name: 'ESLint',
-    grade,
-    score,
-    gradeColor: gradeToColor(grade),
-    errorsCount: errors,
-    warningsCount: warnings,
-    status: errors === 0 ? 'Syntaxe et bonnes pratiques respectées' : `${errors} anomalie(s) détectée(s)`,
-    checkedAt: new Date().toISOString(),
-  };
+        return resolve({
+          success: true,
+          name: 'ESLint',
+          grade,
+          score,
+          gradeColor: gradeToColor(grade),
+          errorsCount: errors,
+          warningsCount: warnings,
+          status: errors === 0 ? 'Syntaxe et règles ESLint respectées' : `${errors} erreur(s) et ${warnings} avertissement(s)`,
+          checkedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Fallback par analyse statique directe
+        const srcFiles = scanFilesRecursively(path.join(REPO_ROOT, 'frontend', 'src'), (f) => /\.(jsx?)$/i.test(f), 50);
+        let fbErrors = 0;
+        for (const f of srcFiles) {
+          try {
+            const code = fs.readFileSync(f, 'utf8');
+            if (/debugger;/g.test(code)) fbErrors++;
+            if (/eval\s*\(/g.test(code)) fbErrors++;
+          } catch {}
+        }
+        const score = Math.max(30, 100 - fbErrors * 25);
+        const grade = scoreToGrade(score);
+        return resolve({
+          success: true,
+          name: 'ESLint',
+          grade,
+          score,
+          gradeColor: gradeToColor(grade),
+          errorsCount: fbErrors,
+          warningsCount: 0,
+          status: fbErrors === 0 ? 'Syntaxe et bonnes pratiques respectées' : `${fbErrors} anomalie(s) détectée(s)`,
+          checkedAt: new Date().toISOString(),
+        });
+      }
+    });
+  });
 }
 
-// 5.4 SonarQube / SonarCloud
+// 5.4 SonarQube / SonarCloud (Analyse de la dette technique & code smells)
 export async function auditSonarQube() {
   const files = scanFilesRecursively(path.join(REPO_ROOT, 'frontend', 'src'), (f) => /\.(jsx?|css)$/i.test(f), 100);
   let totalLines = 0;
+  let codeSmells = 0;
+  let largeFiles = 0;
+  let todos = 0;
+
   for (const f of files) {
     try {
-      totalLines += fs.readFileSync(f, 'utf8').split('\n').length;
+      const code = fs.readFileSync(f, 'utf8');
+      const lines = code.split('\n');
+      totalLines += lines.length;
+      if (lines.length > 500) largeFiles++;
+      const todosMatch = code.match(/\/\/\s*(TODO|FIXME)/gi);
+      if (todosMatch) todos += todosMatch.length;
+      const debugLogs = code.match(/console\.(log|debug|warn)\(/g);
+      if (debugLogs) codeSmells += debugLogs.length;
     } catch {}
   }
 
-  const score = 92;
-  const grade = 'A';
+  const debtMinutes = todos * 15 + codeSmells * 5 + largeFiles * 30;
+  const debtHours = Math.round((debtMinutes / 60) * 10) / 10;
+  const score = Math.max(50, 100 - (largeFiles * 10) - Math.floor(codeSmells / 5) * 5 - (todos * 2));
+  const grade = scoreToGrade(score);
 
   return {
     success: true,
@@ -667,25 +751,89 @@ export async function auditSonarQube() {
     score,
     gradeColor: gradeToColor(grade),
     linesOfCode: totalLines,
-    reliabilityRating: 'A',
+    codeSmells,
+    todos,
+    largeFiles,
+    debtHours,
+    reliabilityRating: score >= 85 ? 'A' : (score >= 70 ? 'B' : 'C'),
     securityRating: 'A',
-    maintainabilityRating: 'A',
-    debtHours: 0.5,
-    status: 'Dette technique faible, architecture saine',
+    maintainabilityRating: score >= 80 ? 'A' : 'B',
+    status: score >= 85 ? `Codebase saine (${totalLines} LOC, dette: ${debtHours}h)` : `Dette technique: ${debtHours}h (${codeSmells} logs/smells)`,
     checkedAt: new Date().toISOString(),
   };
 }
 
-// 5.5 Madge (Dépendances circulaires)
+// 5.5 Madge (Détection réelle des dépendances circulaires)
 export async function auditMadge() {
+  const srcDir = path.join(REPO_ROOT, 'frontend', 'src');
+  const files = scanFilesRecursively(srcDir, (f) => /\.(jsx?|tsx?)$/i.test(f), 150);
+
+  const adj = new Map();
+  for (const f of files) {
+    adj.set(f, []);
+    try {
+      const code = fs.readFileSync(f, 'utf8');
+      const importMatches = code.matchAll(/from\s+['"](\.[^'"]+)['"]/g);
+      for (const m of importMatches) {
+        const relImport = m[1];
+        const dir = path.dirname(f);
+        const resolved = path.resolve(dir, relImport);
+        const candidates = [
+          resolved,
+          `${resolved}.js`,
+          `${resolved}.jsx`,
+          `${resolved}.ts`,
+          `${resolved}.tsx`,
+          path.join(resolved, 'index.js'),
+          path.join(resolved, 'index.jsx'),
+        ];
+        const found = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+        if (found) {
+          adj.get(f).push(found);
+        }
+      }
+    } catch {}
+  }
+
+  const visited = new Set();
+  const recStack = new Set();
+  const circulars = [];
+
+  function dfs(node, pathArr) {
+    visited.add(node);
+    recStack.add(node);
+
+    const neighbors = adj.get(node) || [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor, [...pathArr, neighbor]);
+      } else if (recStack.has(neighbor)) {
+        const cycle = [...pathArr, neighbor].map((p) => path.basename(p)).join(' -> ');
+        if (!circulars.includes(cycle)) circulars.push(cycle);
+      }
+    }
+
+    recStack.delete(node);
+  }
+
+  for (const f of files) {
+    if (!visited.has(f)) {
+      dfs(f, [f]);
+    }
+  }
+
+  const score = circulars.length === 0 ? 100 : Math.max(20, 100 - circulars.length * 35);
+  const grade = scoreToGrade(score);
+
   return {
     success: true,
     name: 'Madge',
-    grade: 'A+',
-    score: 100,
-    gradeColor: gradeToColor('A+'),
-    circularDependencies: 0,
-    status: 'Aucune dépendance circulaire détectée',
+    grade,
+    score,
+    gradeColor: gradeToColor(grade),
+    circularDependencies: circulars.length,
+    cycles: circulars,
+    status: circulars.length === 0 ? 'Aucune dépendance circulaire détectée (graphe sain)' : `${circulars.length} cycle(s) identifié(s)`,
     checkedAt: new Date().toISOString(),
   };
 }
@@ -794,26 +942,48 @@ export async function auditOwaspZap(domain) {
   ];
 
   const probeResults = await Promise.allSettled(
-    sensitiveEndpoints.map((ep) => fetchUrlContent(`https://${domain}${ep}`, 4000))
+    sensitiveEndpoints.map((ep) => fetchUrlContent(`https://${domain}${ep}`, 5000))
   );
 
   const exposed = [];
   probeResults.forEach((res, idx) => {
     if (res.status === 'fulfilled' && res.value.success && res.value.statusCode === 200) {
-      exposed.push(sensitiveEndpoints[idx]);
+      const ep = sensitiveEndpoints[idx];
+      const body = res.value.body || '';
+
+      // Rejeter le fallback SPA (index.html renvoyé pour les routes non trouvées)
+      const isSpaFallback = body.includes('<div id="root">') || (body.includes('<!doctype html>') && body.includes('Azim.404'));
+      if (isSpaFallback) return;
+
+      if (ep === '/.env' && (body.includes('=') && !body.includes('<!doctype html>'))) {
+        exposed.push(ep);
+      } else if (ep === '/.git/HEAD' && body.startsWith('ref: refs/')) {
+        exposed.push(ep);
+      } else if (ep === '/.git/config' && body.includes('[core]')) {
+        exposed.push(ep);
+      } else if (ep === '/backup.sql' && /CREATE TABLE|INSERT INTO/i.test(body)) {
+        exposed.push(ep);
+      } else if (ep === '/wp-config.php' && body.includes('DB_PASSWORD')) {
+        exposed.push(ep);
+      } else if (ep === '/server-status' && body.includes('Apache Server Status')) {
+        exposed.push(ep);
+      }
     }
   });
 
   // Test SQL injection probe basique
-  const sqliProbe = await fetchUrlContent(`https://${domain}/?test_id=1'%20OR%20'1'='1`, 4000);
-  const hasSqlError = /syntax error|mysql_fetch|sqlite3_step|pg_query/i.test(sqliProbe.body || '');
+  const sqliProbe = await fetchUrlContent(`https://${domain}/?test_id=1'%20OR%20'1'='1`, 5000);
+  const sqliBody = sqliProbe.body || '';
+  const isSpaSqli = sqliBody.includes('<div id="root">') || sqliBody.includes('<!doctype html>');
+  const hasSqlError = !isSpaSqli && /syntax error|mysql_fetch|sqlite3_step|pg_query|Fatal error.*SQL/i.test(sqliBody);
 
   // Test XSS reflection
-  const xssProbe = await fetchUrlContent(`https://${domain}/?q=%3Cscript%3Ealert(1)%3C/script%3E`, 4000);
-  const hasXssReflection = (xssProbe.body || '').includes('<script>alert(1)</script>');
+  const xssProbe = await fetchUrlContent(`https://${domain}/?q=%3Cscript%3Ealert(1)%3C/script%3E`, 5000);
+  const xssBody = xssProbe.body || '';
+  const hasXssReflection = xssBody.includes('<script>alert(1)</script>') && !xssBody.includes('&lt;script&gt;');
 
   let score = 100;
-  if (exposed.length > 0) score -= exposed.length * 30;
+  if (exposed.length > 0) score -= exposed.length * 35;
   if (hasSqlError) score -= 40;
   if (hasXssReflection) score -= 30;
 
@@ -830,7 +1000,72 @@ export async function auditOwaspZap(domain) {
     exposedEndpoints: exposed,
     hasSqlError,
     hasXssReflection,
-    status: score >= 90 ? 'Aucune faille critique (DAST passé)' : `${exposed.length ? `${exposed.length} point(s) exposé(s)` : 'Alertes de sécurité'}`,
+    status: score >= 90 ? 'Aucune faille critique (DAST passé avec succès)' : `${exposed.length ? `${exposed.length} point(s) exposé(s)` : 'Alertes de sécurité'}`,
     checkedAt: new Date().toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------------
+// CALCUL DES NOTES PAR CATÉGORIE & NOTE GLOBALE
+// ---------------------------------------------------------------------------------
+export function computeCategoryScores(all) {
+  const gradeToScore = { 'A+': 100, 'A': 92, 'A-': 88, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
+
+  const getToolScore = (tool) => {
+    if (!tool || tool.success === false) return null;
+    if (typeof tool.score === 'number') return tool.score;
+    if (tool.grade && gradeToScore[tool.grade] !== undefined) return gradeToScore[tool.grade];
+    return null;
+  };
+
+  const avgOfTools = (tools, defaultGrade = '?') => {
+    const valid = tools.map(getToolScore).filter((s) => s !== null);
+    if (valid.length === 0) return { score: null, grade: defaultGrade };
+    const avg = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+    return { score: avg, grade: scoreToGrade(avg) };
+  };
+
+  const snyk = all.npmSnyk || all.npmsnyk;
+  const pr = all.prismaDoctor || all.prismadoctor;
+  const zap = all.owaspZap || all.owaspzap;
+
+  // Cat 1: Sécurité réseau & TLS
+  const cat1 = avgOfTools([all.sh, all.obs, all.ssl]);
+  // Cat 2: SEO, Accessibilité & Performance
+  const cat2 = avgOfTools([all.pagespeed, all.wave, all.seo]);
+  // Cat 3: RGPD & Cookies
+  const cat3 = avgOfTools([all.twoGdpr, all.cookiebot, all.blacklight]);
+  // Cat 4: Fuites Git & Secrets
+  const cat4 = avgOfTools([all.trufflehog, all.gitleaks, all.gitguardian]);
+  // Cat 5: Qualité logicielle & Architecture
+  const cat5 = avgOfTools([all.knip, all.depcheck, all.eslint, all.sonarqube, all.madge]);
+  // Cat 6: Base de données & Vulnérabilités
+  const cat6 = avgOfTools([snyk, pr, zap]);
+
+  const catScores = [cat1.score, cat2.score, cat3.score, cat4.score, cat5.score, cat6.score].filter((s) => s !== null);
+  const globalScore = catScores.length > 0 ? Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length) : null;
+  const globalGrade = globalScore !== null ? scoreToGrade(globalScore) : '?';
+
+  let globalLabel = 'Non analysé';
+  if (globalScore !== null) {
+    if (globalScore >= 90) globalLabel = 'Excellente protection (Tous audits validés)';
+    else if (globalScore >= 80) globalLabel = 'Solide & Sécurisé';
+    else if (globalScore >= 70) globalLabel = 'Bonne sécurité globale';
+    else if (globalScore >= 55) globalLabel = 'Moyen (Améliorations requises)';
+    else if (globalScore >= 40) globalLabel = 'Faible (Alertes détectées)';
+    else if (globalScore >= 20) globalLabel = 'Vulnérable';
+    else globalLabel = 'Critique (Failles majeures)';
+  }
+
+  return {
+    cat1,
+    cat2,
+    cat3,
+    cat4,
+    cat5,
+    cat6,
+    globalScore,
+    globalGrade,
+    globalLabel,
   };
 }

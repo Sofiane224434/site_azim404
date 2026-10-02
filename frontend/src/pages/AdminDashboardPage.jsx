@@ -19,6 +19,214 @@ function formatLastCheck(isoDate) {
   return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+// Générateur et exportateur Markdown du rapport complet pour un projet
+function generateAndDownloadSiteMarkdown(siteDom, siteTitle, fullData, lastCheck) {
+  const sSh = fullData.sh;
+  const sObs = fullData.obs;
+  const sSsl = fullData.ssl;
+  const ps = fullData.pagespeed;
+  const wv = fullData.wave;
+  const seo = fullData.seo;
+  const gdpr = fullData.twoGdpr;
+  const cbot = fullData.cookiebot;
+  const bl = fullData.blacklight;
+  const th = fullData.trufflehog;
+  const gl = fullData.gitleaks;
+  const gg = fullData.gitguardian;
+  const kn = fullData.knip;
+  const dc = fullData.depcheck;
+  const es = fullData.eslint;
+  const sq = fullData.sonarqube;
+  const mdg = fullData.madge;
+  const snyk = fullData.npmSnyk || fullData.npmsnyk;
+  const pr = fullData.prismaDoctor || fullData.prismadoctor;
+  const zap = fullData.owaspZap || fullData.owaspzap;
+
+  const cats = fullData.categories || {};
+  const globalGrade = fullData.globalGrade || '?';
+  const globalScore = fullData.globalScore != null ? fullData.globalScore : '-';
+  const globalLabel = fullData.globalLabel || 'Analyse intégrale';
+  const now = new Date().toLocaleString('fr-FR');
+
+  let md = `# Rapport d'Audit & Sécurité Intégrale — ${siteTitle || siteDom}\n\n`;
+  md += `> Date du rapport : ${now} • Généré automatiquement via la console Azim404\n\n`;
+
+  md += `## 1. Synthèse Globale\n\n`;
+  md += `- **Domaine :** \`${siteDom}\`\n`;
+  md += `- **Note Globale :** **${globalGrade}** (${globalScore !== '-' ? `${globalScore}/100` : 'N/A'}) — *${globalLabel}*\n`;
+  md += `- **Dernière analyse :** ${lastCheck ? new Date(lastCheck).toLocaleString('fr-FR') : 'À l’instant'}\n\n`;
+
+  md += `### Synthèse par Catégorie de Référence\n\n`;
+  md += `| Catégorie | Note | Score | Couverture & Outils |\n`;
+  md += `|---|---|---|---|\n`;
+  md += `| **1. Sécurité réseau, TLS & En-têtes** | **${cats.cat1?.grade || '-'}** | ${cats.cat1?.score != null ? `${cats.cat1.score}/100` : '-'} | SecurityHeaders, Mozilla Observatory, Qualys SSL Labs |\n`;
+  md += `| **2. SEO, Accessibilité & Performance** | **${cats.cat2?.grade || '-'}** | ${cats.cat2?.score != null ? `${cats.cat2.score}/100` : '-'} | Google PageSpeed, WAVE WebAIM, Google Search Console / Ahrefs |\n`;
+  md += `| **3. RGPD & Cookies** | **${cats.cat3?.grade || '-'}** | ${cats.cat3?.score != null ? `${cats.cat3.score}/100` : '-'} | 2gdpr Scanner, Cookiebot Scanner, Blacklight (The Markup) |\n`;
+  md += `| **4. Commits, Secrets & Fuites Git** | **${cats.cat4?.grade || '-'}** | ${cats.cat4?.score != null ? `${cats.cat4.score}/100` : '-'} | TruffleHog (CLI), Gitleaks (CLI), GitGuardian |\n`;
+  md += `| **5. Qualité logicielle & Architecture** | **${cats.cat5?.grade || '-'}** | ${cats.cat5?.score != null ? `${cats.cat5.score}/100` : '-'} | Knip, Depcheck, ESLint, SonarQube / SonarCloud, Madge |\n`;
+  md += `| **6. Base de données & Vulnérabilités** | **${cats.cat6?.grade || '-'}** | ${cats.cat6?.score != null ? `${cats.cat6.score}/100` : '-'} | npm audit / Snyk, Prisma Doctor / SQL, OWASP ZAP (DAST) |\n\n`;
+
+  md += `### Tableau Synthétique des 20 Outils d'Audit\n\n`;
+  md += `| Catégorie | Outil | Note | Score | Statut / Métriques clés |\n`;
+  md += `|---|---|---|---|---|\n`;
+  md += `| 1. Sécurité réseau | **SecurityHeaders** | **${sSh?.grade || '-'}** | ${sSh?.score != null ? `${sSh.score}/100` : '-'} | ${sSh?.success ? 'En-têtes HTTP analysés' : (sSh?.error || 'En attente')} |\n`;
+  md += `| 1. Sécurité réseau | **Mozilla Observatory** | **${sObs?.grade || '-'}** | ${sObs?.score != null ? `${sObs.score}/100` : '-'} | ${sObs?.success ? `${sObs.tests_passed || 0} réussis / ${sObs.tests_failed || 0} échoués` : (sObs?.error || 'En attente')} |\n`;
+  md += `| 1. Sécurité réseau | **Qualys SSL Labs / TLS** | **${sSsl?.grade || '-'}** | - | ${sSsl?.protocol || 'TLSv1.3'} (${sSsl?.issuer || "Let's Encrypt"}, ${sSsl?.daysRemaining ? `${sSsl.daysRemaining}j restants` : 'actif'}) |\n`;
+  md += `| 2. SEO & Performance | **Google PageSpeed** | **${ps?.grade || '-'}** | ${ps?.score != null ? `${ps.score}/100` : '-'} | TTFB: ${ps?.ttfb != null ? `${ps.ttfb}ms` : '-'}, Poids: ${ps?.totalByteWeight ? `${Math.round(ps.totalByteWeight / 1024)} KB` : '-'} |\n`;
+  md += `| 2. SEO & Performance | **WAVE WebAIM** | **${wv?.grade || '-'}** | ${wv?.score != null ? `${wv.score}/100` : '-'} | Images sans alt: ${wv?.missingAlt ?? 0}, Boutons sans label: ${wv?.emptyButtons ?? 0} |\n`;
+  md += `| 2. SEO & Performance | **Google Search Console & Ahrefs** | **${seo?.grade || '-'}** | ${seo?.score != null ? `${seo.score}/100` : '-'} | robots.txt: ${seo?.hasRobots ? 'OK' : 'Absent'}, sitemap: ${seo?.hasSitemap ? 'OK' : 'Absent'} |\n`;
+  md += `| 3. RGPD & Cookies | **2gdpr Scanner** | **${gdpr?.grade || '-'}** | ${gdpr?.score != null ? `${gdpr.score}/100` : '-'} | Cookies avant consentement: ${gdpr?.cookiesBeforeConsent ?? 0} |\n`;
+  md += `| 3. RGPD & Cookies | **Cookiebot Scanner** | **${cbot?.grade || '-'}** | ${cbot?.score != null ? `${cbot.score}/100` : '-'} | Cookies: ${cbot?.cookiesFound ?? 0}, Sécurisés: ${cbot?.secureCookies ? 'Oui' : 'Non'} |\n`;
+  md += `| 3. RGPD & Cookies | **Blacklight (The Markup)** | **${bl?.grade || '-'}** | ${bl?.score != null ? `${bl.score}/100` : '-'} | Trackers: ${bl?.adTrackersCount ?? 0}, Recorders: ${bl?.sessionRecorders ?? 0} |\n`;
+  md += `| 4. Fuites Git | **TruffleHog (CLI)** | **${th?.grade || '-'}** | ${th?.score != null ? `${th.score}/100` : '-'} | Secrets vérifiés: ${th?.secretsCount ?? 0}, Détectés: ${th?.secretsCount > 0 ? 'Alerte' : '0 fuite'} |\n`;
+  md += `| 4. Fuites Git | **Gitleaks (CLI)** | **${gl?.grade || '-'}** | ${gl?.score != null ? `${gl.score}/100` : '-'} | Fuites: ${gl?.leaksFound ?? 0}, Historique: ${gl?.cleanHistory ? 'Sain' : 'Alertes'} |\n`;
+  md += `| 4. Fuites Git | **GitGuardian** | **${gg?.grade || '-'}** | ${gg?.score != null ? `${gg.score}/100` : '-'} | Fichiers sensibles protégés: ${gg?.exposedFiles?.length === 0 ? 'Oui' : 'Alertes'} |\n`;
+  md += `| 5. Qualité logicielle | **Knip** | **${kn?.grade || '-'}** | ${kn?.score != null ? `${kn.score}/100` : '-'} | Fichiers orphelins: ${kn?.orphanFiles ?? 0} |\n`;
+  md += `| 5. Qualité logicielle | **Depcheck** | **${dc?.grade || '-'}** | ${dc?.score != null ? `${dc.score}/100` : '-'} | Dépendances mortes: ${dc?.unusedDependencies?.length ?? 0} |\n`;
+  md += `| 5. Qualité logicielle | **ESLint** | **${es?.grade || '-'}** | ${es?.score != null ? `${es.score}/100` : '-'} | Erreurs: ${es?.errorsCount ?? 0}, Warnings: ${es?.warningsCount ?? 0} |\n`;
+  md += `| 5. Qualité logicielle | **SonarQube / SonarCloud** | **${sq?.grade || '-'}** | ${sq?.score != null ? `${sq.score}/100` : '-'} | Dette: ${sq?.debtHours ?? 0}h, LOC: ${sq?.linesOfCode ?? 0} |\n`;
+  md += `| 5. Qualité logicielle | **Madge** | **${mdg?.grade || '-'}** | ${mdg?.score != null ? `${mdg.score}/100` : '-'} | Cycles circulaires: ${mdg?.circularDependencies ?? 0} |\n`;
+  md += `| 6. Dépendances & DB | **npm audit / Snyk** | **${snyk?.grade || '-'}** | ${snyk?.score != null ? `${snyk.score}/100` : '-'} | Vulnérabilités: ${snyk?.vulnerabilities?.total ?? 0} (Élevées: ${snyk?.vulnerabilities?.high ?? 0}) |\n`;
+  md += `| 6. Dépendances & DB | **Prisma Doctor / SQL** | **${pr?.grade || '-'}** | ${pr?.score != null ? `${pr.score}/100` : '-'} | Intégrité: ${pr?.integrityCheck || 'OK'}, Données: ${pr?.totalDataSizeKb ?? 0} KB |\n`;
+  md += `| 6. Dépendances & DB | **OWASP ZAP (DAST)** | **${zap?.grade || '-'}** | ${zap?.score != null ? `${zap.score}/100` : '-'} | Points exposés: ${zap?.exposedEndpoints?.length ?? 0}, SQLi: ${zap?.hasSqlError ? 'Alerte' : 'Protégé'}, XSS: ${zap?.hasXssReflection ? 'Alerte' : 'Protégé'} |\n\n`;
+
+  md += `## 2. Détail des En-têtes HTTP de Sécurité\n\n`;
+  if (sSh?.checks) {
+    md += `| En-tête | Statut | Poids | Description & Rôle de protection |\n`;
+    md += `|---|---|---|---|\n`;
+    for (const [k, c] of Object.entries(sSh.checks)) {
+      md += `| \`${c.name || k}\` | **${c.present ? 'PRÉSENT' : 'MANQUANT'}** | ${c.weight} pts | ${c.desc} |\n`;
+    }
+    md += `\n`;
+  } else {
+    md += `*Aucun en-tête n'a encore été analysé pour ce domaine.*\n\n`;
+  }
+
+  md += `## 3. Erreurs, Anomalies & Vulnérabilités Détectées\n\n`;
+  const errors = [];
+  if (sSh?.checks) {
+    for (const [k, c] of Object.entries(sSh.checks)) {
+      if (!c.present) {
+        errors.push(`- **[En-tête manquant]** \`${c.name || k}\` : ${c.desc}`);
+      }
+    }
+  }
+  if (sObs?.tests_failed > 0) {
+    errors.push(`- **[Mozilla Observatory]** ${sObs.tests_failed} test(s) échoué(s) sur ${sObs.tests_quantity || 12} vérifications.`);
+  }
+  if (sSsl?.tlsValid === false) {
+    errors.push(`- **[Certificat TLS]** Certificat SSL invalide ou expiré.`);
+  }
+  if (sSh?.cookieSecurity && sSh.cookieSecurity.hasCookies && (!sSh.cookieSecurity.secure || !sSh.cookieSecurity.httpOnly)) {
+    errors.push(`- **[Cookies non sécurisés]** Des cookies HTTP ne possèdent pas les flags requis (Secure, HttpOnly, SameSite).`);
+  }
+  if (ps?.ttfb > 800) {
+    errors.push(`- **[PageSpeed TTFB]** Temps de réponse serveur élevé : ${ps.ttfb}ms (> 800ms).`);
+  }
+  if (wv?.missingAlt > 0) {
+    errors.push(`- **[WAVE WebAIM]** ${wv.missingAlt} image(s) sans attribut 'alt'.`);
+  }
+  if (wv?.emptyButtons > 0) {
+    errors.push(`- **[WAVE WebAIM]** ${wv.emptyButtons} bouton(s) sans texte ou aria-label accessible.`);
+  }
+  if (seo?.hasRobots === false) {
+    errors.push(`- **[SEO robots.txt]** Fichier robots.txt introuvable sur le domaine.`);
+  }
+  if (seo?.hasSitemap === false) {
+    errors.push(`- **[SEO sitemap.xml]** Fichier sitemap.xml introuvable sur le domaine.`);
+  }
+  if (gdpr?.cookiesBeforeConsent > 0) {
+    errors.push(`- **[2gdpr]** ${gdpr.cookiesBeforeConsent} cookie(s) déposé(s) avant acceptation de l'utilisateur.`);
+  }
+  if (bl?.adTrackersCount > 0) {
+    errors.push(`- **[Blacklight]** ${bl.adTrackersCount} tracker(s) publicitaire(s) tiers détecté(s).`);
+  }
+  if (th?.secretsCount > 0) {
+    errors.push(`- **[TruffleHog]** ${th.secretsCount} secret(s) potentiel(s) détecté(s) dans le code.`);
+  }
+  if (gl?.leaksFound > 0) {
+    errors.push(`- **[Gitleaks]** ${gl.leaksFound} fuite(s) de clé ou token identifiée(s).`);
+  }
+  if (gg?.exposedFiles?.length > 0) {
+    errors.push(`- **[GitGuardian]** ${gg.exposedFiles.length} fichier(s) sensible(s) sous suivi Git : ${gg.exposedFiles.join(', ')}`);
+  }
+  if (dc?.unusedDependencies?.length > 0) {
+    errors.push(`- **[Depcheck]** ${dc.unusedDependencies.length} dépendance(s) déclarée(s) mais jamais importée(s) : ${dc.unusedDependencies.join(', ')}`);
+  }
+  if (kn?.orphanFiles > 0) {
+    errors.push(`- **[Knip]** ${kn.orphanFiles} fichier(s) potentiellement orphelin(s).`);
+  }
+  if (es?.errorsCount > 0) {
+    errors.push(`- **[ESLint]** ${es.errorsCount} erreur(s) de linting dans le code source.`);
+  }
+  if (mdg?.circularDependencies > 0) {
+    errors.push(`- **[Madge]** ${mdg.circularDependencies} dépendance(s) circulaire(s) détectée(s).`);
+  }
+  if ((snyk?.vulnerabilities?.high || 0) > 0 || (snyk?.vulnerabilities?.critical || 0) > 0) {
+    errors.push(`- **[npm audit / Snyk]** ${snyk.vulnerabilities.critical || 0} critique(s) et ${snyk.vulnerabilities.high || 0} élevée(s) dans package.json.`);
+  }
+  if (zap?.exposedEndpoints?.length > 0) {
+    errors.push(`- **[OWASP ZAP]** Points d'entrée sensibles exposés : ${zap.exposedEndpoints.join(', ')}`);
+  }
+  if (zap?.hasSqlError) {
+    errors.push(`- **[OWASP ZAP]** Réponse anormale détectée lors de l'injection SQL probe.`);
+  }
+  if (zap?.hasXssReflection) {
+    errors.push(`- **[OWASP ZAP]** Réflexion XSS brute détectée sur les paramètres d'URL.`);
+  }
+
+  if (errors.length > 0) {
+    md += errors.join('\n') + '\n\n';
+  } else {
+    md += `*Aucune anomalie critique détectée. Tous les critères obligatoires sont validés.*\n\n`;
+  }
+
+  md += `## 4. Recommandations d'Amélioration & Hardening\n\n`;
+  if (!sSh?.checks?.hsts?.present) {
+    md += `- **HSTS :** Configurer \`Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\`\n`;
+  }
+  if (!sSh?.checks?.csp?.present) {
+    md += `- **CSP :** Définir une directive \`Content-Security-Policy\` stricte pour bloquer les injections XSS.\n`;
+  }
+  if (!sSh?.checks?.xfo?.present) {
+    md += `- **X-Frame-Options :** Configurer \`SAMEORIGIN\` pour bloquer le Clickjacking.\n`;
+  }
+  if (!sSh?.checks?.xcto?.present) {
+    md += `- **X-Content-Type-Options :** Configurer \`nosniff\` pour empêcher le MIME-sniffing.\n`;
+  }
+  if (!sSh?.checks?.rp?.present) {
+    md += `- **Referrer-Policy :** Configurer \`strict-origin-when-cross-origin\`.\n`;
+  }
+  if (!sSh?.checks?.pp?.present) {
+    md += `- **Permissions-Policy :** Désactiver les capteurs matériels superflus (camera, micro, géolocalisation).\n`;
+  }
+  if (dc?.unusedDependencies?.length > 0) {
+    md += `- **Nettoyage dépendances :** Retirer les packages orphelins via \`npm uninstall ${dc.unusedDependencies.join(' ')}\`.\n`;
+  }
+  if (wv?.missingAlt > 0) {
+    md += `- **Accessibilité :** Renseigner l'attribut \`alt\` sur toutes les balises <img> pour l'accessibilité écran.\n`;
+  }
+  md += `\n`;
+
+  md += `## 5. Liens d'Audit Directs\n\n`;
+  md += `- [SecurityHeaders](https://securityheaders.com/?q=${encodeURIComponent(siteDom)}&followRedirects=on)\n`;
+  md += `- [Mozilla Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(siteDom)})\n`;
+  md += `- [Qualys SSL Labs](https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(siteDom)})\n`;
+  md += `- [Google PageSpeed](https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(siteDom)}%2F)\n`;
+  md += `- [Scanner 2gdpr](https://2gdpr.com/check?domain=${encodeURIComponent(siteDom)})\n`;
+  md += `- [Blacklight](https://themarkup.org/blacklight?url=${encodeURIComponent(siteDom)})\n`;
+
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `audit-${siteDom.replace(/[^a-z0-9]/gi, '_')}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminDashboardPage() {
   const {
     user,
@@ -55,8 +263,8 @@ export default function AdminDashboardPage() {
   const [newLink, setNewLink] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [newVisibleOnPortfolio, setNewVisibleOnPortfolio] = useState(true);
-  const [newAllowContextSync, setNewAllowContextSync] = useState(true);
-  const [newFolderName, setNewFolderName] = useState('');
+  const [newAllowContextSync] = useState(true);
+  const [newFolderName] = useState('');
 
   // Profile credentials form
   const [myNewId, setMyNewId] = useState('');
@@ -222,6 +430,24 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const handleExportProjectAudit = async (domain, title) => {
+    if (!domain) return;
+    const cleanDom = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+    showToast(`Génération du rapport d'audit pour ${cleanDom}...`);
+    try {
+      const res = await fetch(`/api/site-status/audit-full?domain=${encodeURIComponent(cleanDom)}`);
+      const data = await res.json();
+      if (data?.success) {
+        generateAndDownloadSiteMarkdown(cleanDom, title || cleanDom, data, data.checkedAt);
+        showToast(`Rapport d'audit .md exporté pour ${title || cleanDom}`);
+      } else {
+        showToast(`Échec de génération pour ${cleanDom}`);
+      }
+    } catch {
+      showToast(`Erreur lors de l'export d'audit pour ${cleanDom}`);
+    }
+  };
+
   const displayedProjects = isAdmin
     ? combinedList
     : combinedList.filter((item) => (user?.allowedProjects || []).includes(item.id));
@@ -378,6 +604,7 @@ export default function AdminDashboardPage() {
                       }
                     }}
                     onPreview={() => setPreviewSite(item.siteConfig || item)}
+                    onExportAudit={handleExportProjectAudit}
                   />
                 ))}
               </div>
@@ -844,6 +1071,7 @@ function UnifiedProjectCard({
   onSaveSiteConfig,
   onDeleteFromAdmin,
   onPreview,
+  onExportAudit,
 }) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -1129,6 +1357,16 @@ function UnifiedProjectCard({
           </button>
 
           <div className="flex items-center gap-2">
+            {(item.domain || item.link) && onExportAudit && (
+              <button
+                type="button"
+                onClick={() => onExportAudit(item.domain || item.link, item.title)}
+                className="font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-gray-300 hover:text-white transition"
+                title="Exporter le rapport d'audit .md de ce projet"
+              >
+                Audit .md
+              </button>
+            )}
             {item.isProject && (
               <button
                 onClick={() => onTogglePortfolioVisibility(item.id, !item.visibleOnPortfolio)}
@@ -1160,7 +1398,7 @@ function AuditTestsTab({ sites, showToast }) {
   const [auditsSSL, setAuditsSSL] = useState({});
   const [auditsFull, setAuditsFull] = useState({});
   const [systemAudit, setSystemAudit] = useState(null);
-  const [systemAuditLoading, setSystemAuditLoading] = useState(false);
+  const [, setSystemAuditLoading] = useState(false);
   const [loadingMap, setLoadingMap] = useState({});
   const [globalLoading, setGlobalLoading] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
@@ -1205,7 +1443,19 @@ function AuditTestsTab({ sites, showToast }) {
             if (tools.sh) shMap[d] = tools.sh;
             if (tools.obs) obsMap[d] = tools.obs;
             if (tools.ssl) sslMap[d] = tools.ssl;
-            if (tools.full) fullMap[d] = tools.full;
+            if (tools.full) {
+              fullMap[d] = tools.full;
+            } else if (tools.computedCategories) {
+              fullMap[d] = {
+                categories: tools.computedCategories,
+                globalGrade: tools.computedGlobal?.globalGrade,
+                globalScore: tools.computedGlobal?.globalScore,
+                globalLabel: tools.computedGlobal?.globalLabel,
+                sh: tools.sh,
+                obs: tools.obs,
+                ssl: tools.ssl,
+              };
+            }
             const dates = [tools.sh?.checkedAt, tools.obs?.checkedAt, tools.ssl?.checkedAt, tools.full?.checkedAt].filter(Boolean);
             if (dates.length > 0) {
               times[d] = dates.sort().reverse()[0];
@@ -1224,38 +1474,76 @@ function AuditTestsTab({ sites, showToast }) {
     fetchSystemAudit();
   }, []);
 
-  // Calcul ou récupération de la Note Globale unifiée
+  // Calcul et extraction des notes des 6 catégories pour un domaine
+  const getSiteCategories = (sDom) => {
+    const full = auditsFull[sDom];
+    if (full?.categories) return full.categories;
+
+    const sSh = full?.sh || auditsSH[sDom];
+    const sObs = full?.obs || auditsObs[sDom];
+    const sSsl = full?.ssl || auditsSSL[sDom];
+
+    const gradeToScore = { 'A+': 100, 'A': 92, 'A-': 88, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
+    const scoreToGrade = (s) => {
+      if (s >= 90) return 'A+';
+      if (s >= 80) return 'A';
+      if (s >= 70) return 'B';
+      if (s >= 55) return 'C';
+      if (s >= 40) return 'D';
+      if (s >= 20) return 'E';
+      return 'F';
+    };
+
+    const avgOf = (items) => {
+      const valid = items.filter((x) => x != null && typeof x === 'number');
+      if (valid.length === 0) return { grade: '?', score: null };
+      const avg = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+      return { score: avg, grade: scoreToGrade(avg) };
+    };
+
+    const cat1Scores = [];
+    if (sSh?.success) cat1Scores.push(typeof sSh.score === 'number' ? sSh.score : (gradeToScore[sSh.grade] ?? 50));
+    if (sObs?.success) cat1Scores.push(typeof sObs.score === 'number' ? sObs.score : (gradeToScore[sObs.grade] ?? 50));
+    if (sSsl?.success) cat1Scores.push(gradeToScore[sSsl.grade] ?? 90);
+
+    const snykScore = full?.npmSnyk?.score || full?.npmsnyk?.score || (systemAudit?.vulnerabilities ? Math.max(15, 100 - (systemAudit.vulnerabilities?.critical || 0) * 35 - (systemAudit.vulnerabilities?.high || 0) * 15) : null);
+
+    return {
+      cat1: avgOf(cat1Scores),
+      cat2: avgOf([full?.pagespeed?.score, full?.wave?.score, full?.seo?.score]),
+      cat3: avgOf([full?.twoGdpr?.score, full?.cookiebot?.score, full?.blacklight?.score]),
+      cat4: avgOf([full?.trufflehog?.score, full?.gitleaks?.score, full?.gitguardian?.score]),
+      cat5: avgOf([full?.knip?.score, full?.depcheck?.score, full?.eslint?.score, full?.sonarqube?.score, full?.madge?.score]),
+      cat6: avgOf([snykScore, full?.prismaDoctor?.score || full?.prismadoctor?.score, full?.owaspZap?.score || full?.owaspzap?.score]),
+    };
+  };
+
+  // Calcul ou récupération de la Note Globale unifiée (prend en compte l'ensemble des 6 catégories)
   const getSiteGlobal = (sDom) => {
     const full = auditsFull[sDom];
-    if (full?.globalGrade) {
+    if (full?.globalGrade && full.globalGrade !== '?') {
       return {
         grade: full.globalGrade,
         score: full.globalScore,
-        label: full.globalLabel,
+        label: full.globalLabel || 'Analyse globale',
       };
     }
 
-    const sSh = auditsSH[sDom];
-    const sObs = auditsObs[sDom];
-    const sSsl = auditsSSL[sDom];
+    const cats = getSiteCategories(sDom);
+    const validScores = [cats.cat1, cats.cat2, cats.cat3, cats.cat4, cats.cat5, cats.cat6]
+      .map((c) => c?.score)
+      .filter((s) => s != null && typeof s === 'number');
 
-    const gradeToScore = { 'A+': 100, 'A': 92, 'A-': 88, 'B': 75, 'C': 55, 'D': 35, 'E': 20, 'F': 0, '?': 0 };
-    const scores = [];
+    if (validScores.length === 0) return { grade: '?', score: null, label: 'Non analysé' };
 
-    if (sSh && sSh.success) scores.push(typeof sSh.score === 'number' ? sSh.score : (gradeToScore[sSh.grade] ?? 50));
-    if (sObs && sObs.success) scores.push(typeof sObs.score === 'number' ? sObs.score : (gradeToScore[sObs.grade] ?? 50));
-    if (sSsl && sSsl.success) scores.push(gradeToScore[sSsl.grade] ?? 90);
-
-    if (scores.length === 0) return { grade: '?', score: null, label: 'Non analysé' };
-
-    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const avg = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
     let grade = 'F';
     let label = 'Critique (Vulnérabilités)';
-    if (avg >= 90) { grade = 'A+'; label = 'Excellente protection'; }
+    if (avg >= 90) { grade = 'A+'; label = 'Excellente protection (Tous audits validés)'; }
     else if (avg >= 80) { grade = 'A'; label = 'Solide & Sécurisé'; }
-    else if (avg >= 70) { grade = 'B'; label = 'Bonne sécurité'; }
+    else if (avg >= 70) { grade = 'B'; label = 'Bonne sécurité globale'; }
     else if (avg >= 55) { grade = 'C'; label = 'Moyen (Améliorations requises)'; }
-    else if (avg >= 40) { grade = 'D'; label = 'Faible (En-têtes manquants)'; }
+    else if (avg >= 40) { grade = 'D'; label = 'Faible (Alertes détectées)'; }
     else if (avg >= 20) { grade = 'E'; label = 'Vulnérable'; }
 
     return { grade, score: avg, label };
@@ -1277,7 +1565,7 @@ function AuditTestsTab({ sites, showToast }) {
         if (data.ssl) setAuditsSSL((prev) => ({ ...prev, [dom]: data.ssl }));
         setLastCheckTimes((prev) => ({ ...prev, [dom]: data.checkedAt || new Date().toISOString() }));
       }
-    } catch (err) {
+    } catch {
       showToast?.(`Erreur lors de l’audit de ${dom}`);
     } finally {
       setLoadingMap((prev) => ({ ...prev, [dom]: false }));
@@ -1312,184 +1600,20 @@ function AuditTestsTab({ sites, showToast }) {
   const exportSiteMarkdown = (siteDom) => {
     const site = validSites.find((s) => s.cleanDomain === siteDom) || { cleanDomain: siteDom, title: siteDom };
     const full = auditsFull[siteDom] || {};
-    const sSh = full.sh || auditsSH[siteDom];
-    const sObs = full.obs || auditsObs[siteDom];
-    const sSsl = full.ssl || auditsSSL[siteDom];
-    const ps = full.pagespeed;
-    const wv = full.wave;
-    const seo = full.seo;
-    const gdpr = full.twoGdpr;
-    const cbot = full.cookiebot;
-    const bl = full.blacklight;
-    const th = full.trufflehog;
-    const gl = full.gitleaks;
-    const gg = full.gitguardian;
-    const kn = full.knip;
-    const dc = full.depcheck;
-    const es = full.eslint;
-    const sq = full.sonarqube;
-    const mdg = full.madge;
-    const snyk = full.npmSnyk;
-    const pr = full.prismaDoctor;
-    const zap = full.owaspZap;
-
-    const global = getSiteGlobal(siteDom);
-    const now = new Date().toLocaleString('fr-FR');
-
-    let md = `# Rapport d'Audit & Sécurité Intégrale — ${site.title || siteDom}\n\n`;
-    md += `> Date du rapport : ${now} • Généré automatiquement via la console Azim404\n\n`;
-
-    md += `## 1. Synthèse Globale\n\n`;
-    md += `- **Domaine :** \`${siteDom}\`\n`;
-    md += `- **Note Globale :** **${global.grade}** (${global.score != null ? `${global.score}/100` : 'N/A'}) — *${global.label}*\n`;
-    md += `- **Dernière analyse :** ${lastCheckTimes[siteDom] ? new Date(lastCheckTimes[siteDom]).toLocaleString('fr-FR') : 'À l’instant'}\n\n`;
-
-    md += `### Tableau Synthétique des 20 Outils d'Audit\n\n`;
-    md += `| Catégorie | Outil | Note | Score | Statut / Métriques clés |\n`;
-    md += `|---|---|---|---|---|\n`;
-    md += `| 1. Sécurité réseau | **SecurityHeaders** | **${sSh?.grade || '-'}** | ${sSh?.score != null ? `${sSh.score}/100` : '-'} | ${sSh?.success ? 'En-têtes HTTP analysés' : (sSh?.error || 'En attente')} |\n`;
-    md += `| 1. Sécurité réseau | **Mozilla Observatory** | **${sObs?.grade || '-'}** | ${sObs?.score != null ? `${sObs.score}/100` : '-'} | ${sObs?.success ? `${sObs.tests_passed || 0} réussis / ${sObs.tests_failed || 0} échoués` : (sObs?.error || 'En attente')} |\n`;
-    md += `| 1. Sécurité réseau | **Qualys SSL Labs / TLS** | **${sSsl?.grade || '-'}** | - | ${sSsl?.protocol || 'TLSv1.3'} (${sSsl?.issuer || "Let's Encrypt"}, ${sSsl?.daysRemaining ? `${sSsl.daysRemaining}j restants` : 'actif'}) |\n`;
-    md += `| 2. SEO & Performance | **Google PageSpeed** | **${ps?.grade || '-'}** | ${ps?.score != null ? `${ps.score}/100` : '-'} | TTFB: ${ps?.ttfb != null ? `${ps.ttfb}ms` : '-'}, Poids: ${ps?.totalByteWeight ? `${Math.round(ps.totalByteWeight / 1024)} KB` : '-'} |\n`;
-    md += `| 2. SEO & Performance | **WAVE WebAIM** | **${wv?.grade || '-'}** | ${wv?.score != null ? `${wv.score}/100` : '-'} | Images sans alt: ${wv?.missingAlt ?? 0}, Boutons sans label: ${wv?.emptyButtons ?? 0} |\n`;
-    md += `| 2. SEO & Performance | **Google Search Console & Ahrefs** | **${seo?.grade || '-'}** | ${seo?.score != null ? `${seo.score}/100` : '-'} | robots.txt: ${seo?.hasRobots ? 'OK' : 'Absent'}, sitemap: ${seo?.hasSitemap ? 'OK' : 'Absent'} |\n`;
-    md += `| 3. RGPD & Cookies | **2gdpr Scanner** | **${gdpr?.grade || '-'}** | ${gdpr?.score != null ? `${gdpr.score}/100` : '-'} | Cookies avant consentement: ${gdpr?.cookiesBeforeConsent ?? 0} |\n`;
-    md += `| 3. RGPD & Cookies | **Cookiebot Scanner** | **${cbot?.grade || '-'}** | ${cbot?.score != null ? `${cbot.score}/100` : '-'} | Cookies: ${cbot?.cookiesFound ?? 0}, Sécurisés: ${cbot?.secureCookies ? 'Oui' : 'Non'} |\n`;
-    md += `| 3. RGPD & Cookies | **Blacklight (The Markup)** | **${bl?.grade || '-'}** | ${bl?.score != null ? `${bl.score}/100` : '-'} | Trackers: ${bl?.adTrackersCount ?? 0}, Recorders: ${bl?.sessionRecorders ?? 0} |\n`;
-    md += `| 4. Fuites Git | **TruffleHog (CLI)** | **${th?.grade || '-'}** | ${th?.score != null ? `${th.score}/100` : '-'} | Secrets vérifiés: ${th?.verifiedSecretsCount ?? 0}, Détectés: ${th?.leaksDetected ? 'Alerte' : '0 fuite'} |\n`;
-    md += `| 4. Fuites Git | **Gitleaks (CLI)** | **${gl?.grade || '-'}** | ${gl?.score != null ? `${gl.score}/100` : '-'} | Fuites: ${gl?.leaksFound ?? 0}, Règles actives: ${gl?.rulesCount ?? 0} |\n`;
-    md += `| 4. Fuites Git | **GitGuardian** | **${gg?.grade || '-'}** | ${gg?.score != null ? `${gg.score}/100` : '-'} | Incidents: ${gg?.incidentsCount ?? 0}, Fichiers sensibles protégés |\n`;
-    md += `| 5. Qualité logicielle | **Knip** | **${kn?.grade || '-'}** | ${kn?.score != null ? `${kn.score}/100` : '-'} | Fichiers orphelins: ${kn?.unusedFilesCount ?? 0}, Exports orphelins: ${kn?.unusedExportsCount ?? 0} |\n`;
-    md += `| 5. Qualité logicielle | **Depcheck** | **${dc?.grade || '-'}** | ${dc?.score != null ? `${dc.score}/100` : '-'} | Dépendances mortes: ${dc?.unusedDependenciesCount ?? 0} |\n`;
-    md += `| 5. Qualité logicielle | **ESLint** | **${es?.grade || '-'}** | ${es?.score != null ? `${es.score}/100` : '-'} | Erreurs: ${es?.errorCount ?? 0}, Warnings: ${es?.warningCount ?? 0} |\n`;
-    md += `| 5. Qualité logicielle | **SonarQube / SonarCloud** | **${sq?.grade || '-'}** | ${sq?.score != null ? `${sq.score}/100` : '-'} | Dette: ${sq?.technicalDebtMinutes ?? 0} min, LOC: ${sq?.loc ?? 0} |\n`;
-    md += `| 5. Qualité logicielle | **Madge** | **${mdg?.grade || '-'}** | ${mdg?.score != null ? `${mdg.score}/100` : '-'} | Dépendances circulaires: ${mdg?.circularCount ?? 0} |\n`;
-    md += `| 6. Dépendances & DB | **npm audit / Snyk** | **${snyk?.grade || '-'}** | ${snyk?.score != null ? `${snyk.score}/100` : '-'} | Vulnérabilités: ${snyk?.totalVulnerabilities ?? 0} (Critiques: ${snyk?.critical ?? 0}, Hautes: ${snyk?.high ?? 0}) |\n`;
-    md += `| 6. Dépendances & DB | **Prisma Doctor / SQL** | **${pr?.grade || '-'}** | ${pr?.score != null ? `${pr.score}/100` : '-'} | Index manquants: ${pr?.missingIndexesCount ?? 0}, Requêtes lentes: ${pr?.slowQueriesDetected ?? 0} |\n`;
-    md += `| 6. Dépendances & DB | **OWASP ZAP (DAST)** | **${zap?.grade || '-'}** | ${zap?.score != null ? `${zap.score}/100` : '-'} | Alertes: ${zap?.alertsCount ?? 0}, SQLi: ${zap?.sqliProbesPassed ? 'OK' : 'Échec'}, XSS: ${zap?.xssProbesPassed ? 'OK' : 'Échec'} |\n\n`;
-
-    md += `## 2. Détail des En-têtes HTTP de Sécurité\n\n`;
-    if (sSh?.checks) {
-      md += `| En-tête | Statut | Poids | Description & Rôle de protection |\n`;
-      md += `|---|---|---|---|\n`;
-      for (const [k, c] of Object.entries(sSh.checks)) {
-        md += `| \`${c.name || k}\` | **${c.present ? 'PRÉSENT' : 'MANQUANT'}** | ${c.weight} pts | ${c.desc} |\n`;
-      }
-      md += `\n`;
-    } else {
-      md += `*Aucun en-tête n'a encore été analysé pour ce domaine.*\n\n`;
-    }
-
-    md += `## 3. Erreurs, Anomalies & Vulnérabilités Détectées\n\n`;
-    const errors = [];
-    if (sSh?.checks) {
-      for (const [k, c] of Object.entries(sSh.checks)) {
-        if (!c.present) {
-          errors.push(`- **[En-tête manquant]** \`${c.name || k}\` : ${c.desc}`);
-        }
-      }
-    }
-    if (sObs?.tests_failed > 0) {
-      errors.push(`- **[Mozilla Observatory]** ${sObs.tests_failed} test(s) échoué(s) sur ${sObs.tests_quantity || 12} vérifications.`);
-    }
-    if (sSsl?.tlsValid === false) {
-      errors.push(`- **[Certificat TLS]** Certificat SSL invalide ou expiré.`);
-    }
-    if (sSh?.cookieSecurity && sSh.cookieSecurity.hasCookies && (!sSh.cookieSecurity.secure || !sSh.cookieSecurity.httpOnly)) {
-      errors.push(`- **[Cookies non sécurisés]** Des cookies HTTP ne possèdent pas les flags requis (Secure, HttpOnly, SameSite).`);
-    }
-    if (ps?.ttfb > 800) {
-      errors.push(`- **[PageSpeed TTFB]** Temps de réponse serveur élevé : ${ps.ttfb}ms (> 800ms).`);
-    }
-    if (wv?.missingAlt > 0) {
-      errors.push(`- **[WAVE WebAIM]** ${wv.missingAlt} image(s) sans attribut 'alt'.`);
-    }
-    if (wv?.emptyButtons > 0) {
-      errors.push(`- **[WAVE WebAIM]** ${wv.emptyButtons} bouton(s) sans texte ou aria-label accessible.`);
-    }
-    if (seo?.hasRobots === false) {
-      errors.push(`- **[SEO robots.txt]** Fichier robots.txt introuvable sur le domaine.`);
-    }
-    if (seo?.hasSitemap === false) {
-      errors.push(`- **[SEO sitemap.xml]** Fichier sitemap.xml introuvable sur le domaine.`);
-    }
-    if (gdpr?.cookiesBeforeConsent > 0) {
-      errors.push(`- **[2gdpr]** ${gdpr.cookiesBeforeConsent} cookie(s) déposé(s) avant acceptation de l'utilisateur.`);
-    }
-    if (bl?.adTrackersCount > 0) {
-      errors.push(`- **[Blacklight]** ${bl.adTrackersCount} tracker(s) publicitaire(s) tiers détecté(s).`);
-    }
-    if (bl?.sessionRecorders > 0) {
-      errors.push(`- **[Blacklight]** Enregistreur de session ou de frappe détecté sur la page.`);
-    }
-    if (th?.leaksDetected) {
-      errors.push(`- **[TruffleHog]** Secret potentiel détecté dans l'arborescence git.`);
-    }
-    if (gl?.leaksFound > 0) {
-      errors.push(`- **[Gitleaks]** ${gl.leaksFound} fuite(s) de clé ou token identifiée(s).`);
-    }
-    if (dc?.unusedDependenciesCount > 0) {
-      errors.push(`- **[Depcheck]** ${dc.unusedDependenciesCount} dépendance(s) déclarée(s) mais jamais importée(s) : ${dc.unusedDeps?.join(', ') || ''}`);
-    }
-    if (kn?.unusedFilesCount > 0) {
-      errors.push(`- **[Knip]** ${kn.unusedFilesCount} fichier(s) potentiellement orphelin(s).`);
-    }
-    if (es?.errorCount > 0) {
-      errors.push(`- **[ESLint]** ${es.errorCount} erreur(s) de linting dans le code source.`);
-    }
-    if (mdg?.circularCount > 0) {
-      errors.push(`- **[Madge]** ${mdg.circularCount} dépendance(s) circulaire(s) détectée(s).`);
-    }
-    if (snyk?.critical > 0 || snyk?.high > 0) {
-      errors.push(`- **[npm audit / Snyk]** ${snyk.critical} vulnérabilité(s) critique(s) et ${snyk.high} élevée(s) dans package.json.`);
-    }
-    if (zap?.alertsCount > 0) {
-      errors.push(`- **[OWASP ZAP]** ${zap.alertsCount} alerte(s) de sécurité dynamique DAST relevée(s).`);
-    }
-
-    if (errors.length > 0) {
-      md += errors.join('\n') + '\n\n';
-    } else {
-      md += `*Aucune erreur critique détectée. Tous les critères obligatoires sont validés.*\n\n`;
-    }
-
-    md += `## 4. Recommandations d'Amélioration & Hardening\n\n`;
-    if (!sSh?.checks?.hsts?.present) {
-      md += `- **HSTS :** Configurer \`Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\`\n`;
-    }
-    if (!sSh?.checks?.csp?.present) {
-      md += `- **CSP :** Définir une directive \`Content-Security-Policy\` stricte pour bloquer les injections XSS.\n`;
-    }
-    if (!sSh?.checks?.xfo?.present) {
-      md += `- **X-Frame-Options :** Configurer \`SAMEORIGIN\` pour bloquer le Clickjacking.\n`;
-    }
-    if (!sSh?.checks?.xcto?.present) {
-      md += `- **X-Content-Type-Options :** Configurer \`nosniff\` pour empêcher le MIME-sniffing.\n`;
-    }
-    if (!sSh?.checks?.rp?.present) {
-      md += `- **Referrer-Policy :** Configurer \`strict-origin-when-cross-origin\`.\n`;
-    }
-    if (!sSh?.checks?.pp?.present) {
-      md += `- **Permissions-Policy :** Désactiver les capteurs matériels superflus (camera, micro, géolocalisation).\n`;
-    }
-    if (dc?.unusedDependenciesCount > 0) {
-      md += `- **Nettoyage dépendances :** Retirer les packages morts listés par depcheck via \`npm uninstall\`.\n`;
-    }
-    if (wv?.missingAlt > 0) {
-      md += `- **Accessibilité :** Renseigner l'attribut \`alt\` sur toutes les balises <img> pour l'accessibilité écran.\n`;
-    }
-    md += `\n`;
-
-    md += `## 5. Liens d'Audit Directs\n\n`;
-    md += `- [SecurityHeaders](https://securityheaders.com/?q=${encodeURIComponent(siteDom)}&followRedirects=on)\n`;
-    md += `- [Mozilla Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(siteDom)})\n`;
-    md += `- [Qualys SSL Labs](https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(siteDom)})\n`;
-    md += `- [Google PageSpeed](https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(siteDom)}%2F)\n`;
-    md += `- [Scanner 2gdpr](https://2gdpr.com/check?domain=${encodeURIComponent(siteDom)})\n`;
-    md += `- [Blacklight](https://themarkup.org/blacklight?url=${encodeURIComponent(siteDom)})\n`;
-
-    downloadMarkdownFile(`audit-${siteDom.replace(/[^a-z0-9]/gi, '_')}.md`, md);
-    showToast?.(`Rapport .md exporté pour ${siteDom}`);
+    const cats = getSiteCategories(siteDom);
+    const sGlobal = getSiteGlobal(siteDom);
+    const enriched = {
+      ...full,
+      categories: cats,
+      globalGrade: sGlobal.grade,
+      globalScore: sGlobal.score,
+      globalLabel: sGlobal.label,
+      sh: full.sh || auditsSH[siteDom],
+      obs: full.obs || auditsObs[siteDom],
+      ssl: full.ssl || auditsSSL[siteDom],
+    };
+    generateAndDownloadSiteMarkdown(siteDom, site.title || siteDom, enriched, lastCheckTimes[siteDom]);
+    showToast?.(`Rapport d'audit .md exporté pour ${siteDom}`);
   };
 
   // Exporter en .md le rapport global de l'infrastructure
@@ -1498,22 +1622,17 @@ function AuditTestsTab({ sites, showToast }) {
     let md = `# Rapport Global des Audits & Sécurité — Azim404\n\n`;
     md += `> Date du rapport : ${now} • Infrastructure globale & 20 outils de référence\n\n`;
 
-    md += `## 1. Synthèse Globale par Site\n\n`;
-    md += `| Site / Domaine | Note Globale | Score | Sécurité Réseau | PageSpeed | WAVE | 2gdpr | Code & Vulns | Dernière analyse |\n`;
+    md += `## 1. Synthèse Globale par Site (6 Catégories)\n\n`;
+    md += `| Site / Domaine | Note Globale | 1. Sécurité & TLS | 2. SEO & Perf | 3. RGPD | 4. Fuites Git | 5. Qualité Code | 6. Vulns & DB | Dernière analyse |\n`;
     md += `|---|---|---|---|---|---|---|---|---|\n`;
 
     for (const site of validSites) {
       const sDom = site.cleanDomain;
       const global = getSiteGlobal(sDom);
-      const full = auditsFull[sDom] || {};
-      const sSh = full.sh || auditsSH[sDom];
-      const ps = full.pagespeed;
-      const wv = full.wave;
-      const gdpr = full.twoGdpr;
-      const snyk = full.npmSnyk;
+      const cats = getSiteCategories(sDom);
       const dateStr = lastCheckTimes[sDom] ? new Date(lastCheckTimes[sDom]).toLocaleDateString('fr-FR') : 'Non analysé';
 
-      md += `| **${site.title || sDom}** (\`${sDom}\`) | **${global.grade}** | ${global.score != null ? `${global.score}/100` : '-'} | ${sSh?.grade || '-'} | ${ps?.grade || '-'} | ${wv?.grade || '-'} | ${gdpr?.grade || '-'} | ${snyk?.grade || '-'} | ${dateStr} |\n`;
+      md += `| **${site.title || sDom}** (\`${sDom}\`) | **${global.grade}** (${global.score != null ? `${global.score}/100` : '-'}) | **${cats.cat1?.grade || '-'}** | **${cats.cat2?.grade || '-'}** | **${cats.cat3?.grade || '-'}** | **${cats.cat4?.grade || '-'}** | **${cats.cat5?.grade || '-'}** | **${cats.cat6?.grade || '-'}** | ${dateStr} |\n`;
     }
     md += `\n`;
 
@@ -1548,19 +1667,30 @@ function AuditTestsTab({ sites, showToast }) {
     return 'text-rose-400 bg-rose-950/40 border-rose-500/40';
   };
 
-  const GradeBadge = ({ grade, loading, href, title: badgeTitle }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" title={badgeTitle} className="inline-flex">
-      {loading ? (
-        <span className="w-10 h-7 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
-          <span className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
-        </span>
-      ) : (
-        <span className={`w-10 h-7 rounded border text-xs font-bold flex items-center justify-center transition ${gradeColor(grade)}`}>
-          {grade || '-'}
-        </span>
-      )}
-    </a>
-  );
+  const GradeBadge = ({ grade, loading, href, title: badgeTitle }) => {
+    const badgeContent = loading ? (
+      <span className="w-9 h-7 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
+        <span className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
+      </span>
+    ) : (
+      <span className={`w-9 h-7 rounded border text-xs font-bold flex items-center justify-center transition ${gradeColor(grade)}`}>
+        {grade || '-'}
+      </span>
+    );
+
+    if (href) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" title={badgeTitle} className="inline-flex">
+          {badgeContent}
+        </a>
+      );
+    }
+    return (
+      <span title={badgeTitle} className="inline-flex cursor-default">
+        {badgeContent}
+      </span>
+    );
+  };
 
   const selectedSite = validSites.find((s) => s.cleanDomain === selectedDomain) || validSites[0];
   const dom = selectedSite?.cleanDomain;
@@ -1578,7 +1708,7 @@ function AuditTestsTab({ sites, showToast }) {
         <div>
           <h2 className="text-lg font-bold text-white">Audits & Tests de Sécurité</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Analyses automatisées en 1 clic : En-têtes, Mozilla Observatory, Qualys SSL Labs, SEO, RGPD & Dépendances.
+            Analyses exhaustives en 1 clic : Synthèse par catégories & 20 outils de référence.
           </p>
         </div>
 
@@ -1608,28 +1738,29 @@ function AuditTestsTab({ sites, showToast }) {
         </div>
       </div>
 
-      {/* Table des résultats */}
+      {/* Table des résultats avec Notes de Catégories (hors détails) */}
       <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-slate-800 text-gray-400 font-mono text-xs bg-slate-900/40">
-                <th className="py-3 px-4">SITE / DOMAINE</th>
-                <th className="py-3 px-3 text-center">NOTE GLOBALE</th>
-                <th className="py-3 px-3 text-center">SECURITY HEADERS</th>
-                <th className="py-3 px-3 text-center">OBSERVATORY</th>
-                <th className="py-3 px-3 text-center">SSL LABS / TLS</th>
-                <th className="py-3 px-4 text-center">DERNIÈRE ANALYSE</th>
-                <th className="py-3 px-4 text-right">ACTIONS</th>
+                <th className="py-3 px-3">SITE / DOMAINE</th>
+                <th className="py-3 px-2 text-center" title="Note globale unifiée prenant en compte les 6 catégories et 20 outils">NOTE GLOBALE</th>
+                <th className="py-3 px-2 text-center" title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)">1. SÉCURITÉ & TLS</th>
+                <th className="py-3 px-2 text-center" title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)">2. SEO & PERF</th>
+                <th className="py-3 px-2 text-center" title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)">3. RGPD & COOKIES</th>
+                <th className="py-3 px-2 text-center" title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)">4. FUITES GIT</th>
+                <th className="py-3 px-2 text-center" title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)">5. QUALITÉ CODE</th>
+                <th className="py-3 px-2 text-center" title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)">6. VULNS & DB</th>
+                <th className="py-3 px-3 text-center">DERNIÈRE ANALYSE</th>
+                <th className="py-3 px-3 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {validSites.map((site) => {
                 const sDom = site.cleanDomain;
-                const sSh = auditsSH[sDom];
-                const sObs = auditsObs[sDom];
-                const sSsl = auditsSSL[sDom];
                 const sGlobal = getSiteGlobal(sDom);
+                const cats = getSiteCategories(sDom);
                 const isLoading = loadingMap[sDom];
                 const isSelected = selectedDomain === sDom;
                 const lastCheck = lastCheckTimes[sDom];
@@ -1639,14 +1770,14 @@ function AuditTestsTab({ sites, showToast }) {
                     key={site.id || sDom}
                     className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
                   >
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-white">{site.title || site.name || sDom}</div>
+                    <td className="py-3 px-3">
+                      <div className="font-semibold text-white truncate max-w-[170px]">{site.title || site.name || sDom}</div>
                       <div className="text-xs font-mono text-gray-400">{sDom}</div>
                     </td>
 
-                    <td className="py-3 px-3 text-center">
-                      <div className="inline-flex items-center gap-1.5">
-                        <span className={`w-10 h-7 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1.5">
+                        <span className={`w-9 h-7 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
                           {sGlobal.grade}
                         </span>
                         {sGlobal.score != null && (
@@ -1655,60 +1786,110 @@ function AuditTestsTab({ sites, showToast }) {
                       </div>
                     </td>
 
-                    <td className="py-3 px-3 text-center">
-                      <div className="inline-flex items-center gap-1.5">
+                    {/* Cat 1: Sécurité réseau & TLS */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
                         <GradeBadge
-                          grade={sSh?.grade}
-                          loading={isLoading && !sSh}
-                          href={`https://securityheaders.com/?q=${encodeURIComponent(sDom)}&followRedirects=on`}
-                          title={`SecurityHeaders — ${sSh?.grade || 'Non analysé'}`}
+                          grade={cats.cat1?.grade}
+                          loading={isLoading && !cats.cat1?.score}
+                          title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)"
                         />
-                        {sSh?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{sSh.score}/100</span>
+                        {cats.cat1?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat1.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Cat 2: SEO, Accessibilité & Performance */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <GradeBadge
+                          grade={cats.cat2?.grade}
+                          loading={isLoading && !cats.cat2?.score}
+                          title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)"
+                        />
+                        {cats.cat2?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat2.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Cat 3: RGPD & Cookies */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <GradeBadge
+                          grade={cats.cat3?.grade}
+                          loading={isLoading && !cats.cat3?.score}
+                          title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)"
+                        />
+                        {cats.cat3?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat3.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Cat 4: Fuites Git & Secrets */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <GradeBadge
+                          grade={cats.cat4?.grade}
+                          loading={isLoading && !cats.cat4?.score}
+                          title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)"
+                        />
+                        {cats.cat4?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat4.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Cat 5: Qualité logicielle & Architecture */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <GradeBadge
+                          grade={cats.cat5?.grade}
+                          loading={isLoading && !cats.cat5?.score}
+                          title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)"
+                        />
+                        {cats.cat5?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat5.score}/100</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Cat 6: Base de données & Vulnérabilités */}
+                    <td className="py-3 px-2 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <GradeBadge
+                          grade={cats.cat6?.grade}
+                          loading={isLoading && !cats.cat6?.score}
+                          title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)"
+                        />
+                        {cats.cat6?.score != null && (
+                          <span className="text-xs font-mono text-gray-400">{cats.cat6.score}/100</span>
                         )}
                       </div>
                     </td>
 
                     <td className="py-3 px-3 text-center">
-                      <div className="inline-flex items-center gap-1.5">
-                        <GradeBadge
-                          grade={sObs?.grade}
-                          loading={isLoading && !sObs}
-                          href={sObs?.url || `https://developer.mozilla.org/en-US/observatory/analyze?host=${encodeURIComponent(sDom)}`}
-                          title={`Mozilla Observatory — ${sObs?.grade || 'Non analysé'}`}
-                        />
-                        {sObs?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{sObs.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <div className="inline-flex items-center gap-1.5">
-                        <GradeBadge
-                          grade={sSsl?.grade}
-                          loading={isLoading && !sSsl}
-                          href={`https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(sDom)}`}
-                          title={`Qualys SSL Labs — ${sSsl?.grade || 'Non analysé'}`}
-                        />
-                        {sSsl?.protocol && (
-                          <span className="text-xs font-mono text-gray-400 hidden sm:inline">{sSsl.protocol}</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-4 text-center">
                       <span className="text-xs font-mono text-gray-400">
                         {formatLastCheck(lastCheck)}
                       </span>
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
+                    <td className="py-3 px-3 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => exportSiteMarkdown(sDom)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-mono text-gray-300 hover:text-white transition"
+                          title={`Exporter le rapport d'audit .md de ${sDom}`}
+                        >
+                          Exporter .md
+                        </button>
                         <button
                           type="button"
                           onClick={() => setSelectedDomain(isSelected ? null : sDom)}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
                             isSelected
                               ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
                               : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'

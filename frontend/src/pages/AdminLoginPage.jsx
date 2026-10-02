@@ -29,7 +29,7 @@ export default function AdminLoginPage() {
       } else {
         setError(res.message || 'Identifiants invalides');
       }
-    } catch (err) {
+    } catch {
       setError('Erreur lors de la connexion');
     } finally {
       setIsLoading(false);

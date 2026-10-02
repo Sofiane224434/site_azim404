@@ -92,7 +92,7 @@ export function AdminProvider({ children }) {
           return merged;
         }
       }
-    } catch (e) {
+    } catch {
       console.warn('API site-status non joignable, utilisation des données locales');
     } finally {
       setIsLoading(false);
@@ -111,7 +111,7 @@ export function AdminProvider({ children }) {
           localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(data.accounts));
         }
       }
-    } catch (e) {
+    } catch {
       // offline fallback
     }
   }, []);
@@ -131,7 +131,7 @@ export function AdminProvider({ children }) {
           return data.projects;
         }
       }
-    } catch (e) {
+    } catch {
       // offline
     }
     return portfolioProjects;
@@ -270,7 +270,7 @@ export function AdminProvider({ children }) {
 
     try {
       await fetch(`/api/site-status/${siteId}`, { method: 'DELETE' });
-    } catch (e) {
+    } catch {
       // offline
     }
 
@@ -333,7 +333,7 @@ export function AdminProvider({ children }) {
           return { success: true, project: data.project };
         }
       }
-    } catch (e) {
+    } catch {
       // offline
     }
     return { success: true, project: updatedObj };
@@ -357,7 +357,7 @@ export function AdminProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, visible }),
       });
-    } catch (e) {
+    } catch {
       // offline
     }
   };
@@ -370,7 +370,7 @@ export function AdminProvider({ children }) {
 
     try {
       await fetch(`/api/portfolio-projects/${id}`, { method: 'DELETE' });
-    } catch (e) {
+    } catch {
       // offline
     }
     return { success: true };
@@ -554,7 +554,7 @@ export function AdminProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAccount),
       });
-    } catch (e) {
+    } catch {
       // offline
     }
 
@@ -568,7 +568,7 @@ export function AdminProvider({ children }) {
 
     try {
       await fetch(`/api/private-accounts/${id}`, { method: 'DELETE' });
-    } catch (e) {
+    } catch {
       // offline
     }
   };

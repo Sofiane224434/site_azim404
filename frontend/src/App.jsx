@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './contexts/AdminContext.jsx';
 import MainLayout from './layouts/MainLayout.jsx';
