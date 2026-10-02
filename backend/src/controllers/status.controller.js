@@ -196,10 +196,10 @@ export const checkMaintenanceStatus = (req, res) => {
   }
 
   const rawHost =
+    req.query.domain ||
     req.headers['x-original-host'] ||
     req.headers['x-forwarded-host'] ||
-    req.headers['host'] ||
-    req.query.domain ||
+    (req.headers['host'] && !/localhost|127\.0\.0\.1/i.test(req.headers['host']) ? req.headers['host'] : '') ||
     '';
 
   const sites = readStatusFile();
@@ -266,10 +266,10 @@ export const getSiteStatus = (req, res) => {
 // Renvoie la page HTML complète et dynamique servie par Nginx en cas de maintenance
 export const renderMaintenanceScreen = (req, res) => {
   const rawHost =
+    req.query.domain ||
     req.headers['x-original-host'] ||
     req.headers['x-forwarded-host'] ||
-    req.headers['host'] ||
-    req.query.domain ||
+    (req.headers['host'] && !/localhost|127\.0\.0\.1/i.test(req.headers['host']) ? req.headers['host'] : '') ||
     '';
 
   const sites = readStatusFile();
