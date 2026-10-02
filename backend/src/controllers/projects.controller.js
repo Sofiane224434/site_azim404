@@ -140,17 +140,24 @@ function registerInStatusFile(project) {
     if (!fs.existsSync(STATUS_FILE)) return;
     const raw = fs.readFileSync(STATUS_FILE, 'utf-8');
     const sites = JSON.parse(raw);
-    const cleanDomain = (project.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const cleanDomain = (project.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
     if (!cleanDomain) return;
 
     if (!sites[project.id]) {
-      const isSubpath = project.deployType === 'subpath' || cleanDomain.includes('/');
-      const subpath = isSubpath ? cleanDomain.substring(cleanDomain.indexOf('/')) : '';
+      const firstSlash = cleanDomain.indexOf('/');
+      const rawHost = (firstSlash >= 0 ? cleanDomain.substring(0, firstSlash) : cleanDomain).split(':')[0];
+      const rawPath = firstSlash >= 0 ? cleanDomain.substring(firstSlash) : '';
+      const isAzimRoot = rawHost === 'azim404.com' || rawHost === 'www.azim404.com';
+      const isSubpath = project.deployType === 'subpath' || (isAzimRoot && rawPath && rawPath !== '/');
+      const isCustom = project.deployType === 'custom_domain' || (!rawHost.endsWith('.azim404.com') && !isAzimRoot);
+      const dType = project.deployType || (isSubpath ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain');
+      const subpath = isSubpath ? rawPath : '';
+
       sites[project.id] = {
         id: project.id,
         name: project.title,
         domain: cleanDomain,
-        deployType: isSubpath ? 'subpath' : 'subdomain',
+        deployType: dType,
         inMaintenance: Boolean(project.inMaintenance),
         scope: isSubpath ? 'SPECIFIC' : 'ALL',
         targetPages: isSubpath ? subpath : '',

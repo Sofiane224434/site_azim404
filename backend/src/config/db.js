@@ -176,6 +176,21 @@ function readLiveSiteStatus() {
   return {};
 }
 
+function resolveDeployType(deployType, domain) {
+  if (deployType === 'subpath' || deployType === 'subdomain' || deployType === 'custom_domain' || deployType === 'root') {
+    return deployType;
+  }
+  const raw = (domain || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const firstSlash = raw.indexOf('/');
+  const host = (firstSlash >= 0 ? raw.substring(0, firstSlash) : raw).split(':')[0];
+  const path = firstSlash >= 0 ? raw.substring(firstSlash) : '';
+  const isAzimRoot = host === 'azim404.com' || host === 'www.azim404.com';
+  if (isAzimRoot && path && path !== '/') return 'subpath';
+  if (host.endsWith('.azim404.com') && !isAzimRoot) return 'subdomain';
+  if (isAzimRoot) return 'root';
+  return 'custom_domain';
+}
+
 // Projets
 export async function dbGetPortfolioProjects() {
   const statusMap = readLiveSiteStatus();
@@ -200,7 +215,7 @@ export async function dbGetPortfolioProjects() {
           link: r.link,
           domain: r.domain,
           badge: r.badge,
-          deployType: r.deploy_type || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+          deployType: resolveDeployType(r.deploy_type, r.domain),
           visibleOnPortfolio: isVisible,
           is_displayed: isVisible,
           inMaintenance: inMaint,
@@ -225,7 +240,7 @@ export async function dbGetPortfolioProjects() {
       return {
         ...p,
         image: p.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
-        deployType: p.deployType || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+        deployType: resolveDeployType(p.deployType, p.domain),
         visibleOnPortfolio: isVisible,
         is_displayed: isVisible,
         inMaintenance: inMaint,
@@ -250,7 +265,7 @@ export async function dbSavePortfolioProjects(projects) {
     return {
       ...p,
       image: p.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
-      deployType: p.deployType || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+      deployType: resolveDeployType(p.deployType, p.domain),
       visibleOnPortfolio: isVisible,
       is_displayed: isVisible,
       inMaintenance: inMaint,

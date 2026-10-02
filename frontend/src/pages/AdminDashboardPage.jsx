@@ -229,11 +229,19 @@ function generateAndDownloadSiteMarkdown(siteDom, siteTitle, fullData, lastCheck
 
 // Classification stricte en 3 catégories distinctes d'hébergement / DNS
 export function getDeploymentClassification(item) {
-  const cleanDom = (item?.domain || item?.link || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  const host = cleanDom.split('/')[0].split(':')[0];
-  const isSubpath = item?.deployType === 'subpath' || cleanDom.includes('/') || (item?.link && item.link.includes('azim404.com/'));
+  let raw = (item?.domain || item?.link || '').toLowerCase().trim();
+  raw = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '');
 
-  if (isSubpath) {
+  const firstSlash = raw.indexOf('/');
+  const host = (firstSlash >= 0 ? raw.substring(0, firstSlash) : raw).split(':')[0];
+  const path = firstSlash >= 0 ? raw.substring(firstSlash) : '';
+
+  const isAzimRoot = host === 'azim404.com' || host === 'www.azim404.com';
+  const isAzimSubdomain = host.endsWith('.azim404.com') && !isAzimRoot;
+
+  // 1. Sous-chemin azim404 : UNIQUEMENT sous azim404.com/xxx (ex: azim404.com/nexus-v)
+  //    Un sous-domaine comme cxb.azim404.com ou fansite.azim404.com n'est JAMAIS un sous-chemin !
+  if (item?.deployType === 'subpath' || (isAzimRoot && path && path !== '/')) {
     return {
       type: 'subpath',
       label: 'Sous-chemin azim404',
@@ -242,7 +250,8 @@ export function getDeploymentClassification(item) {
     };
   }
 
-  if (host === 'azim404.com' || host === 'www.azim404.com') {
+  // 2. Domaine Principal azim404.com (sans sous-chemin)
+  if (item?.deployType === 'root' || (isAzimRoot && (!path || path === '/'))) {
     return {
       type: 'root',
       label: 'Domaine Principal',
@@ -251,7 +260,8 @@ export function getDeploymentClassification(item) {
     };
   }
 
-  if (host.endsWith('.azim404.com') || item?.deployType === 'subdomain') {
+  // 3. Sous-domaine DNS : *.azim404.com (ex: cxb.azim404.com, novakult.azim404.com, fansite.azim404.com)
+  if (item?.deployType === 'subdomain' || isAzimSubdomain) {
     return {
       type: 'subdomain',
       label: 'Sous-domaine DNS',
@@ -260,6 +270,7 @@ export function getDeploymentClassification(item) {
     };
   }
 
+  // 4. DNS Propre : domaine indépendant
   return {
     type: 'custom_domain',
     label: 'DNS Propre',
@@ -1381,6 +1392,7 @@ function UnifiedProjectCard({
         link,
         domain: (domain || item.domain).trim(),
         image: (image || '').trim(),
+        deployType: item.deployType,
         visibleOnPortfolio: isVisible,
         inMaintenance,
       });
@@ -1392,6 +1404,7 @@ function UnifiedProjectCard({
         id: siteConfig.id || item.id,
         name: title,
         domain: cleanDomain,
+        deployType: item.deployType,
         scope,
         targetPages,
         title: mTitle,
@@ -1743,18 +1756,21 @@ function AuditTestsTab({ sites, showToast }) {
   const [lastCheckTimes, setLastCheckTimes] = useState({});
 
   const validSites = sites.map((s) => {
-    let raw = (s.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    let raw = (s.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
     if (!raw && s.link) {
       try {
         const u = new URL(s.link.startsWith('http') ? s.link : `https://${s.link}`);
-        raw = u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : '');
+        raw = (u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : '')).replace(/\/+$/, '');
       } catch {
         raw = '';
       }
     }
-    raw = raw.replace(/\/+$/, '');
-    const isSubpath = s.deployType === 'subpath' || raw.includes('/') || (s.link && s.link.includes('azim404.com/'));
-    const cleanDomain = isSubpath ? raw : raw.split('/')[0].split(':')[0];
+    const firstSlash = raw.indexOf('/');
+    const host = (firstSlash >= 0 ? raw.substring(0, firstSlash) : raw).split(':')[0];
+    const path = firstSlash >= 0 ? raw.substring(firstSlash) : '';
+    const isAzimRoot = host === 'azim404.com' || host === 'www.azim404.com';
+    const isSubpath = s.deployType === 'subpath' || (isAzimRoot && path && path !== '/');
+    const cleanDomain = isSubpath ? (isAzimRoot ? `azim404.com${path}` : raw) : host;
     return { ...s, isSubpath, cleanDomain };
   }).filter((s) => Boolean(s.cleanDomain));
 

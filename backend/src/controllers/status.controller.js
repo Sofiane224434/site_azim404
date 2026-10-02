@@ -64,6 +64,7 @@ const DEFAULT_SITES = {
     id: 'portfolio',
     name: 'Portfolio Vitrine',
     domain: 'sofiane-kherarfa.azim404.com',
+    deployType: 'subdomain',
     inMaintenance: false,
     scope: 'ALL',
     targetPages: '',
@@ -75,6 +76,7 @@ const DEFAULT_SITES = {
     id: 'azim404',
     name: 'Portail Principal Azim404',
     domain: 'azim404.com',
+    deployType: 'root',
     inMaintenance: false,
     scope: 'ALL',
     targetPages: '',
@@ -121,9 +123,13 @@ function readStatusFile() {
         if (Array.isArray(projects)) {
           for (const p of projects) {
             if (!p.id) continue;
-            const cleanDom = (p.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-            const isSub = p.deployType === 'subpath' || cleanDom.includes('/');
-            const isCustom = p.deployType === 'custom_domain' || (!cleanDom.endsWith('.azim404.com') && cleanDom !== 'azim404.com');
+            const cleanDom = (p.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+            const firstSlash = cleanDom.indexOf('/');
+            const rawHost = (firstSlash >= 0 ? cleanDom.substring(0, firstSlash) : cleanDom).split(':')[0];
+            const rawPath = firstSlash >= 0 ? cleanDom.substring(firstSlash) : '';
+            const isAzimRoot = rawHost === 'azim404.com' || rawHost === 'www.azim404.com';
+            const isSub = p.deployType === 'subpath' || (isAzimRoot && rawPath && rawPath !== '/');
+            const isCustom = p.deployType === 'custom_domain' || (!rawHost.endsWith('.azim404.com') && !isAzimRoot);
             const dType = p.deployType || (isSub ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain');
 
             if (!mergedSites[p.id]) {
@@ -134,15 +140,13 @@ function readStatusFile() {
                 deployType: dType,
                 inMaintenance: Boolean(p.inMaintenance),
                 scope: isSub ? 'SPECIFIC' : 'ALL',
-                targetPages: isSub ? cleanDom.substring(cleanDom.indexOf('/')) : '',
+                targetPages: isSub ? rawPath : '',
                 title: `${p.title || p.id} en cours de rénovation`,
                 message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
                 updatedAt: new Date().toISOString(),
               };
             } else {
-              if (!mergedSites[p.id].deployType) {
-                mergedSites[p.id].deployType = dType;
-              }
+              mergedSites[p.id].deployType = dType;
             }
           }
         }
@@ -965,8 +969,7 @@ export const saveSite = async (req, res) => {
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '')
-    .split(':')[0];
+    .replace(/\/+$/, '');
   const cleanId = (id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString()).trim().toLowerCase();
 
   if (!cleanDomain && !cleanId) {
@@ -975,16 +978,23 @@ export const saveSite = async (req, res) => {
 
   const sites = readStatusFile();
   const existing = sites[cleanId] || {};
-  const isSubpath = deployType === 'subpath' || cleanDomain.includes('/');
+
+  const firstSlash = cleanDomain.indexOf('/');
+  const rawHost = (firstSlash >= 0 ? cleanDomain.substring(0, firstSlash) : cleanDomain).split(':')[0];
+  const rawPath = firstSlash >= 0 ? cleanDomain.substring(firstSlash) : '';
+  const isAzimRoot = rawHost === 'azim404.com' || rawHost === 'www.azim404.com';
+  const isSubpath = deployType === 'subpath' || (isAzimRoot && rawPath && rawPath !== '/');
+  const isCustom = deployType === 'custom_domain' || (!rawHost.endsWith('.azim404.com') && !isAzimRoot);
+  const finalDeployType = deployType || (isSubpath ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain');
 
   const updatedSite = {
     id: cleanId,
     name: (name || cleanDomain || cleanId).trim(),
     domain: cleanDomain || existing.domain || `${cleanId}.azim404.com`,
-    deployType: isSubpath ? 'subpath' : 'subdomain',
+    deployType: finalDeployType,
     inMaintenance: typeof inMaintenance === 'boolean' ? inMaintenance : Boolean(existing.inMaintenance),
     scope: scope === 'SPECIFIC' || isSubpath ? 'SPECIFIC' : 'ALL',
-    targetPages: (targetPages || (isSubpath ? cleanDomain.substring(cleanDomain.indexOf('/')) : '')).trim(),
+    targetPages: (targetPages || (isSubpath ? rawPath : '')).trim(),
     title: (title || existing.title || 'Atelier en cours de rénovation').trim(),
     message: (message || existing.message || DEFAULT_SITES.portfolio.message).trim(),
     updatedAt: new Date().toISOString(),
@@ -1022,8 +1032,7 @@ export const toggleSiteStatus = async (req, res) => {
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '')
-    .split(':')[0];
+    .replace(/\/+$/, '');
 
   const sites = readStatusFile();
   let currentSite =
@@ -1034,16 +1043,22 @@ export const toggleSiteStatus = async (req, res) => {
   // Si le site n'existe pas encore dans site_status.json, ON LE CRÉE AUTOMATIQUEMENT
   if (!currentSite) {
     const finalId = siteKey || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString();
-    const isSub = deployType === 'subpath' || cleanDomain.includes('/');
-    const isCustom = deployType === 'custom_domain' || (!cleanDomain.endsWith('.azim404.com') && cleanDomain !== 'azim404.com');
+    const firstSlash = cleanDomain.indexOf('/');
+    const rawHost = (firstSlash >= 0 ? cleanDomain.substring(0, firstSlash) : cleanDomain).split(':')[0];
+    const rawPath = firstSlash >= 0 ? cleanDomain.substring(firstSlash) : '';
+    const isAzimRoot = rawHost === 'azim404.com' || rawHost === 'www.azim404.com';
+    const isSub = deployType === 'subpath' || (isAzimRoot && rawPath && rawPath !== '/');
+    const isCustom = deployType === 'custom_domain' || (!rawHost.endsWith('.azim404.com') && !isAzimRoot);
+    const finalDeployType = deployType || (isSub ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain');
+
     currentSite = {
       id: finalId,
       name: name || cleanDomain || finalId,
       domain: cleanDomain || `${finalId}.azim404.com`,
-      deployType: deployType || (isSub ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain'),
+      deployType: finalDeployType,
       inMaintenance: false,
       scope: scope || (isSub ? 'SPECIFIC' : 'ALL'),
-      targetPages: targetPages || (isSub ? cleanDomain.substring(cleanDomain.indexOf('/')) : ''),
+      targetPages: targetPages || (isSub ? rawPath : ''),
       title: title || 'Atelier en cours de rénovation',
       message: message || DEFAULT_SITES.portfolio.message,
       updatedAt: new Date().toISOString(),
