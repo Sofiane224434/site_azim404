@@ -999,14 +999,55 @@ export const auditSiteHeaders = async (req, res) => {
     return res.status(400).json({ success: false, error: 'Domaine manquant' });
   }
 
-  const securityHeaderTool = [
+  const auditTools = [
     {
       id: 'securityheaders',
       name: 'SecurityHeaders.com',
       url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
-      category: 'Sécurité HTTP',
-      icon: '🛡️',
-      desc: 'Audit officiel SecurityHeaders.com',
+      category: '1. Securite reseau & TLS',
+      desc: 'Audit officiel des en-tetes HTTP (note A+ a F)',
+    },
+    {
+      id: 'ssllabs',
+      name: 'Qualys SSL Labs',
+      url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(cleanDomain)}`,
+      category: '1. Securite reseau & TLS',
+      desc: 'Audit certificat SSL/TLS et suites de chiffrement',
+    },
+    {
+      id: 'observatory',
+      name: 'Mozilla Observatory',
+      url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(cleanDomain)}`,
+      category: '1. Securite reseau & TLS',
+      desc: 'En-tetes, TLS et bonnes pratiques web',
+    },
+    {
+      id: 'pagespeed',
+      name: 'Google PageSpeed / Lighthouse',
+      url: `https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(cleanDomain)}%2F`,
+      category: '2. Performance & SEO',
+      desc: 'Core Web Vitals, SEO et accessibilite',
+    },
+    {
+      id: 'wave',
+      name: 'WAVE Accessibilite',
+      url: `https://wave.webaim.org/report#/https://${encodeURIComponent(cleanDomain)}`,
+      category: '2. Performance & SEO',
+      desc: 'Audit visuel des contrastes et ARIA',
+    },
+    {
+      id: '2gdpr',
+      name: '2gdpr Scanner',
+      url: `https://2gdpr.com/check?domain=${encodeURIComponent(cleanDomain)}`,
+      category: '3. RGPD & Traceurs',
+      desc: 'Conformite cookies et traceurs tiers',
+    },
+    {
+      id: 'blacklight',
+      name: 'Blacklight (The Markup)',
+      url: `https://themarkup.org/blacklight?url=${encodeURIComponent(cleanDomain)}`,
+      category: '3. RGPD & Traceurs',
+      desc: 'Detection des trackers et fingerprinting',
     },
   ];
 
@@ -1162,7 +1203,7 @@ export const auditSiteHeaders = async (req, res) => {
       score,
       gradeColor,
       checks,
-      tools: securityHeaderTool,
+      tools: auditTools,
       checkedAt: new Date().toISOString(),
     });
   } catch (err) {
@@ -1182,7 +1223,7 @@ export const auditSiteHeaders = async (req, res) => {
       score: 0,
       gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
       error: friendlyError,
-      tools: securityHeaderTool,
+      tools: auditTools,
     });
   }
 };
