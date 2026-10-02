@@ -25,7 +25,7 @@
     "id": "cxb",
     "name": "Cars X Battle",
     "domain": "cxb.azim404.com",
-    "inMaintenance": true,
+    "inMaintenance": false,
     "scope": "ALL",
     "targetPages": "",
     "title": "Atelier en cours de rénovation",
