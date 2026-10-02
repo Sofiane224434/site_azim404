@@ -227,6 +227,47 @@ function generateAndDownloadSiteMarkdown(siteDom, siteTitle, fullData, lastCheck
   URL.revokeObjectURL(url);
 }
 
+// Classification stricte en 3 catégories distinctes d'hébergement / DNS
+export function getDeploymentClassification(item) {
+  const cleanDom = (item?.domain || item?.link || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const host = cleanDom.split('/')[0].split(':')[0];
+  const isSubpath = item?.deployType === 'subpath' || cleanDom.includes('/') || (item?.link && item.link.includes('azim404.com/'));
+
+  if (isSubpath) {
+    return {
+      type: 'subpath',
+      label: 'Sous-chemin azim404',
+      badgeClass: 'bg-purple-950/60 text-purple-300 border-purple-500/30',
+      example: 'azim404.com/xxx',
+    };
+  }
+
+  if (host === 'azim404.com' || host === 'www.azim404.com') {
+    return {
+      type: 'root',
+      label: 'Domaine Principal',
+      badgeClass: 'bg-blue-950/60 text-blue-300 border-blue-500/30',
+      example: 'azim404.com',
+    };
+  }
+
+  if (host.endsWith('.azim404.com') || item?.deployType === 'subdomain') {
+    return {
+      type: 'subdomain',
+      label: 'Sous-domaine DNS',
+      badgeClass: 'bg-indigo-950/60 text-indigo-300 border-indigo-500/30',
+      example: 'xxx.azim404.com',
+    };
+  }
+
+  return {
+    type: 'custom_domain',
+    label: 'DNS Propre',
+    badgeClass: 'bg-emerald-950/60 text-emerald-300 border-emerald-500/30',
+    example: 'domaine-independant.com',
+  };
+}
+
 export default function AdminDashboardPage() {
   const {
     user,
@@ -310,16 +351,28 @@ export default function AdminDashboardPage() {
       targetLink = `https://azim404.com/${cleanSub}`;
       targetScope = 'SPECIFIC';
       targetPages = `/${cleanSub}`;
-    } else {
+    } else if (newDeployType === 'custom_domain') {
       targetDomain = (newDomain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
       targetLink = newLink.trim() || (targetDomain ? `https://${targetDomain}/` : '');
+      targetScope = 'ALL';
+    } else {
+      // subdomain (*.azim404.com)
+      let clean = (newDomain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (clean && !clean.includes('.')) {
+        clean = `${clean}.azim404.com`;
+      }
+      targetDomain = clean || `${newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}.azim404.com`;
+      targetLink = newLink.trim() || (targetDomain ? `https://${targetDomain}/` : '');
+      targetScope = 'ALL';
     }
+
+    const defaultBadge = newDeployType === 'subpath' ? 'Sous-chemin' : newDeployType === 'custom_domain' ? 'DNS Propre' : 'En ligne';
 
     const projectRes = await savePortfolioProject({
       title: newTitle,
       description: newDesc,
       technologies: newStack.split(',').map((s) => s.trim()).filter(Boolean),
-      badge: newBadge || (newDeployType === 'subpath' ? 'Sous-chemin' : 'En ligne'),
+      badge: newBadge || defaultBadge,
       link: targetLink,
       domain: targetDomain,
       image: newImage.trim() || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
@@ -344,7 +397,8 @@ export default function AdminDashboardPage() {
       });
     }
 
-    showToast(`Projet "${newTitle}" ajouté (${newDeployType === 'subpath' ? 'Sous-chemin azim404.com' : 'Sous-domaine DNS'})`);
+    const typeLabel = newDeployType === 'subpath' ? 'Sous-chemin azim404' : newDeployType === 'custom_domain' ? 'DNS Propre' : 'Sous-domaine DNS';
+    showToast(`Projet "${newTitle}" ajouté (${typeLabel})`);
     setShowAddProjectModal(false);
     setNewTitle('');
     setNewDesc('');
@@ -422,6 +476,7 @@ export default function AdminDashboardPage() {
       link: proj.link,
       image: proj.image,
       domain: domainKey || proj.domain || '',
+      deployType: proj.deployType || siteConfig?.deployType,
       visibleOnPortfolio: proj.visibleOnPortfolio !== false,
       inMaintenance: Boolean(siteConfig?.inMaintenance || proj.inMaintenance),
       siteConfig: siteConfig || {
@@ -448,6 +503,7 @@ export default function AdminDashboardPage() {
         badge: site.inMaintenance ? 'En travaux' : 'Actif',
         link: `https://${site.domain}/`,
         domain: site.domain,
+        deployType: site.deployType,
         visibleOnPortfolio: false,
         inMaintenance: Boolean(site.inMaintenance),
         siteConfig: site,
@@ -603,7 +659,23 @@ export default function AdminDashboardPage() {
                       showToast(nextState ? `Mode Travaux activé pour ${item.title}` : `${item.title} remis en ligne`);
                     }}
                     onTogglePortfolioVisibility={async (id, nextVisible) => {
-                      await toggleProjectVisibility(id, nextVisible);
+                      if (!item.isProject) {
+                        await savePortfolioProject({
+                          id: item.id,
+                          title: item.title,
+                          description: item.description,
+                          technologies: item.technologies || [],
+                          badge: item.badge || 'En ligne',
+                          link: item.link,
+                          domain: item.domain,
+                          image: item.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
+                          deployType: item.deployType || 'subdomain',
+                          visibleOnPortfolio: nextVisible,
+                          inMaintenance: item.inMaintenance,
+                        });
+                      } else {
+                        await toggleProjectVisibility(id, nextVisible);
+                      }
                       showToast(nextVisible ? `Affiché sur portfolio` : `Masqué du portfolio`);
                     }}
                     onSaveProject={async (projData) => {
@@ -997,10 +1069,26 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Sélecteur de Type de Déploiement : DNS Dédié vs Sous-Chemin */}
+              {/* Sélecteur de Type de Déploiement : 3 types distincts */}
               <div className="space-y-1.5 p-3 rounded-lg bg-slate-900 border border-slate-800">
                 <label className="text-xs font-mono text-gray-300 block">TYPE DE SITE / DÉPLOIEMENT</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDeployType('custom_domain');
+                      setNewBadge('DNS Propre');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border text-left transition ${
+                      newDeployType === 'custom_domain'
+                        ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 font-semibold'
+                        : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <div>1. DNS Propre</div>
+                    <div className="text-[10px] font-mono text-gray-500 truncate">ex: monprojet.fr</div>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1013,7 +1101,7 @@ export default function AdminDashboardPage() {
                         : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
                     }`}
                   >
-                    <div>Sous-domaine DNS</div>
+                    <div>2. Sous-domaine DNS</div>
                     <div className="text-[10px] font-mono text-gray-500 truncate">xxx.azim404.com</div>
                   </button>
 
@@ -1032,7 +1120,7 @@ export default function AdminDashboardPage() {
                         : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
                     }`}
                   >
-                    <div>Site secondaire</div>
+                    <div>3. Sous-chemin</div>
                     <div className="text-[10px] font-mono text-gray-500 truncate">azim404.com/xxx</div>
                   </button>
                 </div>
@@ -1058,26 +1146,61 @@ export default function AdminDashboardPage() {
                     URL générée : <span className="text-purple-300">https://azim404.com/{newSubpath || 'nexus-v'}</span>
                   </p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ) : newDeployType === 'custom_domain' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-emerald-950/20 border border-emerald-500/30">
                   <div className="space-y-1">
-                    <label className="text-xs font-mono text-gray-300">LIEN / URL COMPLÈTE</label>
+                    <label className="text-xs font-mono text-emerald-300">DOMAINE PROPRE (DNS INDÉPENDANT)</label>
+                    <input
+                      type="text"
+                      value={newDomain}
+                      onChange={(e) => {
+                        const dom = e.target.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                        setNewDomain(dom);
+                        if (!newLink || newLink.includes('azim404.com')) {
+                          setNewLink(dom ? `https://${dom}/` : '');
+                        }
+                      }}
+                      placeholder="mon-projet.com"
+                      required
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-emerald-300">URL DU SITE</label>
                     <input
                       type="text"
                       value={newLink}
                       onChange={(e) => setNewLink(e.target.value)}
-                      placeholder="https://site.azim404.com/"
-                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                      placeholder="https://mon-projet.com/"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
                     />
                   </div>
-
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-cyan-950/20 border border-cyan-500/30">
                   <div className="space-y-1">
-                    <label className="text-xs font-mono text-gray-300">DOMAINE (DNS)</label>
+                    <label className="text-xs font-mono text-cyan-300">SOUS-DOMAINE (*.azim404.com)</label>
                     <input
                       type="text"
                       value={newDomain}
-                      onChange={(e) => setNewDomain(e.target.value)}
-                      placeholder="site.azim404.com"
+                      onChange={(e) => {
+                        let dom = e.target.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                        setNewDomain(dom);
+                        const cleanDom = dom.includes('.') ? dom : `${dom}.azim404.com`;
+                        setNewLink(dom ? `https://${cleanDom}/` : '');
+                      }}
+                      placeholder="cxb.azim404.com"
+                      required
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-cyan-300">URL DU SITE</label>
+                    <input
+                      type="text"
+                      value={newLink}
+                      onChange={(e) => setNewLink(e.target.value)}
+                      placeholder="https://cxb.azim404.com/"
                       className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
@@ -1220,6 +1343,7 @@ function UnifiedProjectCard({
 
   const siteConfig = item.siteConfig || {};
   const [inMaintenance, setInMaintenance] = useState(Boolean(item.inMaintenance));
+  const [isVisible, setIsVisible] = useState(item.visibleOnPortfolio !== false);
   const [scope, setScope] = useState(siteConfig.scope || 'ALL');
   const [targetPages, setTargetPages] = useState(siteConfig.targetPages || '');
   const [mTitle, setMTitle] = useState(siteConfig.title || 'Atelier en cours de rénovation');
@@ -1235,6 +1359,7 @@ function UnifiedProjectCard({
       setDomain(item.domain || '');
       setImage(item.image || '');
       setInMaintenance(Boolean(item.inMaintenance));
+      setIsVisible(item.visibleOnPortfolio !== false);
       const sc = item.siteConfig || {};
       setScope(sc.scope || 'ALL');
       setTargetPages(sc.targetPages || '');
@@ -1256,7 +1381,7 @@ function UnifiedProjectCard({
         link,
         domain: (domain || item.domain).trim(),
         image: (image || '').trim(),
-        visibleOnPortfolio: item.visibleOnPortfolio,
+        visibleOnPortfolio: isVisible,
         inMaintenance,
       });
     }
@@ -1278,12 +1403,12 @@ function UnifiedProjectCard({
     setIsEditing(false);
   };
 
-  const isSubpathDeploy = item.deployType === 'subpath' || (item.domain && item.domain.includes('/')) || (item.link && item.link.includes('azim404.com/'));
+  const classification = getDeploymentClassification(item);
 
   return (
     <div
       className={`p-5 rounded-xl border flex flex-col justify-between transition-all ${
-        item.inMaintenance
+        inMaintenance
           ? 'bg-slate-950 border-amber-500/40 shadow-sm'
           : 'bg-slate-950/80 border-slate-800'
       }`}
@@ -1314,24 +1439,16 @@ function UnifiedProjectCard({
               <span className="text-xs font-mono uppercase text-gray-400 truncate">
                 {item.domain || 'Projet'}
               </span>
-              {isSubpathDeploy ? (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 border border-amber-500/30">
-                  Sous-chemin azim404.com
-                </span>
-              ) : (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-300 border border-slate-800">
-                  DNS Propre
-                </span>
-              )}
-              {item.isProject && (
-                <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
-                  item.visibleOnPortfolio
-                    ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/30'
-                    : 'bg-slate-900 text-gray-400 border-slate-700'
-                }`}>
-                  {item.visibleOnPortfolio ? 'Sur Portfolio' : 'Masqué Portfolio'}
-                </span>
-              )}
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${classification.badgeClass}`}>
+                {classification.label}
+              </span>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded border transition ${
+                isVisible
+                  ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/30'
+                  : 'bg-slate-900 text-gray-400 border-slate-700'
+              }`}>
+                {isVisible ? 'Sur Portfolio' : 'Masqué Portfolio'}
+              </span>
             </div>
             <h3 className="text-base font-bold text-white mt-1 truncate">{item.title}</h3>
           </div>
@@ -1391,7 +1508,7 @@ function UnifiedProjectCard({
           <div className="pt-2">
             <button
               onClick={() => {
-                const nextState = !item.inMaintenance;
+                const nextState = !inMaintenance;
                 setInMaintenance(nextState);
                 onToggleMaintenance(siteConfig.id || item.id, nextState, {
                   domain: (domain || item.domain || '').trim(),
@@ -1402,12 +1519,12 @@ function UnifiedProjectCard({
                 });
               }}
               className={`w-full py-2 px-3 rounded-lg text-sm font-semibold tracking-wide transition ${
-                item.inMaintenance
+                inMaintenance
                   ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
                   : 'bg-amber-700 hover:bg-amber-600 text-white'
               }`}
             >
-              {item.inMaintenance
+              {inMaintenance
                 ? 'Désactiver les travaux (Remettre en ligne)'
                 : 'Mettre ce site en travaux (1 clic)'}
             </button>
@@ -1578,12 +1695,21 @@ function UnifiedProjectCard({
                 Audit .md
               </button>
             )}
-            {item.isProject && (
+            {item.id !== 'azim404' && (
               <button
-                onClick={() => onTogglePortfolioVisibility(item.id, !item.visibleOnPortfolio)}
-                className="font-mono px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-gray-300 hover:text-white transition"
+                type="button"
+                onClick={async () => {
+                  const nextVis = !isVisible;
+                  setIsVisible(nextVis);
+                  await onTogglePortfolioVisibility(item.id, nextVis);
+                }}
+                className={`font-mono px-2.5 py-1 rounded border text-xs transition ${
+                  isVisible
+                    ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-gray-300 hover:text-white'
+                    : 'bg-cyan-950 hover:bg-cyan-900 border-cyan-700/50 text-cyan-300'
+                }`}
               >
-                {item.visibleOnPortfolio ? 'Masquer portfolio' : 'Afficher portfolio'}
+                {isVisible ? 'Masquer portfolio' : 'Afficher portfolio'}
               </button>
             )}
 

@@ -26,7 +26,7 @@ import {
   gradeToColor,
   computeCategoryScores,
 } from '../services/audit.service.js';
-import { dbSavePortfolioProjects } from '../config/db.js';
+import { dbSavePortfolioProjects, dbSaveMaintenanceOverride } from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -101,13 +101,57 @@ function readStatusFile() {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    if (!fs.existsSync(STATUS_FILE)) {
-      fs.writeFileSync(STATUS_FILE, JSON.stringify(DEFAULT_SITES, null, 2), 'utf-8');
-      return DEFAULT_SITES;
+    let parsed = {};
+    if (fs.existsSync(STATUS_FILE)) {
+      try {
+        const raw = fs.readFileSync(STATUS_FILE, 'utf-8');
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        parsed = {};
+      }
     }
-    const raw = fs.readFileSync(STATUS_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SITES, ...parsed };
+
+    const mergedSites = { ...DEFAULT_SITES, ...parsed };
+
+    // Auto-synchronisation des projets de portfolio_projects.json dans site_status
+    if (fs.existsSync(PROJECTS_FILE)) {
+      try {
+        const pRaw = fs.readFileSync(PROJECTS_FILE, 'utf-8');
+        const projects = JSON.parse(pRaw);
+        if (Array.isArray(projects)) {
+          for (const p of projects) {
+            if (!p.id) continue;
+            const cleanDom = (p.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+            const isSub = p.deployType === 'subpath' || cleanDom.includes('/');
+            const isCustom = p.deployType === 'custom_domain' || (!cleanDom.endsWith('.azim404.com') && cleanDom !== 'azim404.com');
+            const dType = p.deployType || (isSub ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain');
+
+            if (!mergedSites[p.id]) {
+              mergedSites[p.id] = {
+                id: p.id,
+                name: p.title || p.id,
+                domain: cleanDom,
+                deployType: dType,
+                inMaintenance: Boolean(p.inMaintenance),
+                scope: isSub ? 'SPECIFIC' : 'ALL',
+                targetPages: isSub ? cleanDom.substring(cleanDom.indexOf('/')) : '',
+                title: `${p.title || p.id} en cours de rénovation`,
+                message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+                updatedAt: new Date().toISOString(),
+              };
+            } else {
+              if (!mergedSites[p.id].deployType) {
+                mergedSites[p.id].deployType = dType;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // silencieux
+      }
+    }
+
+    return mergedSites;
   } catch (error) {
     console.error('Erreur lecture site_status.json:', error);
     return DEFAULT_SITES;
@@ -136,10 +180,14 @@ async function syncProjectMaintenance(id, domain, inMaintenance) {
     if (!Array.isArray(projects)) return;
 
     let modified = false;
+    const cleanDom = (domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
     for (const proj of projects) {
+      const pDom = (proj.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
       if (
         proj.id === id ||
-        (proj.domain && proj.domain.toLowerCase() === domain?.toLowerCase())
+        (cleanDom && pDom === cleanDom) ||
+        (id === 'cxb' && (proj.id === 'cars-x-battle' || proj.id === 'cxb')) ||
+        (id === 'cars-x-battle' && (proj.id === 'cxb' || proj.id === 'cars-x-battle'))
       ) {
         proj.inMaintenance = inMaintenance;
         modified = true;
@@ -276,18 +324,37 @@ export const checkMaintenanceStatus = (req, res) => {
     (req.headers['host'] && !/localhost|127\.0\.0\.1/i.test(req.headers['host']) ? req.headers['host'] : '') ||
     '';
 
+  const rawUri =
+    req.headers['x-original-uri'] ||
+    req.headers['x-forwarded-uri'] ||
+    req.url ||
+    '/';
+
+  const cleanPath = rawUri.split('?')[0].toLowerCase();
+  const cleanHost = String(rawHost).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+
   const sites = readStatusFile();
-  const matched = findMatchingSite(sites, rawHost);
+
+  // 1. D'abord chercher si un site secondaire / sous-chemin correspond (ex: azim404.com/nexus-v)
+  let matched = null;
+  if (cleanPath && cleanPath !== '/') {
+    const fullTarget = `${cleanHost}${cleanPath}`.replace(/\/+$/, '');
+    const subpathSites = Object.values(sites).filter(
+      (s) => s.deployType === 'subpath' || (s.domain && s.domain.includes('/'))
+    );
+    subpathSites.sort((a, b) => (b.domain || '').length - (a.domain || '').length);
+    matched = subpathSites.find((s) => {
+      const sTarget = (s.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      return sTarget === fullTarget || fullTarget.startsWith(sTarget + '/');
+    });
+  }
+
+  // 2. Si aucun sous-chemin spécifique ne correspond, matcher par l'hôte principal
+  if (!matched) {
+    matched = findMatchingSite(sites, rawHost);
+  }
 
   if (matched && matched.inMaintenance) {
-    const rawUri =
-      req.headers['x-original-uri'] ||
-      req.headers['x-forwarded-uri'] ||
-      req.url ||
-      '/';
-
-    const cleanPath = rawUri.split('?')[0].toLowerCase();
-
     // Verification du ciblage de pages
     if (matched.scope === 'SPECIFIC' && matched.targetPages) {
       const paths = matched.targetPages
@@ -346,12 +413,40 @@ export const renderMaintenanceScreen = (req, res) => {
     (req.headers['host'] && !/localhost|127\.0\.0\.1/i.test(req.headers['host']) ? req.headers['host'] : '') ||
     '';
 
+  const rawUri =
+    req.headers['x-original-uri'] ||
+    req.headers['x-forwarded-uri'] ||
+    req.url ||
+    '/';
+
+  const cleanPath = rawUri.split('?')[0].toLowerCase();
+  const cleanHost = String(rawHost).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
+
   const sites = readStatusFile();
-  const matched = findMatchingSite(sites, rawHost) || {
-    name: rawHost || 'Sofiane Kherarfa',
-    title: 'Atelier en cours de rénovation',
-    message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
-  };
+
+  let matched = null;
+  if (cleanPath && cleanPath !== '/') {
+    const fullTarget = `${cleanHost}${cleanPath}`.replace(/\/+$/, '');
+    const subpathSites = Object.values(sites).filter(
+      (s) => s.deployType === 'subpath' || (s.domain && s.domain.includes('/'))
+    );
+    subpathSites.sort((a, b) => (b.domain || '').length - (a.domain || '').length);
+    matched = subpathSites.find((s) => {
+      const sTarget = (s.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      return sTarget === fullTarget || fullTarget.startsWith(sTarget + '/');
+    });
+  }
+  if (!matched) {
+    matched = findMatchingSite(sites, rawHost);
+  }
+
+  if (!matched) {
+    matched = {
+      name: rawHost || 'Sofiane Kherarfa',
+      title: 'Atelier en cours de rénovation',
+      message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
+    };
+  }
 
   const escapeHtml = (str) =>
     String(str || '')
@@ -898,6 +993,18 @@ export const saveSite = async (req, res) => {
   sites[cleanId] = updatedSite;
   writeStatusFile(sites);
 
+  // Synchronise aussi dans MySQL maintenance_overrides
+  try {
+    await dbSaveMaintenanceOverride(
+      updatedSite.domain,
+      updatedSite.inMaintenance,
+      updatedSite.scope === 'SPECIFIC' ? (updatedSite.targetPages || '*') : '*',
+      updatedSite.message || ''
+    );
+  } catch (e) {
+    // silencieux
+  }
+
   // Synchronise aussi le projet portfolio et MySQL
   await syncProjectMaintenance(cleanId, updatedSite.domain, updatedSite.inMaintenance);
 
@@ -928,11 +1035,12 @@ export const toggleSiteStatus = async (req, res) => {
   if (!currentSite) {
     const finalId = siteKey || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString();
     const isSub = deployType === 'subpath' || cleanDomain.includes('/');
+    const isCustom = deployType === 'custom_domain' || (!cleanDomain.endsWith('.azim404.com') && cleanDomain !== 'azim404.com');
     currentSite = {
       id: finalId,
       name: name || cleanDomain || finalId,
       domain: cleanDomain || `${finalId}.azim404.com`,
-      deployType: isSub ? 'subpath' : 'subdomain',
+      deployType: deployType || (isSub ? 'subpath' : isCustom ? 'custom_domain' : 'subdomain'),
       inMaintenance: false,
       scope: scope || (isSub ? 'SPECIFIC' : 'ALL'),
       targetPages: targetPages || (isSub ? cleanDomain.substring(cleanDomain.indexOf('/')) : ''),
@@ -956,6 +1064,18 @@ export const toggleSiteStatus = async (req, res) => {
 
   sites[currentSite.id] = currentSite;
   writeStatusFile(sites);
+
+  // Synchronise aussi dans MySQL maintenance_overrides
+  try {
+    await dbSaveMaintenanceOverride(
+      currentSite.domain,
+      nextState,
+      currentSite.scope === 'SPECIFIC' ? (currentSite.targetPages || '*') : '*',
+      currentSite.message || ''
+    );
+  } catch (e) {
+    // silencieux
+  }
 
   // Synchronise portfolio_projects.json et MySQL
   await syncProjectMaintenance(currentSite.id, currentSite.domain, nextState);

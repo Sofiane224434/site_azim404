@@ -1,5 +1,4 @@
 // backend/src/config/db.js
-import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,6 +18,7 @@ const dbConfig = {
 
 let pool = null;
 let isDbReady = false;
+let mysql = null;
 
 // Fallback JSON paths
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../data');
@@ -29,6 +29,10 @@ const ACCOUNTS_JSON = path.join(DATA_DIR, 'private_accounts.json');
 
 export async function initDatabase() {
   try {
+    if (!mysql) {
+      const mod = await import('mysql2/promise');
+      mysql = mod.default || mod;
+    }
     pool = mysql.createPool(dbConfig);
     const conn = await pool.getConnection();
     console.log('[DB] Connecté à MySQL avec succès');
@@ -310,6 +314,46 @@ export async function dbDeletePortfolioProject(id) {
   if (fs.existsSync(PROJECTS_JSON)) {
     const list = JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8')).filter((p) => p.id !== id);
     fs.writeFileSync(PROJECTS_JSON, JSON.stringify(list, null, 2), 'utf8');
+  }
+}
+
+// Maintenance overrides
+export async function dbSaveMaintenanceOverride(domain, isMaintenance, pageTarget = '*', customMessage = '') {
+  const cleanDom = (domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!cleanDom) return;
+
+  if (isDbReady) {
+    try {
+      await query(
+        `INSERT INTO maintenance_overrides (domain, is_maintenance, page_target, custom_message)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE is_maintenance = VALUES(is_maintenance), page_target = VALUES(page_target), custom_message = VALUES(custom_message)`,
+        [cleanDom, isMaintenance ? 1 : 0, pageTarget || '*', customMessage || '']
+      );
+    } catch (e) {
+      console.warn('[DB] Erreur écriture maintenance_overrides SQL:', e.message);
+    }
+  }
+
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    let overrides = {};
+    if (fs.existsSync(MAINTENANCE_JSON)) {
+      try {
+        overrides = JSON.parse(fs.readFileSync(MAINTENANCE_JSON, 'utf8'));
+      } catch {
+        overrides = {};
+      }
+    }
+    overrides[cleanDom] = {
+      is_maintenance: Boolean(isMaintenance),
+      page_target: pageTarget || '*',
+      custom_message: customMessage || '',
+      updated_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(MAINTENANCE_JSON, JSON.stringify(overrides, null, 2), 'utf8');
+  } catch (e) {
+    // silencieux
   }
 }
 

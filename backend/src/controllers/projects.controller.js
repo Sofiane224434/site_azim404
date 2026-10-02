@@ -263,13 +263,24 @@ export const saveProject = async (req, res) => {
 // POST /api/portfolio-projects/toggle-visibility
 export const toggleVisibility = async (req, res) => {
   const { id, visible } = req.body || {};
+  const cleanId = (id || '').trim().toLowerCase();
   const projects = await loadProjects();
-  const project = projects.find((p) => p.id === id);
+  
+  const project = projects.find((p) => 
+    p.id === id || 
+    p.id === cleanId || 
+    (p.domain && p.domain.toLowerCase() === cleanId) ||
+    (cleanId === 'cxb' && (p.id === 'cars-x-battle' || p.id === 'cxb')) ||
+    (cleanId === 'cars-x-battle' && (p.id === 'cxb' || p.id === 'cars-x-battle'))
+  );
+
   if (!project) {
     return res.status(404).json({ success: false, error: 'Projet introuvable' });
   }
 
-  project.visibleOnPortfolio = typeof visible === 'boolean' ? visible : !project.visibleOnPortfolio;
+  const nextVis = typeof visible === 'boolean' ? visible : !project.visibleOnPortfolio;
+  project.visibleOnPortfolio = nextVis;
+  project.is_displayed = nextVis;
   await dbSavePortfolioProjects(projects);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');

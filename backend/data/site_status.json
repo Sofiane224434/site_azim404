@@ -21,17 +21,6 @@
     "message": "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
     "updatedAt": "2026-10-01T14:00:00.000Z"
   },
-  "cxb": {
-    "id": "cxb",
-    "name": "Cars X Battle",
-    "domain": "cxb.azim404.com",
-    "inMaintenance": false,
-    "scope": "ALL",
-    "targetPages": "",
-    "title": "Atelier en cours de rénovation",
-    "message": "Salut, c'est Sofiane ! Je prépare une mise à jour majeure sur Cars X Battle. Le jeu sera de retour très vite !",
-    "updatedAt": "2026-10-02T10:00:00.000Z"
-  },
   "nexus-v": {
     "id": "nexus-v",
     "name": "Nexus-V",
@@ -42,7 +31,78 @@
     "targetPages": "/nexus-v",
     "title": "Nexus-V en cours de mise à jour",
     "message": "La passerelle Nexus-V sous azim404.com est temporairement en maintenance.",
-    "updatedAt": "2026-10-02T18:00:00.000Z"
+    "updatedAt": "2026-10-02T19:40:36.815Z"
+  },
+  "cxb": {
+    "id": "cxb",
+    "name": "Cars X Battle",
+    "domain": "cxb.azim404.com",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Atelier en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je prépare une mise à jour majeure sur Cars X Battle. Le jeu sera de retour très vite !",
+    "updatedAt": "2026-10-02T10:00:00.000Z",
+    "deployType": "subdomain"
+  },
+  "fansite": {
+    "id": "fansite",
+    "name": "Fansite Malaisie",
+    "domain": "fansite.azim404.com",
+    "deployType": "subdomain",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Fansite Malaisie en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+    "updatedAt": "2026-10-02T19:38:24.791Z"
+  },
+  "novakult": {
+    "id": "novakult",
+    "name": "Novakult",
+    "domain": "novakult.azim404.com",
+    "deployType": "subdomain",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Novakult en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+    "updatedAt": "2026-10-02T19:38:24.791Z"
+  },
+  "kulturdb": {
+    "id": "kulturdb",
+    "name": "KulturDB",
+    "domain": "kulturdb.azim404.com",
+    "deployType": "subdomain",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "KulturDB en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+    "updatedAt": "2026-10-02T19:38:24.791Z"
+  },
+  "marsai": {
+    "id": "marsai",
+    "name": "MarsAI",
+    "domain": "marsai.azim404.com",
+    "deployType": "subdomain",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "MarsAI en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+    "updatedAt": "2026-10-02T19:38:24.791Z"
+  },
+  "wikisguessr": {
+    "id": "wikisguessr",
+    "name": "WikisGuessr",
+    "domain": "wikisguessr.azim404.com",
+    "deployType": "subdomain",
+    "inMaintenance": false,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "WikisGuessr en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
+    "updatedAt": "2026-10-02T19:38:24.791Z"
   }
 }
-

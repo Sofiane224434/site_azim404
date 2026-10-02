@@ -99,10 +99,11 @@ export function AdminProvider({ children }) {
         const data = await res.json();
         const incoming = data.sites || data.status;
         if (incoming && typeof incoming === 'object') {
-          const merged = { ...DEFAULT_SITES, ...incoming };
-          setSites(merged);
-          localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(merged));
-          return merged;
+          setSites((prev) => {
+            const merged = { ...DEFAULT_SITES, ...prev, ...incoming };
+            localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(merged));
+            return merged;
+          });
         }
       }
     } catch {
@@ -110,8 +111,7 @@ export function AdminProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-    return sites;
-  }, [sites]);
+  }, []);
 
   // Sync accounts from backend
   const refreshAccounts = useCallback(async () => {
@@ -147,8 +147,7 @@ export function AdminProvider({ children }) {
     } catch {
       // offline
     }
-    return portfolioProjects;
-  }, [portfolioProjects]);
+  }, []);
 
   useEffect(() => {
     refreshSites();
@@ -156,42 +155,40 @@ export function AdminProvider({ children }) {
     refreshPortfolioProjects();
   }, [refreshSites, refreshAccounts, refreshPortfolioProjects]);
 
-  // 1-Click Toggle Maintenance (Synchronise sites ET portfolioProjects)
+  // 1-Click Toggle Maintenance (Synchronise sites ET portfolioProjects de façon atomique)
   const toggleSiteMaintenance = async (siteId, inMaintenance, patchData = {}) => {
-    const existing = sites[siteId] || {};
-    const nextState = typeof inMaintenance === 'boolean' ? inMaintenance : !existing.inMaintenance;
-    const cleanDomain = (patchData.domain || existing.domain || siteId)
+    let nextState = inMaintenance;
+    const cleanDomain = (patchData.domain || siteId || '')
       .toLowerCase()
       .replace(/^https?:\/\//, '')
       .replace(/\/$/, '');
 
-    const updatedSite = {
-      ...existing,
-      ...patchData,
-      id: siteId,
-      domain: cleanDomain,
-      inMaintenance: nextState,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const nextSites = {
-      ...sites,
-      [siteId]: updatedSite,
-    };
-
-    // Instant local state update
-    setSites(nextSites);
-    localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
-
-    // Synchronise aussi instantanément portfolioProjects si c'est un projet
-    const updatedProjects = portfolioProjects.map((p) => {
-      if (p.id === siteId || (p.domain && p.domain.toLowerCase() === cleanDomain)) {
-        return { ...p, inMaintenance: nextState };
-      }
-      return p;
+    setSites((prevSites) => {
+      const existing = prevSites[siteId] || {};
+      nextState = typeof inMaintenance === 'boolean' ? inMaintenance : !existing.inMaintenance;
+      const updatedSite = {
+        ...existing,
+        ...patchData,
+        id: siteId,
+        domain: cleanDomain || existing.domain || siteId,
+        inMaintenance: nextState,
+        updatedAt: new Date().toISOString(),
+      };
+      const nextSites = { ...prevSites, [siteId]: updatedSite };
+      localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(nextSites));
+      return nextSites;
     });
-    setPortfolioProjects(updatedProjects);
-    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedProjects));
+
+    setPortfolioProjects((prevProjects) => {
+      const updatedProjects = prevProjects.map((p) => {
+        if (p.id === siteId || (p.domain && p.domain.toLowerCase() === cleanDomain)) {
+          return { ...p, inMaintenance: nextState };
+        }
+        return p;
+      });
+      localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedProjects));
+      return updatedProjects;
+    });
 
     // Push au backend
     try {
@@ -210,15 +207,16 @@ export function AdminProvider({ children }) {
         const data = await res.json();
         const remoteSites = data.sites || data.all;
         if (remoteSites) {
-          setSites(remoteSites);
-          localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(remoteSites));
+          setSites((prev) => {
+            const merged = { ...prev, ...remoteSites };
+            localStorage.setItem(STORAGE_SITES_KEY, JSON.stringify(merged));
+            return merged;
+          });
         }
       }
     } catch (e) {
       console.warn('Erreur toggle backend:', e);
     }
-
-    return updatedSite;
   };
 
   // Add or Update Site
@@ -354,22 +352,33 @@ export function AdminProvider({ children }) {
 
   // Toggle Visibility on Portfolio (Masquer du portfolio public sans supprimer de l'admin)
   const toggleProjectVisibility = async (id, visible) => {
-    const updatedList = portfolioProjects.map((p) => {
-      if (p.id === id) {
-        return { ...p, visibleOnPortfolio: typeof visible === 'boolean' ? visible : !p.visibleOnPortfolio };
-      }
-      return p;
+    let targetVisible = visible;
+    setPortfolioProjects((prev) => {
+      const updatedList = prev.map((p) => {
+        if (p.id === id || p.domain === id) {
+          const nextVal = typeof visible === 'boolean' ? visible : !p.visibleOnPortfolio;
+          targetVisible = nextVal;
+          return { ...p, visibleOnPortfolio: nextVal, is_displayed: nextVal };
+        }
+        return p;
+      });
+      localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
+      return updatedList;
     });
 
-    setPortfolioProjects(updatedList);
-    localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(updatedList));
-
     try {
-      await fetch('/api/portfolio-projects/toggle-visibility', {
+      const res = await fetch('/api/portfolio-projects/toggle-visibility', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, visible }),
+        body: JSON.stringify({ id, visible: targetVisible }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.projects) {
+          setPortfolioProjects(data.projects);
+          localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(data.projects));
+        }
+      }
     } catch {
       // offline
     }
