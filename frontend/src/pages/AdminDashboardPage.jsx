@@ -1990,20 +1990,12 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          // 2. Écriture dans agent/ et racine
-          const agentDirHandle = await projectHandle.getDirectoryHandle('agent', { create: true });
+          // 2. Écriture à la racine du projet
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
-            const fileHandle = await agentDirHandle.getFileHandle(fname, { create: true });
+            const fileHandle = await projectHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
-
-            if (fname === 'project-context.md') {
-              const rootFileHandle = await projectHandle.getFileHandle(fname, { create: true });
-              const rootWritable = await rootFileHandle.createWritable();
-              await rootWritable.write(fileContent);
-              await rootWritable.close();
-            }
           }
 
           localUpdatedCount++;

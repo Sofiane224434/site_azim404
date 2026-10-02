@@ -94,15 +94,9 @@ async function syncLocal() {
         fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
       }
 
-      // 2. Écriture dans agent/
-      const agentDir = path.join(projectPath, 'agent');
-      fs.mkdirSync(agentDir, { recursive: true });
-
+      // 2. Écriture des fichiers de contexte et règles à la racine du projet
       for (const [filename, content] of Object.entries(bundle)) {
-        fs.writeFileSync(path.join(agentDir, filename), content, 'utf8');
-        if (filename === 'project-context.md') {
-          fs.writeFileSync(path.join(projectPath, 'project-context.md'), content, 'utf8');
-        }
+        fs.writeFileSync(path.join(projectPath, filename), content, 'utf8');
       }
 
       syncedCount++;
