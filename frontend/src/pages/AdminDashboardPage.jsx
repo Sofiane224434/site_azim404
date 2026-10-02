@@ -1308,29 +1308,65 @@ function AuditTestsTab({ sites, showToast }) {
     URL.revokeObjectURL(url);
   };
 
-  // Exporter en .md le rapport complet d'un site
+  // Exporter en .md le rapport complet d'un site avec tous les 20 outils automatisés
   const exportSiteMarkdown = (siteDom) => {
     const site = validSites.find((s) => s.cleanDomain === siteDom) || { cleanDomain: siteDom, title: siteDom };
-    const sSh = auditsSH[siteDom];
-    const sObs = auditsObs[siteDom];
-    const sSsl = auditsSSL[siteDom];
+    const full = auditsFull[siteDom] || {};
+    const sSh = full.sh || auditsSH[siteDom];
+    const sObs = full.obs || auditsObs[siteDom];
+    const sSsl = full.ssl || auditsSSL[siteDom];
+    const ps = full.pagespeed;
+    const wv = full.wave;
+    const seo = full.seo;
+    const gdpr = full.twoGdpr;
+    const cbot = full.cookiebot;
+    const bl = full.blacklight;
+    const th = full.trufflehog;
+    const gl = full.gitleaks;
+    const gg = full.gitguardian;
+    const kn = full.knip;
+    const dc = full.depcheck;
+    const es = full.eslint;
+    const sq = full.sonarqube;
+    const mdg = full.madge;
+    const snyk = full.npmSnyk;
+    const pr = full.prismaDoctor;
+    const zap = full.owaspZap;
+
     const global = getSiteGlobal(siteDom);
     const now = new Date().toLocaleString('fr-FR');
 
-    let md = `# Rapport d'Audit & Sécurité — ${site.title || siteDom}\n\n`;
-    md += `> Date du rapport : ${now} • Généré via la console Azim404\n\n`;
+    let md = `# Rapport d'Audit & Sécurité Intégrale — ${site.title || siteDom}\n\n`;
+    md += `> Date du rapport : ${now} • Généré automatiquement via la console Azim404\n\n`;
 
     md += `## 1. Synthèse Globale\n\n`;
     md += `- **Domaine :** \`${siteDom}\`\n`;
     md += `- **Note Globale :** **${global.grade}** (${global.score != null ? `${global.score}/100` : 'N/A'}) — *${global.label}*\n`;
     md += `- **Dernière analyse :** ${lastCheckTimes[siteDom] ? new Date(lastCheckTimes[siteDom]).toLocaleString('fr-FR') : 'À l’instant'}\n\n`;
 
-    md += `### Résultats par référentiel d'audit\n\n`;
-    md += `| Outil d'Audit | Note | Score | Statut / Détails |\n`;
-    md += `|---|---|---|---|\n`;
-    md += `| **SecurityHeaders** | **${sSh?.grade || '-'}** | ${sSh?.score != null ? `${sSh.score}/100` : '-'} | ${sSh?.success ? 'En-têtes HTTP analysés' : (sSh?.error || 'Non disponible')} |\n`;
-    md += `| **Mozilla Observatory (MDN)** | **${sObs?.grade || '-'}** | ${sObs?.score != null ? `${sObs.score}/100` : '-'} | ${sObs?.success ? `${sObs.tests_passed || 0} réussis, ${sObs.tests_failed || 0} échoués` : (sObs?.error || 'Non disponible')} |\n`;
-    md += `| **Qualys SSL Labs / TLS** | **${sSsl?.grade || '-'}** | - | ${sSsl?.protocol || 'TLSv1.3'} (${sSsl?.issuer || "Let's Encrypt"}${sSsl?.daysRemaining ? ` - Expire dans ${sSsl.daysRemaining}j` : ''}) |\n\n`;
+    md += `### Tableau Synthétique des 20 Outils d'Audit\n\n`;
+    md += `| Catégorie | Outil | Note | Score | Statut / Métriques clés |\n`;
+    md += `|---|---|---|---|---|\n`;
+    md += `| 1. Sécurité réseau | **SecurityHeaders** | **${sSh?.grade || '-'}** | ${sSh?.score != null ? `${sSh.score}/100` : '-'} | ${sSh?.success ? 'En-têtes HTTP analysés' : (sSh?.error || 'En attente')} |\n`;
+    md += `| 1. Sécurité réseau | **Mozilla Observatory** | **${sObs?.grade || '-'}** | ${sObs?.score != null ? `${sObs.score}/100` : '-'} | ${sObs?.success ? `${sObs.tests_passed || 0} réussis / ${sObs.tests_failed || 0} échoués` : (sObs?.error || 'En attente')} |\n`;
+    md += `| 1. Sécurité réseau | **Qualys SSL Labs / TLS** | **${sSsl?.grade || '-'}** | - | ${sSsl?.protocol || 'TLSv1.3'} (${sSsl?.issuer || "Let's Encrypt"}, ${sSsl?.daysRemaining ? `${sSsl.daysRemaining}j restants` : 'actif'}) |\n`;
+    md += `| 2. SEO & Performance | **Google PageSpeed** | **${ps?.grade || '-'}** | ${ps?.score != null ? `${ps.score}/100` : '-'} | TTFB: ${ps?.ttfb != null ? `${ps.ttfb}ms` : '-'}, Poids: ${ps?.totalByteWeight ? `${Math.round(ps.totalByteWeight / 1024)} KB` : '-'} |\n`;
+    md += `| 2. SEO & Performance | **WAVE WebAIM** | **${wv?.grade || '-'}** | ${wv?.score != null ? `${wv.score}/100` : '-'} | Images sans alt: ${wv?.missingAlt ?? 0}, Boutons sans label: ${wv?.emptyButtons ?? 0} |\n`;
+    md += `| 2. SEO & Performance | **Google Search Console & Ahrefs** | **${seo?.grade || '-'}** | ${seo?.score != null ? `${seo.score}/100` : '-'} | robots.txt: ${seo?.hasRobots ? 'OK' : 'Absent'}, sitemap: ${seo?.hasSitemap ? 'OK' : 'Absent'} |\n`;
+    md += `| 3. RGPD & Cookies | **2gdpr Scanner** | **${gdpr?.grade || '-'}** | ${gdpr?.score != null ? `${gdpr.score}/100` : '-'} | Cookies avant consentement: ${gdpr?.cookiesBeforeConsent ?? 0} |\n`;
+    md += `| 3. RGPD & Cookies | **Cookiebot Scanner** | **${cbot?.grade || '-'}** | ${cbot?.score != null ? `${cbot.score}/100` : '-'} | Cookies: ${cbot?.cookiesFound ?? 0}, Sécurisés: ${cbot?.secureCookies ? 'Oui' : 'Non'} |\n`;
+    md += `| 3. RGPD & Cookies | **Blacklight (The Markup)** | **${bl?.grade || '-'}** | ${bl?.score != null ? `${bl.score}/100` : '-'} | Trackers: ${bl?.adTrackersCount ?? 0}, Recorders: ${bl?.sessionRecorders ?? 0} |\n`;
+    md += `| 4. Fuites Git | **TruffleHog (CLI)** | **${th?.grade || '-'}** | ${th?.score != null ? `${th.score}/100` : '-'} | Secrets vérifiés: ${th?.verifiedSecretsCount ?? 0}, Détectés: ${th?.leaksDetected ? 'Alerte' : '0 fuite'} |\n`;
+    md += `| 4. Fuites Git | **Gitleaks (CLI)** | **${gl?.grade || '-'}** | ${gl?.score != null ? `${gl.score}/100` : '-'} | Fuites: ${gl?.leaksFound ?? 0}, Règles actives: ${gl?.rulesCount ?? 0} |\n`;
+    md += `| 4. Fuites Git | **GitGuardian** | **${gg?.grade || '-'}** | ${gg?.score != null ? `${gg.score}/100` : '-'} | Incidents: ${gg?.incidentsCount ?? 0}, Fichiers sensibles protégés |\n`;
+    md += `| 5. Qualité logicielle | **Knip** | **${kn?.grade || '-'}** | ${kn?.score != null ? `${kn.score}/100` : '-'} | Fichiers orphelins: ${kn?.unusedFilesCount ?? 0}, Exports orphelins: ${kn?.unusedExportsCount ?? 0} |\n`;
+    md += `| 5. Qualité logicielle | **Depcheck** | **${dc?.grade || '-'}** | ${dc?.score != null ? `${dc.score}/100` : '-'} | Dépendances mortes: ${dc?.unusedDependenciesCount ?? 0} |\n`;
+    md += `| 5. Qualité logicielle | **ESLint** | **${es?.grade || '-'}** | ${es?.score != null ? `${es.score}/100` : '-'} | Erreurs: ${es?.errorCount ?? 0}, Warnings: ${es?.warningCount ?? 0} |\n`;
+    md += `| 5. Qualité logicielle | **SonarQube / SonarCloud** | **${sq?.grade || '-'}** | ${sq?.score != null ? `${sq.score}/100` : '-'} | Dette: ${sq?.technicalDebtMinutes ?? 0} min, LOC: ${sq?.loc ?? 0} |\n`;
+    md += `| 5. Qualité logicielle | **Madge** | **${mdg?.grade || '-'}** | ${mdg?.score != null ? `${mdg.score}/100` : '-'} | Dépendances circulaires: ${mdg?.circularCount ?? 0} |\n`;
+    md += `| 6. Dépendances & DB | **npm audit / Snyk** | **${snyk?.grade || '-'}** | ${snyk?.score != null ? `${snyk.score}/100` : '-'} | Vulnérabilités: ${snyk?.totalVulnerabilities ?? 0} (Critiques: ${snyk?.critical ?? 0}, Hautes: ${snyk?.high ?? 0}) |\n`;
+    md += `| 6. Dépendances & DB | **Prisma Doctor / SQL** | **${pr?.grade || '-'}** | ${pr?.score != null ? `${pr.score}/100` : '-'} | Index manquants: ${pr?.missingIndexesCount ?? 0}, Requêtes lentes: ${pr?.slowQueriesDetected ?? 0} |\n`;
+    md += `| 6. Dépendances & DB | **OWASP ZAP (DAST)** | **${zap?.grade || '-'}** | ${zap?.score != null ? `${zap.score}/100` : '-'} | Alertes: ${zap?.alertsCount ?? 0}, SQLi: ${zap?.sqliProbesPassed ? 'OK' : 'Échec'}, XSS: ${zap?.xssProbesPassed ? 'OK' : 'Échec'} |\n\n`;
 
     md += `## 2. Détail des En-têtes HTTP de Sécurité\n\n`;
     if (sSh?.checks) {
@@ -1349,18 +1385,66 @@ function AuditTestsTab({ sites, showToast }) {
     if (sSh?.checks) {
       for (const [k, c] of Object.entries(sSh.checks)) {
         if (!c.present) {
-          errors.push(`- **En-tête manquant :** \`${c.name || k}\` (${c.desc})`);
+          errors.push(`- **[En-tête manquant]** \`${c.name || k}\` : ${c.desc}`);
         }
       }
     }
     if (sObs?.tests_failed > 0) {
-      errors.push(`- **Mozilla Observatory :** ${sObs.tests_failed} test(s) échoué(s) sur ${sObs.tests_quantity || 12} vérifications.`);
+      errors.push(`- **[Mozilla Observatory]** ${sObs.tests_failed} test(s) échoué(s) sur ${sObs.tests_quantity || 12} vérifications.`);
     }
     if (sSsl?.tlsValid === false) {
-      errors.push(`- **Certificat TLS :** Certificat SSL invalide ou expiré.`);
+      errors.push(`- **[Certificat TLS]** Certificat SSL invalide ou expiré.`);
     }
     if (sSh?.cookieSecurity && sSh.cookieSecurity.hasCookies && (!sSh.cookieSecurity.secure || !sSh.cookieSecurity.httpOnly)) {
-      errors.push(`- **Cookies non protégés :** Certains cookies ne possèdent pas les attributs requis (Secure, HttpOnly, SameSite).`);
+      errors.push(`- **[Cookies non sécurisés]** Des cookies HTTP ne possèdent pas les flags requis (Secure, HttpOnly, SameSite).`);
+    }
+    if (ps?.ttfb > 800) {
+      errors.push(`- **[PageSpeed TTFB]** Temps de réponse serveur élevé : ${ps.ttfb}ms (> 800ms).`);
+    }
+    if (wv?.missingAlt > 0) {
+      errors.push(`- **[WAVE WebAIM]** ${wv.missingAlt} image(s) sans attribut 'alt'.`);
+    }
+    if (wv?.emptyButtons > 0) {
+      errors.push(`- **[WAVE WebAIM]** ${wv.emptyButtons} bouton(s) sans texte ou aria-label accessible.`);
+    }
+    if (seo?.hasRobots === false) {
+      errors.push(`- **[SEO robots.txt]** Fichier robots.txt introuvable sur le domaine.`);
+    }
+    if (seo?.hasSitemap === false) {
+      errors.push(`- **[SEO sitemap.xml]** Fichier sitemap.xml introuvable sur le domaine.`);
+    }
+    if (gdpr?.cookiesBeforeConsent > 0) {
+      errors.push(`- **[2gdpr]** ${gdpr.cookiesBeforeConsent} cookie(s) déposé(s) avant acceptation de l'utilisateur.`);
+    }
+    if (bl?.adTrackersCount > 0) {
+      errors.push(`- **[Blacklight]** ${bl.adTrackersCount} tracker(s) publicitaire(s) tiers détecté(s).`);
+    }
+    if (bl?.sessionRecorders > 0) {
+      errors.push(`- **[Blacklight]** Enregistreur de session ou de frappe détecté sur la page.`);
+    }
+    if (th?.leaksDetected) {
+      errors.push(`- **[TruffleHog]** Secret potentiel détecté dans l'arborescence git.`);
+    }
+    if (gl?.leaksFound > 0) {
+      errors.push(`- **[Gitleaks]** ${gl.leaksFound} fuite(s) de clé ou token identifiée(s).`);
+    }
+    if (dc?.unusedDependenciesCount > 0) {
+      errors.push(`- **[Depcheck]** ${dc.unusedDependenciesCount} dépendance(s) déclarée(s) mais jamais importée(s) : ${dc.unusedDeps?.join(', ') || ''}`);
+    }
+    if (kn?.unusedFilesCount > 0) {
+      errors.push(`- **[Knip]** ${kn.unusedFilesCount} fichier(s) potentiellement orphelin(s).`);
+    }
+    if (es?.errorCount > 0) {
+      errors.push(`- **[ESLint]** ${es.errorCount} erreur(s) de linting dans le code source.`);
+    }
+    if (mdg?.circularCount > 0) {
+      errors.push(`- **[Madge]** ${mdg.circularCount} dépendance(s) circulaire(s) détectée(s).`);
+    }
+    if (snyk?.critical > 0 || snyk?.high > 0) {
+      errors.push(`- **[npm audit / Snyk]** ${snyk.critical} vulnérabilité(s) critique(s) et ${snyk.high} élevée(s) dans package.json.`);
+    }
+    if (zap?.alertsCount > 0) {
+      errors.push(`- **[OWASP ZAP]** ${zap.alertsCount} alerte(s) de sécurité dynamique DAST relevée(s).`);
     }
 
     if (errors.length > 0) {
@@ -1369,12 +1453,12 @@ function AuditTestsTab({ sites, showToast }) {
       md += `*Aucune erreur critique détectée. Tous les critères obligatoires sont validés.*\n\n`;
     }
 
-    md += `## 4. Recommandations d'Amélioration (Pour Note A+)\n\n`;
+    md += `## 4. Recommandations d'Amélioration & Hardening\n\n`;
     if (!sSh?.checks?.hsts?.present) {
       md += `- **HSTS :** Configurer \`Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\`\n`;
     }
     if (!sSh?.checks?.csp?.present) {
-      md += `- **CSP :** Définir une stratégie \`Content-Security-Policy\` restrictive pour bloquer les injections XSS.\n`;
+      md += `- **CSP :** Définir une directive \`Content-Security-Policy\` stricte pour bloquer les injections XSS.\n`;
     }
     if (!sSh?.checks?.xfo?.present) {
       md += `- **X-Frame-Options :** Configurer \`SAMEORIGIN\` pour bloquer le Clickjacking.\n`;
@@ -1386,7 +1470,13 @@ function AuditTestsTab({ sites, showToast }) {
       md += `- **Referrer-Policy :** Configurer \`strict-origin-when-cross-origin\`.\n`;
     }
     if (!sSh?.checks?.pp?.present) {
-      md += `- **Permissions-Policy :** Désactiver les capteurs matériels non sollicités (camera, micro, géolocalisation).\n`;
+      md += `- **Permissions-Policy :** Désactiver les capteurs matériels superflus (camera, micro, géolocalisation).\n`;
+    }
+    if (dc?.unusedDependenciesCount > 0) {
+      md += `- **Nettoyage dépendances :** Retirer les packages morts listés par depcheck via \`npm uninstall\`.\n`;
+    }
+    if (wv?.missingAlt > 0) {
+      md += `- **Accessibilité :** Renseigner l'attribut \`alt\` sur toutes les balises <img> pour l'accessibilité écran.\n`;
     }
     md += `\n`;
 
@@ -1396,6 +1486,7 @@ function AuditTestsTab({ sites, showToast }) {
     md += `- [Qualys SSL Labs](https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(siteDom)})\n`;
     md += `- [Google PageSpeed](https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(siteDom)}%2F)\n`;
     md += `- [Scanner 2gdpr](https://2gdpr.com/check?domain=${encodeURIComponent(siteDom)})\n`;
+    md += `- [Blacklight](https://themarkup.org/blacklight?url=${encodeURIComponent(siteDom)})\n`;
 
     downloadMarkdownFile(`audit-${siteDom.replace(/[^a-z0-9]/gi, '_')}.md`, md);
     showToast?.(`Rapport .md exporté pour ${siteDom}`);
@@ -1405,21 +1496,24 @@ function AuditTestsTab({ sites, showToast }) {
   const exportGlobalMarkdown = () => {
     const now = new Date().toLocaleString('fr-FR');
     let md = `# Rapport Global des Audits & Sécurité — Azim404\n\n`;
-    md += `> Date du rapport : ${now} • Infrastructure globale\n\n`;
+    md += `> Date du rapport : ${now} • Infrastructure globale & 20 outils de référence\n\n`;
 
-    md += `## 1. Synthèse par Site & Domaine\n\n`;
-    md += `| Site / Domaine | Note Globale | Score | SecurityHeaders | Observatory | SSL Labs | Dernière analyse |\n`;
-    md += `|---|---|---|---|---|---|---|\n`;
+    md += `## 1. Synthèse Globale par Site\n\n`;
+    md += `| Site / Domaine | Note Globale | Score | Sécurité Réseau | PageSpeed | WAVE | 2gdpr | Code & Vulns | Dernière analyse |\n`;
+    md += `|---|---|---|---|---|---|---|---|---|\n`;
 
     for (const site of validSites) {
       const sDom = site.cleanDomain;
       const global = getSiteGlobal(sDom);
-      const sSh = auditsSH[sDom];
-      const sObs = auditsObs[sDom];
-      const sSsl = auditsSSL[sDom];
+      const full = auditsFull[sDom] || {};
+      const sSh = full.sh || auditsSH[sDom];
+      const ps = full.pagespeed;
+      const wv = full.wave;
+      const gdpr = full.twoGdpr;
+      const snyk = full.npmSnyk;
       const dateStr = lastCheckTimes[sDom] ? new Date(lastCheckTimes[sDom]).toLocaleDateString('fr-FR') : 'Non analysé';
 
-      md += `| **${site.title || sDom}** (\`${sDom}\`) | **${global.grade}** | ${global.score != null ? `${global.score}/100` : '-'} | ${sSh?.grade || '-'} | ${sObs?.grade || '-'} | ${sSsl?.grade || '-'} | ${dateStr} |\n`;
+      md += `| **${site.title || sDom}** (\`${sDom}\`) | **${global.grade}** | ${global.score != null ? `${global.score}/100` : '-'} | ${sSh?.grade || '-'} | ${ps?.grade || '-'} | ${wv?.grade || '-'} | ${gdpr?.grade || '-'} | ${snyk?.grade || '-'} | ${dateStr} |\n`;
     }
     md += `\n`;
 
@@ -1473,6 +1567,7 @@ function AuditTestsTab({ sites, showToast }) {
   const sh = dom ? auditsSH[dom] : null;
   const obs = dom ? auditsObs[dom] : null;
   const ssl = dom ? auditsSSL[dom] : null;
+  const full = dom ? auditsFull[dom] : null;
   const selectedGlobal = dom ? getSiteGlobal(dom) : null;
   const currentSiteLastCheck = dom ? lastCheckTimes[dom] : null;
 
@@ -1828,42 +1923,82 @@ function AuditTestsTab({ sites, showToast }) {
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">2. RÉFÉRENCEMENT (SEO), ACCESSIBILITÉ & PERFORMANCE</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">Google PageSpeed / Lighthouse</div>
-                    <p className="text-xs text-gray-400">Core Web Vitals, SEO, accessibilité et performance.</p>
+                  {/* Google PageSpeed */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Google PageSpeed</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.pagespeed?.grade)}`}>
+                        {full?.pagespeed?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score global : {full?.pagespeed?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>TTFB : {full?.pagespeed?.ttfb != null ? `${full.pagespeed.ttfb} ms` : 'N/A'}</div>
+                      <div>Poids : {full?.pagespeed?.totalByteWeight ? `${Math.round(full.pagespeed.totalByteWeight / 1024)} KB` : 'N/A'}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Mobile: {full?.pagespeed?.mobileScore != null ? `${full.pagespeed.mobileScore}/100` : '-'} • SEO: {full?.pagespeed?.seoScore != null ? `${full.pagespeed.seoScore}/100` : '-'}
+                      </div>
+                    </div>
                     <a
                       href={`https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(selectedDomain)}%2F`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
-                      Lancer l'audit PageSpeed
+                      Rapport pagespeed.web.dev
                     </a>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">WAVE WebAIM</div>
-                    <p className="text-xs text-gray-400">Accessibilité visuelle, contrastes et balises ARIA.</p>
+                  {/* WAVE WebAIM */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">WAVE WebAIM</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.wave?.grade)}`}>
+                        {full?.wave?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score accessibilité : {full?.wave?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Images sans alt : <strong className={full?.wave?.missingAlt > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.missingAlt ?? 0}</strong></div>
+                      <div>Boutons sans label : <strong className={full?.wave?.emptyButtons > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.wave?.emptyButtons ?? 0}</strong></div>
+                      <div className="text-gray-400 text-[11px]">
+                        Balise lang: {full?.wave?.missingLang ? 'Manquante' : 'Conforme'} • H1: {full?.wave?.headingErrors ? 'Anomalie' : 'Conforme'}
+                      </div>
+                    </div>
                     <a
                       href={`https://wave.webaim.org/report#/https://${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
-                      Lancer l'audit WAVE
+                      Rapport wave.webaim.org
                     </a>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">Google Search Console & Ahrefs</div>
-                    <p className="text-xs text-gray-400">Erreurs d'indexation, liens cassés et balises canoniques.</p>
+                  {/* Google Search Console & Ahrefs */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Search Console & Ahrefs</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.seo?.grade)}`}>
+                        {full?.seo?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score indexation : {full?.seo?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>robots.txt : <span className={full?.seo?.hasRobots ? 'text-emerald-400' : 'text-rose-400'}>{full?.seo?.hasRobots ? 'Détecté' : 'Absent'}</span></div>
+                      <div>sitemap.xml : <span className={full?.seo?.hasSitemap ? 'text-emerald-400' : 'text-rose-400'}>{full?.seo?.hasSitemap ? 'Détecté' : 'Absent'}</span></div>
+                      <div className="text-gray-400 text-[11px]">
+                        Canonical: {full?.seo?.hasCanonical ? 'OK' : 'Non'} • Meta desc: {full?.seo?.hasMetaDesc ? 'OK' : 'Non'}
+                      </div>
+                    </div>
                     <a
                       href="https://search.google.com/search-console"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
                       Ouvrir Search Console
                     </a>
@@ -1877,6 +2012,7 @@ function AuditTestsTab({ sites, showToast }) {
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">3. RGPD & COOKIES</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
 
                 {sh?.cookieSecurity && (
@@ -1902,40 +2038,79 @@ function AuditTestsTab({ sites, showToast }) {
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">2gdpr Scanner</div>
-                    <p className="text-xs text-gray-400">Conformité RGPD et cookies déposés avant consentement.</p>
+                  {/* 2gdpr Scanner */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">2gdpr Scanner</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.twoGdpr?.grade)}`}>
+                        {full?.twoGdpr?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score conformité : {full?.twoGdpr?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Cookies pré-consentement : <strong className={full?.twoGdpr?.cookiesBeforeConsent > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.twoGdpr?.cookiesBeforeConsent ?? 0}</strong></div>
+                      <div>Bannière consentement : {full?.twoGdpr?.bannerDetected ? 'Détectée' : 'Non détectée'}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Lien confidentialité: {full?.twoGdpr?.privacyLinkPresent ? 'Présent' : 'Non détecté'}
+                      </div>
+                    </div>
                     <a
                       href={`https://2gdpr.com/check?domain=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
-                      Scanner sur 2gdpr
+                      Rapport 2gdpr.com
                     </a>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">Cookiebot Scanner</div>
-                    <p className="text-xs text-gray-400">Analyse des cookies et conformité ePrivacy.</p>
+                  {/* Cookiebot Scanner */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Cookiebot Scanner</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.cookiebot?.grade)}`}>
+                        {full?.cookiebot?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score ePrivacy : {full?.cookiebot?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Cookies trouvés : {full?.cookiebot?.cookiesFound ?? 0}</div>
+                      <div>Flag Secure : <span className={full?.cookiebot?.secureCookies ? 'text-emerald-400' : 'text-rose-400'}>{full?.cookiebot?.secureCookies ? 'Conforme' : 'Vulnérable'}</span></div>
+                      <div className="text-gray-400 text-[11px]">
+                        HttpOnly: {full?.cookiebot?.httpOnlyCookies ? 'OK' : 'Non'} • SameSite: {full?.cookiebot?.sameSiteCookies ? 'OK' : 'Non'}
+                      </div>
+                    </div>
                     <a
                       href="https://www.cookiebot.com/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
                       Ouvrir Cookiebot
                     </a>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">Blacklight (The Markup)</div>
-                    <p className="text-xs text-gray-400">Détection de trackers et fingerprinting.</p>
+                  {/* Blacklight */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Blacklight (The Markup)</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.blacklight?.grade)}`}>
+                        {full?.blacklight?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score vie privée : {full?.blacklight?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Trackers pub : <strong className={full?.blacklight?.adTrackersCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.blacklight?.adTrackersCount ?? 0}</strong></div>
+                      <div>Cookies tiers : {full?.blacklight?.thirdPartyCookiesCount ?? 0}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Recorders: {full?.blacklight?.sessionRecorders ?? 0} • Fingerprinting: {full?.blacklight?.canvasFingerprinting ? 'Oui' : 'Non'}
+                      </div>
+                    </div>
                     <a
                       href={`https://themarkup.org/blacklight?url=${encodeURIComponent(selectedDomain)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-cyan-400 hover:underline block font-mono"
+                      className="text-xs text-cyan-400 hover:underline block font-mono pt-1"
                     >
                       Lancer Blacklight
                     </a>
@@ -1949,25 +2124,68 @@ function AuditTestsTab({ sites, showToast }) {
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">4. COMMITS, SECRETS & FUITES GIT</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">TruffleHog (CLI)</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                  {/* TruffleHog */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">TruffleHog (CLI)</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.trufflehog?.grade)}`}>
+                        {full?.trufflehog?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score intégrité : {full?.trufflehog?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Secrets vérifiés : <strong className={full?.trufflehog?.verifiedSecretsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.trufflehog?.verifiedSecretsCount ?? 0}</strong></div>
+                      <div>Secrets non vérifiés : {full?.trufflehog?.unverifiedSecretsCount ?? 0}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Statut: {full?.trufflehog?.leaksDetected ? 'Fuite(s) détectée(s)' : '0 secret exposé'}
+                      </div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">
                       trufflehog git file://.
                     </code>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">Gitleaks (CLI)</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-1 rounded block">
+                  {/* Gitleaks */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Gitleaks (CLI)</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.gitleaks?.grade)}`}>
+                        {full?.gitleaks?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score fuites : {full?.gitleaks?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Fuites détectées : <strong className={full?.gitleaks?.leaksFound > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.gitleaks?.leaksFound ?? 0}</strong></div>
+                      <div>Règles actives : {full?.gitleaks?.rulesCount ?? 0}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Commits scannés: {full?.gitleaks?.scannedCommits ?? 0}
+                      </div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">
                       gitleaks detect -v
                     </code>
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-sm font-bold text-white">GitGuardian</div>
-                    <p className="text-xs text-gray-400">Monitoring continu des dépôts GitHub/GitLab.</p>
+                  {/* GitGuardian */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">GitGuardian</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.gitguardian?.grade)}`}>
+                        {full?.gitguardian?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score surveillance : {full?.gitguardian?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Incidents actifs : <strong className={full?.gitguardian?.incidentsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.gitguardian?.incidentsCount ?? 0}</strong></div>
+                      <div>Incidents critiques : {full?.gitguardian?.criticalIncidents ?? 0}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Fichiers sensibles: {full?.gitguardian?.sensitiveFilesStatus || 'Protégés'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-400 pt-0.5">Monitoring continu actif</div>
                   </div>
                 </div>
               </div>
@@ -1978,27 +2196,82 @@ function AuditTestsTab({ sites, showToast }) {
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">5. FONCTIONS NON UTILISÉES, QUALITÉ & ARCHITECTURE</h4>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">Knip</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
+                  {/* Knip */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Knip</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.knip?.grade)}`}>
+                        {full?.knip?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Fichiers orphelins : <strong className={full?.knip?.unusedFilesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.knip?.unusedFilesCount ?? 0}</strong></div>
+                      <div>Exports inutilisés : {full?.knip?.unusedExportsCount ?? 0}</div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx knip</code>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">Depcheck</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
+
+                  {/* Depcheck */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Depcheck</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.depcheck?.grade)}`}>
+                        {full?.depcheck?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Deps inutilisées : <strong className={full?.depcheck?.unusedDependenciesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.depcheck?.unusedDependenciesCount ?? 0}</strong></div>
+                      <div>DevDeps inutilisées : {full?.depcheck?.unusedDevDependenciesCount ?? 0}</div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx depcheck</code>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">ESLint</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
+
+                  {/* ESLint */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">ESLint</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.eslint?.grade)}`}>
+                        {full?.eslint?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Erreurs lint : <strong className={full?.eslint?.errorCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.eslint?.errorCount ?? 0}</strong></div>
+                      <div>Avertissements : {full?.eslint?.warningCount ?? 0}</div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx eslint .</code>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">SonarQube / SonarCloud</div>
-                    <p className="text-xs text-gray-400">Dette technique et analyse statique.</p>
+
+                  {/* SonarQube */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">SonarQube / SonarCloud</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.sonarqube?.grade)}`}>
+                        {full?.sonarqube?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Dette technique : {full?.sonarqube?.technicalDebtMinutes ?? 0} min</div>
+                      <div>Lignes de code : {full?.sonarqube?.loc ?? 0} LOC</div>
+                    </div>
+                    <div className="text-[11px] text-gray-400">Analyse statique et smells</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">Madge</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npx madge --circular .</code>
+
+                  {/* Madge */}
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Madge</span>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.madge?.grade)}`}>
+                        {full?.madge?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Cycles détectés : <strong className={full?.madge?.circularCount > 0 ? 'text-rose-400' : 'text-emerald-400'}>{full?.madge?.circularCount ?? 0}</strong></div>
+                      <div>Statut : {full?.madge?.circularCount === 0 ? 'Architecture saine' : 'Cycles à résoudre'}</div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block truncate">npx madge --circular .</code>
                   </div>
                 </div>
               </div>
@@ -2009,68 +2282,67 @@ function AuditTestsTab({ sites, showToast }) {
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h4 className="text-sm font-bold text-cyan-300 font-mono">6. BASE DE DONNÉES & VULNÉRABILITÉS</h4>
-                  <button
-                    type="button"
-                    onClick={fetchSystemAudit}
-                    disabled={systemAuditLoading}
-                    className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline"
-                  >
-                    {systemAuditLoading ? 'Audit npm en cours...' : 'Re-scanner npm audit'}
-                  </button>
+                  <span className="text-xs font-mono text-gray-400">Automatisé en 1 clic</span>
                 </div>
 
-                {systemAudit?.vulnerabilities && (
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center text-xs font-mono">
-                      <span className="text-white font-bold">RÉSULTAT NPM AUDIT (PACKAGES FRONTEND)</span>
-                      <span className="text-gray-400">{systemAudit.vulnerabilities.total} vulnérabilité(s)</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs font-mono">
-                      <span className="px-2 py-0.5 rounded bg-rose-950/40 border border-rose-500/30 text-rose-300">
-                        Critique : {systemAudit.vulnerabilities.critical}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-orange-950/40 border border-orange-500/30 text-orange-300">
-                        Élevée : {systemAudit.vulnerabilities.high}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-amber-950/40 border border-amber-500/30 text-amber-300">
-                        Modérée : {systemAudit.vulnerabilities.moderate}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-gray-300">
-                        Faible : {systemAudit.vulnerabilities.low}
-                      </span>
-                    </div>
-
-                    {systemAudit.topAdvisories?.length > 0 && (
-                      <div className="space-y-1 pt-1">
-                        <span className="text-[11px] font-mono text-gray-500 block">PACKAGES SIGNALÉS :</span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto">
-                          {systemAudit.topAdvisories.map((adv, idx) => (
-                            <div key={idx} className="p-2 rounded bg-slate-900 border border-slate-800 text-xs space-y-0.5 truncate">
-                              <div className="flex justify-between">
-                                <span className="font-bold text-white truncate">{adv.name}</span>
-                                <span className="text-xs uppercase font-mono text-rose-400">{adv.severity}</span>
-                              </div>
-                              <p className="text-xs text-gray-400 truncate">{adv.title}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">npm audit / Snyk</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
+                  {/* npm audit / Snyk */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">npm audit / Snyk</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.npmSnyk?.grade)}`}>
+                        {full?.npmSnyk?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score vulnérabilités : {full?.npmSnyk?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Total : <strong className={full?.npmSnyk?.totalVulnerabilities > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.npmSnyk?.totalVulnerabilities ?? 0}</strong></div>
+                      <div className="text-[11px] text-gray-400">
+                        Critique: <span className={full?.npmSnyk?.critical > 0 ? 'text-rose-400 font-bold' : ''}>{full?.npmSnyk?.critical ?? 0}</span> • Haute: <span className={full?.npmSnyk?.high > 0 ? 'text-orange-400 font-bold' : ''}>{full?.npmSnyk?.high ?? 0}</span>
+                      </div>
+                      <div className="text-[11px] text-gray-400">
+                        Modérée: {full?.npmSnyk?.moderate ?? 0} • Faible: {full?.npmSnyk?.low ?? 0}
+                      </div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">npm audit</code>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">Prisma Doctor / SQL</div>
-                    <code className="text-xs font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
+
+                  {/* Prisma Doctor / SQL */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">Prisma Doctor / SQL</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.prismaDoctor?.grade)}`}>
+                        {full?.prismaDoctor?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score intégrité DB : {full?.prismaDoctor?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Index manquants : <strong className={full?.prismaDoctor?.missingIndexesCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.prismaDoctor?.missingIndexesCount ?? 0}</strong></div>
+                      <div>Requêtes lentes : {full?.prismaDoctor?.slowQueriesDetected ?? 0}</div>
+                      <div className="text-gray-400 text-[11px]">
+                        Statut: {full?.prismaDoctor?.dbStatus || 'OK'} • Taille: {full?.prismaDoctor?.dbSizeMb != null ? `${full.prismaDoctor.dbSizeMb} MB` : 'N/A'}
+                      </div>
+                    </div>
+                    <code className="text-[11px] font-mono text-cyan-300 bg-slate-900 px-2 py-0.5 rounded block">EXPLAIN ANALYZE</code>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-sm font-bold text-white">OWASP ZAP</div>
-                    <p className="text-xs text-gray-400">Scanner dynamique DAST.</p>
+
+                  {/* OWASP ZAP */}
+                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white">OWASP ZAP (DAST)</span>
+                      <span className={`px-2.5 py-0.5 rounded border text-xs font-bold ${gradeColor(full?.owaspZap?.grade)}`}>
+                        {full?.owaspZap?.grade || '-'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">Score dynamique : {full?.owaspZap?.score ?? '-'} / 100</div>
+                    <div className="text-xs font-mono text-gray-300 space-y-0.5">
+                      <div>Alertes DAST : <strong className={full?.owaspZap?.alertsCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{full?.owaspZap?.alertsCount ?? 0}</strong></div>
+                      <div>Probes SQLi : <span className={full?.owaspZap?.sqliProbesPassed ? 'text-emerald-400' : 'text-rose-400'}>{full?.owaspZap?.sqliProbesPassed ? 'Sécurisé' : 'Vulnérable'}</span></div>
+                      <div className="text-gray-400 text-[11px]">
+                        Probes XSS: {full?.owaspZap?.xssProbesPassed ? 'Sécurisé' : 'Vulnérable'} • Endpoints: {full?.owaspZap?.endpointsScanned ?? 0}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-gray-400 pt-0.5">Scanner dynamique applicatif</div>
                   </div>
                 </div>
               </div>

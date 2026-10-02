@@ -5,6 +5,26 @@ import http from 'http';
 import https from 'https';
 import tls from 'tls';
 import { exec } from 'child_process';
+import {
+  auditPageSpeed,
+  auditWave,
+  auditSeoSearchConsole,
+  audit2gdpr,
+  auditCookiebot,
+  auditBlacklight,
+  auditTruffleHog,
+  auditGitleaks,
+  auditGitGuardian,
+  auditKnipAndDepcheck,
+  auditESLint,
+  auditSonarQube,
+  auditMadge,
+  auditNpmSnyk,
+  auditPrismaDoctor,
+  auditOwaspZap,
+  scoreToGrade,
+  gradeToColor,
+} from '../services/audit.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1074,8 +1094,8 @@ function probeTLSSocket(domain, port = 443, timeoutMs = 4000) {
   });
 }
 
-// Calcul de la Note Globale unifiée et du Score Global (0-100)
-function computeGlobalAuditScore(sh, obs, ssl) {
+// Calcul de la Note Globale unifiée et du Score Global (0-100) sur l'ensemble des 16+ outils
+function computeGlobalAuditScore(arg1, obs, ssl) {
   const gradeToScore = {
     'A+': 100,
     'A': 92,
@@ -1090,14 +1110,22 @@ function computeGlobalAuditScore(sh, obs, ssl) {
 
   const scores = [];
 
-  if (sh && sh.success) {
-    scores.push(typeof sh.score === 'number' ? sh.score : (gradeToScore[sh.grade] ?? 50));
-  }
-  if (obs && obs.success) {
-    scores.push(typeof obs.score === 'number' ? obs.score : (gradeToScore[obs.grade] ?? 50));
-  }
-  if (ssl && ssl.success) {
-    scores.push(gradeToScore[ssl.grade] ?? 90);
+  if (arg1 && typeof arg1 === 'object' && ('pagespeed' in arg1 || 'sh' in arg1 || 'trufflehog' in arg1)) {
+    const all = arg1;
+    for (const [key, tool] of Object.entries(all)) {
+      if (tool && tool.success !== false) {
+        if (typeof tool.score === 'number') {
+          scores.push(tool.score);
+        } else if (tool.grade && gradeToScore[tool.grade] !== undefined) {
+          scores.push(gradeToScore[tool.grade]);
+        }
+      }
+    }
+  } else {
+    const sh = arg1;
+    if (sh && sh.success) scores.push(typeof sh.score === 'number' ? sh.score : (gradeToScore[sh.grade] ?? 50));
+    if (obs && obs.success) scores.push(typeof obs.score === 'number' ? obs.score : (gradeToScore[obs.grade] ?? 50));
+    if (ssl && ssl.success) scores.push(gradeToScore[ssl.grade] ?? 90);
   }
 
   if (scores.length === 0) {
@@ -1110,19 +1138,19 @@ function computeGlobalAuditScore(sh, obs, ssl) {
   let globalLabel = 'Critique (Vulnérabilités)';
   if (avg >= 90) {
     globalGrade = 'A+';
-    globalLabel = 'Excellente protection';
+    globalLabel = 'Excellente protection (Tous audits validés)';
   } else if (avg >= 80) {
     globalGrade = 'A';
     globalLabel = 'Solide & Sécurisé';
   } else if (avg >= 70) {
     globalGrade = 'B';
-    globalLabel = 'Bonne sécurité';
+    globalLabel = 'Bonne sécurité globale';
   } else if (avg >= 55) {
     globalGrade = 'C';
     globalLabel = 'Moyen (Améliorations requises)';
   } else if (avg >= 40) {
     globalGrade = 'D';
-    globalLabel = 'Faible (En-têtes manquants)';
+    globalLabel = 'Faible (Failles / Alertes détectées)';
   } else if (avg >= 20) {
     globalGrade = 'E';
     globalLabel = 'Vulnérable';
@@ -1523,7 +1551,7 @@ export const auditSSLLabs = async (req, res) => {
 };
 
 // GET /api/site-status/audit-full?domain=...
-// POINT D'ENTRÉE 1-CLIC : Lance en parallèle tous les audits et calcule la Note Globale
+// POINT D'ENTRÉE 1-CLIC : Lance en parallèle l'intégralité des 16+ audits (tous sans exception)
 export const auditFullSite = async (req, res) => {
   const rawDomain = req.query.domain || '';
   const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
@@ -1532,17 +1560,89 @@ export const auditFullSite = async (req, res) => {
   const force = req.query.force === 'true';
 
   try {
-    const [shResult, obsResult, sslResult] = await Promise.allSettled([
+    const [
+      shRes, obsRes, sslRes,
+      pageSpeedRes, waveRes, seoRes,
+      twoGdprRes, cookiebotRes, blacklightRes,
+      trufflehogRes, gitleaksRes, gitguardianRes,
+      knipDepcheckRes, eslintRes, sonarRes, madgeRes,
+      npmSnykRes, prismaDoctorRes, owaspZapRes,
+    ] = await Promise.allSettled([
+      // Cat 1: Sécurité réseau & TLS
       runAuditHeadersInternal(cleanDomain, force),
       runAuditObservatoryInternal(cleanDomain, force),
       runAuditSSLLabsInternal(cleanDomain, force),
+      // Cat 2: SEO, Accessibilité & Performance
+      auditPageSpeed(cleanDomain),
+      auditWave(cleanDomain),
+      auditSeoSearchConsole(cleanDomain),
+      // Cat 3: RGPD & Cookies
+      audit2gdpr(cleanDomain),
+      auditCookiebot(cleanDomain),
+      auditBlacklight(cleanDomain),
+      // Cat 4: Commits, Secrets & Fuites Git
+      auditTruffleHog(),
+      auditGitleaks(),
+      auditGitGuardian(),
+      // Cat 5: Qualité de code & Architecture
+      auditKnipAndDepcheck(),
+      auditESLint(),
+      auditSonarQube(),
+      auditMadge(),
+      // Cat 6: Base de données & Vulnérabilités
+      auditNpmSnyk(),
+      auditPrismaDoctor(),
+      auditOwaspZap(cleanDomain),
     ]);
 
-    const sh = shResult.status === 'fulfilled' ? shResult.value : null;
-    const obs = obsResult.status === 'fulfilled' ? obsResult.value : null;
-    const ssl = sslResult.status === 'fulfilled' ? sslResult.value : null;
+    const getVal = (r) => (r.status === 'fulfilled' ? r.value : null);
 
-    const { globalGrade, globalScore, globalLabel } = computeGlobalAuditScore(sh, obs, ssl);
+    const sh = getVal(shRes);
+    const obs = getVal(obsRes);
+    const ssl = getVal(sslRes);
+    const pagespeed = getVal(pageSpeedRes);
+    const wave = getVal(waveRes);
+    const seo = getVal(seoRes);
+    const twoGdpr = getVal(twoGdprRes);
+    const cookiebot = getVal(cookiebotRes);
+    const blacklight = getVal(blacklightRes);
+    const trufflehog = getVal(trufflehogRes);
+    const gitleaks = getVal(gitleaksRes);
+    const gitguardian = getVal(gitguardianRes);
+    const knipDepcheck = getVal(knipDepcheckRes);
+    const knip = knipDepcheck?.knip || null;
+    const depcheck = knipDepcheck?.depcheck || null;
+    const eslint = getVal(eslintRes);
+    const sonarqube = getVal(sonarRes);
+    const madge = getVal(madgeRes);
+    const npmsnyk = getVal(npmSnykRes);
+    const prismadoctor = getVal(prismaDoctorRes);
+    const owaspzap = getVal(owaspZapRes);
+
+    const allAudits = {
+      sh,
+      obs,
+      ssl,
+      pagespeed,
+      wave,
+      seo,
+      twoGdpr,
+      cookiebot,
+      blacklight,
+      trufflehog,
+      gitleaks,
+      gitguardian,
+      knip,
+      depcheck,
+      eslint,
+      sonarqube,
+      madge,
+      npmsnyk,
+      prismadoctor,
+      owaspzap,
+    };
+
+    const { globalGrade, globalScore, globalLabel } = computeGlobalAuditScore(allAudits);
 
     const fullPayload = {
       success: true,
@@ -1550,9 +1650,7 @@ export const auditFullSite = async (req, res) => {
       globalGrade,
       globalScore,
       globalLabel,
-      sh,
-      obs,
-      ssl,
+      ...allAudits,
       checkedAt: new Date().toISOString(),
     };
 
