@@ -84,14 +84,20 @@ const server = http.createServer(async (req, res) => {
         try {
           const gitignorePath = path.join(projectPath, '.gitignore');
           let gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-          const rules = ['.env', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+          const rules = ['.env', 'sync/', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
           const missing = rules.filter((r) => !gitignore.includes(r));
           if (missing.length > 0) {
             fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
           }
 
+          const syncDir = path.join(projectPath, 'sync');
+          fs.mkdirSync(syncDir, { recursive: true });
+
           for (const [filename, content] of Object.entries(bundle)) {
-            fs.writeFileSync(path.join(projectPath, filename), content, 'utf8');
+            fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
+            if (filename === 'project-context.md') {
+              fs.writeFileSync(path.join(projectPath, 'project-context.md'), content, 'utf8');
+            }
           }
 
           synced.push(targetName);

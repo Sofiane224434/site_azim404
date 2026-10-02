@@ -2011,7 +2011,7 @@ function ContextSyncTab({ showToast }) {
               gitignoreContent = await file.text();
             } catch {}
 
-            const rules = ['.env', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+            const rules = ['.env', 'sync/', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
             const missing = rules.filter((r) => !gitignoreContent.includes(r));
             if (missing.length > 0) {
               const gitignoreHandle = await projectHandle.getFileHandle('.gitignore', { create: true });
@@ -2021,12 +2021,20 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          // 2. Écriture à la racine du projet
+          // 2. Écriture dans le dossier racine sync/ et project-context.md
+          const syncDirHandle = await projectHandle.getDirectoryHandle('sync', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
-            const fileHandle = await projectHandle.getFileHandle(fname, { create: true });
+            const fileHandle = await syncDirHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
+
+            if (fname === 'project-context.md') {
+              const rootFileHandle = await projectHandle.getFileHandle(fname, { create: true });
+              const rootWritable = await rootFileHandle.createWritable();
+              await rootWritable.write(fileContent);
+              await rootWritable.close();
+            }
           }
 
           localUpdatedCount++;

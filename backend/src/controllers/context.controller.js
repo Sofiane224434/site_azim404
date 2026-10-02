@@ -11,12 +11,30 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const ROOT_PROJECT_DIR = path.resolve(__dirname, '../../..');
 const DATA_DIR = path.resolve(__dirname, '../../data');
-const CONTEXT_FOLDER = path.join(DATA_DIR, 'context_files');
-const MASTER_CONTEXT_FILE = path.join(DATA_DIR, 'project-context.md');
-const LOCAL_AGENT_DIR = path.resolve(__dirname, '../../../agent');
 const HOST_APPS_DIR = '/host_apps';
 const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
+
+// Dossier de synchronisation situe directement a la racine du projet ('sync')
+function resolveSyncFolder() {
+  const candidates = [
+    path.join(ROOT_PROJECT_DIR, 'sync'),
+    path.join('/host_apps/azim404', 'sync'),
+    path.join('/app', 'sync'),
+    path.join(DATA_DIR, 'sync'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  const chosen = fs.existsSync('/host_apps/azim404')
+    ? path.join('/host_apps/azim404', 'sync')
+    : path.join(ROOT_PROJECT_DIR, 'sync');
+  fs.mkdirSync(chosen, { recursive: true });
+  return chosen;
+}
+
+const CONTEXT_FOLDER = resolveSyncFolder();
 
 const DEFAULT_TARGETS = [
   { id: 'cars-x-battle', name: 'Cars X Battle', folder: 'cars-x-battle', enabled: true },
@@ -34,16 +52,13 @@ const DEFAULT_TARGETS = [
 ];
 
 function initContextStorage() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
 
-  // Si project-context.md existe à la racine data ou agent, l'importer dans context_files
   const primaryFile = path.join(CONTEXT_FOLDER, 'project-context.md');
   if (!fs.existsSync(primaryFile)) {
-    if (fs.existsSync(MASTER_CONTEXT_FILE)) {
-      fs.copyFileSync(MASTER_CONTEXT_FILE, primaryFile);
-    } else if (fs.existsSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'))) {
-      fs.copyFileSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'), primaryFile);
+    const rootContext = path.join(ROOT_PROJECT_DIR, 'project-context.md');
+    if (fs.existsSync(rootContext)) {
+      fs.copyFileSync(rootContext, primaryFile);
     } else {
       fs.writeFileSync(primaryFile, '# Contexte Projets - Prive\n\nConfiguration initiale.\n', 'utf8');
     }
@@ -68,6 +83,7 @@ function secureTargetProject(projectDir) {
       '.env',
       '.env.local',
       '.env.*.local',
+      'sync/',
       'agent/',
       'shared-context/',
       'project-context.md',
@@ -210,12 +226,12 @@ export const propagateContext = async (req, res) => {
         secureTargetProject(hostAppPath);
         securedProjects.push(target.name);
 
-        const destAgentDir = path.join(hostAppPath, 'agent');
-        fs.mkdirSync(destAgentDir, { recursive: true });
+        const destSyncDir = path.join(hostAppPath, 'sync');
+        fs.mkdirSync(destSyncDir, { recursive: true });
 
         for (const file of filesInContext) {
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destAgentDir, file);
+          const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
           if (file === 'project-context.md') {
             fs.copyFileSync(src, path.join(hostAppPath, 'project-context.md'));
@@ -232,12 +248,12 @@ export const propagateContext = async (req, res) => {
     if (fs.existsSync(localProjectPath)) {
       try {
         secureTargetProject(localProjectPath);
-        const destAgentDir = path.join(localProjectPath, 'agent');
-        fs.mkdirSync(destAgentDir, { recursive: true });
+        const destSyncDir = path.join(localProjectPath, 'sync');
+        fs.mkdirSync(destSyncDir, { recursive: true });
 
         for (const file of filesInContext) {
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destAgentDir, file);
+          const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
           if (file === 'project-context.md') {
             fs.copyFileSync(src, path.join(localProjectPath, 'project-context.md'));
