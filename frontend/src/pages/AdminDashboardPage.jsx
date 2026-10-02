@@ -39,6 +39,8 @@ export default function AdminDashboardPage() {
   const [newLink, setNewLink] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [newVisibleOnPortfolio, setNewVisibleOnPortfolio] = useState(true);
+  const [newAllowContextSync, setNewAllowContextSync] = useState(true);
+  const [newFolderName, setNewFolderName] = useState('');
 
   // Profile credentials form
   const [myNewId, setMyNewId] = useState('');
@@ -71,9 +73,9 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const cleanDomain = (newDomain || (newLink ? new URL(newLink.startsWith('http') ? newLink : `https://${newLink}`).hostname : '')).trim().toLowerCase();
+    const cleanDomain = (newDomain || (newLink ? new URL(newLink.startsWith('http') ? newLink : `https://${link}`).hostname : '')).trim().toLowerCase();
 
-    // 1. Save to portfolio showcase
+    // 1. Save to portfolio showcase and auto-register in context sync targets if allowed
     const projectRes = await savePortfolioProject({
       title: newTitle,
       description: newDesc,
@@ -83,6 +85,8 @@ export default function AdminDashboardPage() {
       domain: cleanDomain,
       visibleOnPortfolio: newVisibleOnPortfolio,
       inMaintenance: false,
+      allowContextSync: newAllowContextSync,
+      folderName: newFolderName || undefined,
     });
 
     // 2. Also register in site status controller
@@ -843,6 +847,36 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setNewVisibleOnPortfolio(e.target.checked)}
                   className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-4 h-4 cursor-pointer"
                 />
+              </div>
+
+              {/* Autorisation synchronisation contexte privé */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-white block">Autoriser la synchronisation du contexte privé</span>
+                    <span className="text-[11px] text-gray-400">Ajoute automatiquement le projet à la liste et synchronise le dossier agent/</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={newAllowContextSync}
+                    onChange={(e) => setNewAllowContextSync(e.target.checked)}
+                    className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                {newAllowContextSync && (
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <label className="text-[10px] font-mono text-gray-400 block mb-1">
+                      DOSSIER LOCAL / VPS (LAISSER VIDE POUR AUTO-DÉTECTER)
+                    </label>
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="ex: nouveau-projet"
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-3">
@@ -1774,6 +1808,48 @@ function ContextSyncTab({ showToast }) {
     }
   };
 
+  const [newTargetName, setNewTargetName] = useState('');
+  const [newTargetFolder, setNewTargetFolder] = useState('');
+
+  const handleAddTarget = async (e) => {
+    e?.preventDefault();
+    if (!newTargetName.trim() || !newTargetFolder.trim()) return;
+    try {
+      const res = await fetch('/api/context/targets/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newTargetName.trim(),
+          folder: newTargetFolder.trim(),
+          enabled: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTargets(data.targets);
+        setNewTargetName('');
+        setNewTargetFolder('');
+        showToast(data.message || 'Projet ajouté à la synchronisation');
+      }
+    } catch {
+      showToast('Erreur lors de l’ajout du projet cible');
+    }
+  };
+
+  const handleDeleteTarget = async (id, name) => {
+    if (!confirm(`Retirer "${name}" de la liste de synchronisation ?`)) return;
+    try {
+      const res = await fetch(`/api/context/targets/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setTargets(data.targets);
+        showToast(`Projet "${name}" retiré.`);
+      }
+    } catch {
+      showToast('Erreur lors de la suppression');
+    }
+  };
+
   const handleToggleTarget = async (targetId) => {
     const nextTargets = targets.map((t) =>
       t.id === targetId ? { ...t, enabled: !t.enabled } : t
@@ -2016,17 +2092,17 @@ function ContextSyncTab({ showToast }) {
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                 {targets.map((target) => (
-                  <label
+                  <div
                     key={target.id}
-                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                    className={`p-2.5 rounded-xl border flex items-center justify-between transition ${
                       target.enabled
                         ? 'bg-slate-900 border-slate-700 text-white'
                         : 'bg-slate-950/60 border-slate-800 text-gray-500'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 mr-2">
                       <input
                         type="checkbox"
                         checked={Boolean(target.enabled)}
@@ -2034,11 +2110,49 @@ function ContextSyncTab({ showToast }) {
                         className="rounded border-slate-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                       />
                       <span className="text-xs font-medium">{target.name}</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-gray-400">/{target.folder}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTarget(target.id, target.name)}
+                        className="text-gray-500 hover:text-rose-400 p-0.5 text-xs font-mono"
+                        title="Retirer de la liste"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <span className="text-[10px] font-mono text-gray-400">/{target.folder}</span>
-                  </label>
+                  </div>
                 ))}
               </div>
+
+              {/* Formulaire d'ajout rapide pour autoriser un nouveau projet */}
+              <form onSubmit={handleAddTarget} className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                <span className="text-[11px] font-bold text-gray-300 block">Autoriser un nouveau projet / dossier</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nom (ex: Mon Jeu)"
+                    value={newTargetName}
+                    onChange={(e) => setNewTargetName(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Dossier (ex: mon-jeu)"
+                    value={newTargetFolder}
+                    onChange={(e) => setNewTargetFolder(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!newTargetName.trim() || !newTargetFolder.trim()}
+                  className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 transition disabled:opacity-40"
+                >
+                  + Ajouter et autoriser la synchronisation
+                </button>
+              </form>
 
               <button
                 type="button"

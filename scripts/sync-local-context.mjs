@@ -37,27 +37,40 @@ async function syncLocal() {
     process.exit(1);
   }
 
-  const fileNames = Object.keys(bundle);
-  console.log(`[Sync Local] ${fileNames.length} fichier(s) prêt(s) à être synchronisé(s) :`, fileNames);
+  // Récupération dynamique des cibles autorisées depuis le site/API
+  let targetFolders = [];
+  try {
+    const contextRes = await fetch(API_URL.replace('/bundle', ''));
+    if (contextRes.ok) {
+      const cData = await contextRes.json();
+      if (cData.targets && Array.isArray(cData.targets)) {
+        targetFolders = cData.targets.filter((t) => t.enabled).map((t) => t.folder || t.id);
+      }
+    }
+  } catch {}
 
-  const targets = [
-    'cars-x-battle',
-    'gashooter',
-    'wikisguessr',
-    'KulturDB',
-    'portfolio',
-    'fansite',
-    'mediatheque-tln',
-    'discord',
-    'nexus-v',
-    'azim-bot',
-    'mars-ai',
-    'azim404',
-  ];
+  if (!targetFolders || targetFolders.length === 0) {
+    targetFolders = [
+      'cars-x-battle',
+      'gashooter',
+      'wikisguessr',
+      'KulturDB',
+      'portfolio',
+      'fansite',
+      'mediatheque-tln',
+      'discord',
+      'nexus-v',
+      'azim-bot',
+      'mars-ai',
+      'azim404',
+    ];
+  }
+
+  console.log(`[Sync Local] Cibles autorisées détectées (${targetFolders.length}) :`, targetFolders);
 
   let syncedCount = 0;
 
-  for (const targetName of targets) {
+  for (const targetName of targetFolders) {
     const projectPath = path.join(baseLocalDir, targetName);
     if (!fs.existsSync(projectPath)) continue;
 

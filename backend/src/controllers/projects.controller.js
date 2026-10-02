@@ -5,6 +5,8 @@ import {
   dbGetPortfolioProjects,
   dbSavePortfolioProjects,
   dbDeletePortfolioProject,
+  dbGetContextTargets,
+  dbSaveContextTargets,
 } from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -157,7 +159,7 @@ export const getProjects = async (req, res) => {
 
 // POST /api/portfolio-projects/save
 export const saveProject = async (req, res) => {
-  const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance } = req.body || {};
+  const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance, allowContextSync, folderName } = req.body || {};
 
   if (!title || !title.trim()) {
     return res.status(400).json({ success: false, error: 'Titre du projet obligatoire' });
@@ -194,6 +196,8 @@ export const saveProject = async (req, res) => {
     domain: cleanDomain,
     visibleOnPortfolio: visibleOnPortfolio !== undefined ? Boolean(visibleOnPortfolio) : true,
     inMaintenance: Boolean(inMaintenance),
+    allowContextSync: allowContextSync !== false,
+    folderName: (folderName || cleanId).trim(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -205,6 +209,34 @@ export const saveProject = async (req, res) => {
 
   await dbSavePortfolioProjects(projects);
   registerInStatusFile(updatedProject);
+
+  // Enregistrement automatique dans la liste des cibles de synchronisation du contexte privé si autorisé
+  if (allowContextSync !== false) {
+    try {
+      const folder = (folderName || cleanId).trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+      const currentTargets = await dbGetContextTargets();
+      const existingIdx = currentTargets.findIndex(
+        (t) => t.id === cleanId || t.folder.toLowerCase() === folder.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        currentTargets[existingIdx].name = title.trim();
+        currentTargets[existingIdx].folder = folder;
+        if (typeof allowContextSync === 'boolean') {
+          currentTargets[existingIdx].enabled = allowContextSync;
+        }
+      } else {
+        currentTargets.push({
+          id: cleanId,
+          name: title.trim(),
+          folder: folder,
+          enabled: true,
+        });
+      }
+      await dbSaveContextTargets(currentTargets);
+    } catch (e) {
+      console.warn('[Sync Targets Auto-Register Error]', e.message);
+    }
+  }
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

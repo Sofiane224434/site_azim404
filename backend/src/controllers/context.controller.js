@@ -286,3 +286,47 @@ export const getContextBundle = async (req, res) => {
     generatedAt: new Date().toISOString(),
   });
 };
+
+// POST /api/context/targets/add
+// Permet d'ajouter un nouveau projet à la liste de synchronisation
+export const addTarget = async (req, res) => {
+  const { name, folder, enabled = true } = req.body || {};
+  if (!name || !folder) {
+    return res.status(400).json({ success: false, error: 'Nom et dossier du projet obligatoires' });
+  }
+
+  const cleanFolder = folder.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleanId = cleanFolder.toLowerCase();
+
+  const targets = await dbGetContextTargets(DEFAULT_TARGETS);
+  const existingIdx = targets.findIndex((t) => t.id === cleanId || t.folder.toLowerCase() === cleanFolder.toLowerCase());
+
+  if (existingIdx >= 0) {
+    targets[existingIdx].name = name.trim();
+    targets[existingIdx].folder = cleanFolder;
+    targets[existingIdx].enabled = Boolean(enabled);
+  } else {
+    targets.push({
+      id: cleanId,
+      name: name.trim(),
+      folder: cleanFolder,
+      enabled: Boolean(enabled),
+    });
+  }
+
+  await dbSaveContextTargets(targets);
+  res.json({
+    success: true,
+    message: `Projet "${name}" configuré avec succès pour la synchronisation.`,
+    targets,
+  });
+};
+
+// DELETE /api/context/targets/:id
+export const deleteTarget = async (req, res) => {
+  const { id } = req.params;
+  const targets = await dbGetContextTargets(DEFAULT_TARGETS);
+  const filtered = targets.filter((t) => t.id !== id && t.folder !== id);
+  await dbSaveContextTargets(filtered);
+  res.json({ success: true, message: 'Projet retiré de la liste de synchronisation', targets: filtered });
+};
