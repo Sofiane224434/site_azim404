@@ -71,9 +71,18 @@ async function syncLocal() {
 
   let syncedCount = 0;
 
+  const availableEntries = fs.existsSync(baseLocalDir) ? fs.readdirSync(baseLocalDir) : [];
+
   for (const targetName of targetFolders) {
-    const projectPath = path.join(baseLocalDir, targetName);
-    if (!fs.existsSync(projectPath)) continue;
+    let projectPath = path.join(baseLocalDir, targetName);
+    if (!fs.existsSync(projectPath)) {
+      const match = availableEntries.find((e) => e.toLowerCase() === targetName.toLowerCase());
+      if (match) {
+        projectPath = path.join(baseLocalDir, match);
+      } else {
+        continue;
+      }
+    }
 
     try {
       // 1. Protection .gitignore

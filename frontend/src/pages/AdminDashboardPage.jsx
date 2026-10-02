@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext.jsx';
 import MaintenanceScreen from '../components/MaintenanceScreen.jsx';
@@ -1925,6 +1925,25 @@ function ContextSyncTab({ showToast }) {
     showToast('sync.bat téléchargé');
   };
 
+  const fileInputRef = useRef(null);
+
+  const handleImportLocalMd = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        setActiveFile(cleanName);
+        setContent(text);
+        showToast(`Fichier "${cleanName}" chargé dans l'éditeur. Cliquez sur "Enregistrer" pour synchroniser.`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   // Synchronisation directe des dossiers locaux depuis le navigateur (sans terminal)
   const handleBrowserLocalSync = async () => {
     setLocalBrowserSyncing(true);
@@ -1974,7 +1993,19 @@ function ContextSyncTab({ showToast }) {
       for (const target of enabledTargets) {
         const folderName = target.folder || target.id;
         try {
-          const projectHandle = await rootDirHandle.getDirectoryHandle(folderName);
+          let projectHandle = null;
+          try {
+            projectHandle = await rootDirHandle.getDirectoryHandle(folderName);
+          } catch {
+            // Recherche insensible à la casse
+            for await (const [name, handle] of rootDirHandle.entries()) {
+              if (handle.kind === 'directory' && name.toLowerCase() === folderName.toLowerCase()) {
+                projectHandle = handle;
+                break;
+              }
+            }
+          }
+          if (!projectHandle) continue;
 
           // 1. Protection .gitignore
           try {
@@ -2063,6 +2094,21 @@ function ContextSyncTab({ showToast }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".md,.txt"
+            onChange={handleImportLocalMd}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-white text-xs font-mono border border-slate-800 transition"
+            title="Importer un fichier Markdown (.md) local directement dans l'éditeur"
+          >
+            Importer .md
+          </button>
           <button
             type="button"
             onClick={handleDownloadBundle}
