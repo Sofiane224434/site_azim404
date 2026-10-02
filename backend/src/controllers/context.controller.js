@@ -18,20 +18,17 @@ const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit'
 
 // Dossier de synchronisation situe directement a la racine du projet ('sync')
 function resolveSyncFolder() {
-  const candidates = [
-    path.join(ROOT_PROJECT_DIR, 'sync'),
-    path.join('/host_apps/azim404', 'sync'),
-    path.join('/app', 'sync'),
-    path.join(DATA_DIR, 'sync'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+  if (fs.existsSync('/host_apps/azim404/sync')) {
+    return '/host_apps/azim404/sync';
   }
-  const chosen = fs.existsSync('/host_apps/azim404')
-    ? path.join('/host_apps/azim404', 'sync')
-    : path.join(ROOT_PROJECT_DIR, 'sync');
-  fs.mkdirSync(chosen, { recursive: true });
-  return chosen;
+  if (fs.existsSync('/host_apps/azim404')) {
+    const vpsSync = '/host_apps/azim404/sync';
+    fs.mkdirSync(vpsSync, { recursive: true });
+    return vpsSync;
+  }
+  const localSync = path.resolve(__dirname, '../../../sync');
+  fs.mkdirSync(localSync, { recursive: true });
+  return localSync;
 }
 
 const CONTEXT_FOLDER = resolveSyncFolder();

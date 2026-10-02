@@ -1692,13 +1692,13 @@ function SecurityHeadersTab({ sites, showToast }) {
               </div>
 
               {/* Outils d'audit complémentaires (SSL Labs, Observatory, PageSpeed, WAVE, RGPD, Blacklight) */}
-              {data.tools && data.tools.length > 1 && (
+              {audit?.tools && audit.tools.length > 1 && (
                 <div className="pt-3 border-t border-slate-900 space-y-2">
                   <span className="text-[11px] font-mono text-gray-400 block">
                     Outils d'audit complémentaires :
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {data.tools.slice(1).map((tool) => (
+                    {audit.tools.slice(1).map((tool) => (
                       <a
                         key={tool.id}
                         href={tool.url}
