@@ -1084,32 +1084,73 @@ export const auditSiteHeaders = async (req, res) => {
       },
     };
 
-    let score = 0;
-    if (checks.hsts.present) score += checks.hsts.weight;
-    if (checks.xcto.present) score += checks.xcto.weight;
-    if (checks.xfo.present) score += checks.xfo.weight;
-    if (checks.csp.present) score += checks.csp.weight;
-    if (checks.rp.present) score += checks.rp.weight;
-    if (checks.pp.present) score += checks.pp.weight;
+    // Barème STRICT et OFFICIEL conforme à SecurityHeaders.com (Scott Helme)
+    const hasHsts = checks.hsts.present;
+    const hasCsp = checks.csp.present;
+    const hasXfo = checks.xfo.present;
+    const hasXcto = checks.xcto.present;
+    const hasRp = checks.rp.present;
+    const hasPp = checks.pp.present;
+
+    const presentHeadersCount = [hasHsts, hasCsp, hasXfo, hasXcto, hasRp, hasPp].filter(Boolean).length;
 
     let grade = 'F';
     let gradeColor = 'text-rose-400 bg-rose-950/40 border-rose-500/40';
+    let score = 0;
 
-    if (checks.hsts.present && checks.xfo.present && checks.xcto.present && checks.csp.present) {
-      grade = 'A+';
-      gradeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.35)]';
-    } else if (checks.hsts.present && (checks.xfo.present || checks.xcto.present)) {
-      grade = 'A';
-      gradeColor = 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
-    } else if (checks.hsts.present) {
-      grade = 'B';
-      gradeColor = 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
-    } else if (checks.xfo.present || checks.xcto.present) {
-      grade = 'C';
-      gradeColor = 'text-amber-400 bg-amber-950/40 border-amber-500/40';
-    } else if (score > 10) {
-      grade = 'D';
-      gradeColor = 'text-orange-400 bg-orange-950/40 border-orange-500/40';
+    if (!result.isHttps) {
+      grade = 'F';
+      score = 0;
+      gradeColor = 'text-rose-400 bg-rose-950/40 border-rose-500/40';
+    } else {
+      const hstsVal = checks.hsts.value || '';
+      const maxAgeMatch = hstsVal.match(/max-age=(\d+)/i);
+      const maxAgeSeconds = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 0;
+      const hasSubDomains = /includesubdomains/i.test(hstsVal);
+      const isHstsStrong = hasHsts && maxAgeSeconds >= 10886400; // >= 18 semaines
+
+      // Règle 1 : A+ nécessite CSP + HSTS (avec includeSubDomains & >= 6 mois) + XFO + XCTO + RP + PP
+      if (hasCsp && hasHsts && hasXfo && hasXcto && hasRp && hasPp && maxAgeSeconds >= 15768000 && hasSubDomains) {
+        grade = 'A+';
+        gradeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.35)]';
+        score = 100;
+      }
+      // Règle 2 : A nécessite obligatoirement CSP + HSTS + XFO + XCTO (sans CSP, le maximum est B)
+      else if (hasCsp && isHstsStrong && hasXfo && hasXcto) {
+        grade = 'A';
+        gradeColor = 'text-emerald-400 bg-emerald-950/40 border-emerald-500/40';
+        score = 85 + (hasRp ? 10 : 0) + (hasPp ? 5 : 0);
+      }
+      // Règle 3 : B (Quand CSP manque, la note est plafonnée à B sur SecurityHeaders.com)
+      else if (hasHsts && (hasXfo || hasXcto)) {
+        grade = 'B';
+        gradeColor = 'text-cyan-400 bg-cyan-950/40 border-cyan-500/40';
+        score = 65 + (hasXfo && hasXcto ? 10 : 0) + (hasRp ? 5 : 0);
+      }
+      // Règle 4 : C (Manque HSTS ou manque 2 en-têtes majeurs)
+      else if (hasXfo || hasXcto || hasCsp) {
+        if (presentHeadersCount >= 2) {
+          grade = 'C';
+          gradeColor = 'text-amber-400 bg-amber-950/40 border-amber-500/40';
+          score = 45;
+        } else {
+          grade = 'D';
+          gradeColor = 'text-orange-400 bg-orange-950/40 border-orange-500/40';
+          score = 30;
+        }
+      }
+      // Règle 5 : E (1 seul en-tête faible)
+      else if (presentHeadersCount === 1) {
+        grade = 'E';
+        gradeColor = 'text-orange-500 bg-orange-950/40 border-orange-500/40';
+        score = 15;
+      }
+      // Règle 6 : F (0 en-tête de sécurité ou HTTP)
+      else {
+        grade = 'F';
+        gradeColor = 'text-rose-400 bg-rose-950/40 border-rose-500/40';
+        score = 0;
+      }
     }
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

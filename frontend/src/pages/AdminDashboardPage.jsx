@@ -1903,6 +1903,93 @@ function ContextSyncTab({ showToast }) {
     }
   };
 
+  const [localBrowserSyncing, setLocalBrowserSyncing] = useState(false);
+
+  // Synchronisation directe des dossiers locaux depuis le navigateur (sans terminal)
+  const handleBrowserLocalSync = async () => {
+    if (!window.showDirectoryPicker) {
+      alert("Votre navigateur ne supporte pas l'accès direct aux fichiers locaux. Utilisez Google Chrome, Microsoft Edge ou Brave pour synchroniser directement depuis le site.");
+      return;
+    }
+
+    try {
+      setLocalBrowserSyncing(true);
+      showToast("Sélectionnez votre dossier de projets (ex: 'git commit')...");
+
+      const rootDirHandle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+      });
+
+      const bundleRes = await fetch('/api/context/bundle');
+      const bundleData = await bundleRes.json();
+      if (!bundleData.success || !bundleData.bundle) {
+        throw new Error("Impossible de charger les fichiers de contexte depuis le serveur.");
+      }
+      const bundleFiles = bundleData.bundle;
+
+      const enabledTargets = targets.filter((t) => t.enabled);
+      let localUpdatedCount = 0;
+
+      for (const target of enabledTargets) {
+        const folderName = target.folder || target.id;
+        try {
+          const projectHandle = await rootDirHandle.getDirectoryHandle(folderName);
+
+          // 1. Protection .gitignore
+          try {
+            let gitignoreContent = '';
+            try {
+              const gitignoreHandle = await projectHandle.getFileHandle('.gitignore');
+              const file = await gitignoreHandle.getFile();
+              gitignoreContent = await file.text();
+            } catch {}
+
+            const rules = ['.env', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+            const missing = rules.filter((r) => !gitignoreContent.includes(r));
+            if (missing.length > 0) {
+              const gitignoreHandle = await projectHandle.getFileHandle('.gitignore', { create: true });
+              const writable = await gitignoreHandle.createWritable();
+              await writable.write(gitignoreContent + '\n# Private Context Rules\n' + missing.join('\n') + '\n');
+              await writable.close();
+            }
+          } catch {}
+
+          // 2. Écriture dans agent/ et racine
+          const agentDirHandle = await projectHandle.getDirectoryHandle('agent', { create: true });
+          for (const [fname, fileContent] of Object.entries(bundleFiles)) {
+            const fileHandle = await agentDirHandle.getFileHandle(fname, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(fileContent);
+            await writable.close();
+
+            if (fname === 'project-context.md') {
+              const rootFileHandle = await projectHandle.getFileHandle(fname, { create: true });
+              const rootWritable = await rootFileHandle.createWritable();
+              await rootWritable.write(fileContent);
+              await rootWritable.close();
+            }
+          }
+
+          localUpdatedCount++;
+        } catch {
+          // Dossier projet absent de ce dossier racine
+        }
+      }
+
+      if (localUpdatedCount > 0) {
+        showToast(`✓ ${localUpdatedCount} projet(s) locaux synchronisés avec succès depuis le site !`);
+      } else {
+        showToast("Aucun sous-dossier correspondant trouvé dans le répertoire sélectionné.");
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        showToast(`Erreur synchro locale : ${err.message}`);
+      }
+    } finally {
+      setLocalBrowserSyncing(false);
+    }
+  };
+
   const handleDownloadBundle = async () => {
     try {
       const res = await fetch('/api/context/bundle');
@@ -1942,6 +2029,15 @@ function ContextSyncTab({ showToast }) {
             title="Télécharger l'ensemble des fichiers du dossier au format JSON"
           >
             Export JSON
+          </button>
+          <button
+            type="button"
+            onClick={handleBrowserLocalSync}
+            disabled={localBrowserSyncing || loading}
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 text-xs font-semibold border border-cyan-500/40 shadow-sm transition disabled:opacity-50"
+            title="Synchroniser vos dossiers locaux directement depuis le navigateur sans passer par le terminal"
+          >
+            {localBrowserSyncing ? 'Synchronisation...' : 'Synchroniser en local (Site Web)'}
           </button>
           <button
             type="button"
@@ -2053,14 +2149,27 @@ function ContextSyncTab({ showToast }) {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
-              <span className="font-bold text-white block">Synchronisation sur vos dépôts locaux (Machine Dev) :</span>
-              <p className="text-gray-400 text-[11px] leading-relaxed">
-                Pour propager instantanément les derniers fichiers sur l'ensemble de vos dossiers en local sur votre PC, lancez simplement la commande suivante dans le projet azim404 :
-              </p>
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-cyan-300 font-mono text-xs flex justify-between items-center">
-                <code>npm run sync:context</code>
-                <span className="text-[10px] text-gray-500">Node / CLI</span>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-3">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <div>
+                  <span className="font-bold text-white block">Synchronisation sur vos dossiers locaux :</span>
+                  <p className="text-gray-400 text-[11px] leading-relaxed mt-0.5">
+                    Synchronisez directement vos dossiers sur votre PC sans quitter le navigateur, ou via terminal.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBrowserLocalSync}
+                  disabled={localBrowserSyncing}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-md whitespace-nowrap"
+                >
+                  {localBrowserSyncing ? 'Synchronisation...' : 'Synchroniser mes dossiers locaux'}
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-gray-500 font-mono">
+                <span>Alternative en ligne de commande :</span>
+                <code className="text-cyan-400/90 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">npm run sync:context</code>
               </div>
             </div>
           </div>
