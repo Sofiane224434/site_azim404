@@ -1691,36 +1691,41 @@ function SecurityHeadersTab({ sites, showToast }) {
                 </a>
               </div>
 
-              {/* Outils d'audit complémentaires (SSL Labs, Observatory, PageSpeed, WAVE, RGPD, Blacklight) */}
-              {audit?.tools && audit.tools.length > 1 && (
-                <div className="pt-3 border-t border-slate-900 space-y-2">
-                  <span className="text-[11px] font-mono text-gray-400 block">
-                    Outils d'audit complémentaires :
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {audit.tools.slice(1).map((tool) => (
-                      <a
-                        key={tool.id}
-                        href={tool.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-xs transition flex flex-col justify-between gap-1 group"
-                        title={tool.desc}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-gray-200 group-hover:text-cyan-300">
-                            {tool.name}
-                          </span>
-                          <span className="text-gray-500 text-[10px] font-mono">↗</span>
-                        </div>
-                        <span className="text-[10px] text-gray-400 leading-tight">
-                          {tool.desc}
-                        </span>
-                      </a>
-                    ))}
+              {/* Outils d'audit complémentaires - toujours visibles */}
+              {(() => {
+                const staticTools = [
+                  { id: 'ssllabs', name: 'Qualys SSL Labs', desc: 'Audit SSL/TLS complet', url: `https://www.ssllabs.com/ssltest/analyze.html?d=${encodeURIComponent(dom)}` },
+                  { id: 'observatory', name: 'Mozilla Observatory', desc: 'En-têtes, TLS et bonnes pratiques', url: `https://observatory.mozilla.org/analyze/${encodeURIComponent(dom)}` },
+                  { id: 'pagespeed', name: 'PageSpeed / Lighthouse', desc: 'Core Web Vitals, SEO, accessibilité', url: `https://pagespeed.web.dev/analysis?url=https%3A%2F%2F${encodeURIComponent(dom)}%2F` },
+                  { id: 'wave', name: 'WAVE Accessibilite', desc: 'Contrastes, ARIA, hiérarchie titres', url: `https://wave.webaim.org/report#/https://${encodeURIComponent(dom)}` },
+                  { id: 'blacklight', name: 'Blacklight', desc: 'Trackers publicitaires, fingerprinting', url: `https://themarkup.org/blacklight?url=${encodeURIComponent(dom)}` },
+                  { id: '2gdpr', name: '2GDPR / Cookiebot', desc: 'Conformité RGPD et cookies', url: `https://2gdpr.com/?url=${encodeURIComponent(dom)}` },
+                ];
+                return (
+                  <div className="pt-3 border-t border-slate-900 space-y-2">
+                    <span className="text-[11px] font-mono text-gray-400 block">Outils d'audit complementaires :</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {staticTools.map((tool) => (
+                        <a
+                          key={tool.id}
+                          href={tool.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-xs transition flex flex-col justify-between gap-1 group"
+                          title={tool.desc}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-gray-200 group-hover:text-cyan-300">{tool.name}</span>
+                            <span className="text-gray-500 text-[10px] font-mono">↗</span>
+                          </div>
+                          <span className="text-[10px] text-gray-400 leading-tight">{tool.desc}</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
             </div>
           );
         })}
