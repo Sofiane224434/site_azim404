@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const baseLocalDir = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
+const defaultPath = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
+const baseLocalDir = process.env.LOCAL_PROJECTS_DIR || (fs.existsSync(defaultPath) ? defaultPath : path.resolve(__dirname, '..', '..'));
 
 const API_URL = process.env.AZIM_API_URL || 'https://azim404.com/api/context/bundle';
 

@@ -1904,16 +1904,57 @@ function ContextSyncTab({ showToast }) {
   };
 
   const [localBrowserSyncing, setLocalBrowserSyncing] = useState(false);
+  const [showBraveModal, setShowBraveModal] = useState(false);
+  const [copiedBraveFlag, setCopiedBraveFlag] = useState(false);
+
+  const handleCopyBraveFlag = () => {
+    navigator.clipboard.writeText('brave://flags/#file-system-access-api');
+    setCopiedBraveFlag(true);
+    setTimeout(() => setCopiedBraveFlag(false), 2500);
+  };
+
+  const handleDownloadSyncBat = () => {
+    const batContent = `@echo off\r\ntitle Synchronisation Contexte Prive - Azim404\r\ncolor 0b\r\necho ========================================================\r\necho   Synchronisation du Contexte Prive sur tous les projets\r\necho ========================================================\r\necho.\r\ncd /d "%~dp0"\r\nnode scripts/sync-local-context.mjs\r\necho.\r\necho Termine. Appuyez sur une touche pour quitter.\r\npause > nul\r\n`;
+    const blob = new Blob([batContent], { type: 'application/x-bat' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sync.bat';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('sync.bat téléchargé');
+  };
 
   // Synchronisation directe des dossiers locaux depuis le navigateur (sans terminal)
   const handleBrowserLocalSync = async () => {
+    setLocalBrowserSyncing(true);
+
+    // 1. Détection du bridge local HTTP (http://127.0.0.1:5001)
+    // S'il est actif, il synchronise immédiatement tous les navigateurs y compris Brave sans aucune restriction
+    try {
+      const bridgePing = await fetch('http://127.0.0.1:5001/ping', { signal: AbortSignal.timeout(1200) }).catch(() => null);
+      if (bridgePing && bridgePing.ok) {
+        showToast("Bridge local détecté. Synchronisation en cours...");
+        const bridgeRes = await fetch('http://127.0.0.1:5001/sync', { method: 'POST' });
+        const bridgeData = await bridgeRes.json();
+        if (bridgeData.success) {
+          showToast(`✓ ${bridgeData.syncedCount} projet(s) locaux synchronisés via le bridge local !`);
+          setLocalBrowserSyncing(false);
+          return;
+        }
+      }
+    } catch {
+      // Bridge local non actif, on continue avec File System Access API
+    }
+
+    // 2. Vérification du support natif du navigateur
     if (!window.showDirectoryPicker) {
-      alert("Votre navigateur ne supporte pas l'accès direct aux fichiers locaux. Utilisez Google Chrome, Microsoft Edge ou Brave pour synchroniser directement depuis le site.");
+      setLocalBrowserSyncing(false);
+      setShowBraveModal(true);
       return;
     }
 
     try {
-      setLocalBrowserSyncing(true);
       showToast("Sélectionnez votre dossier de projets (ex: 'git commit')...");
 
       const rootDirHandle = await window.showDirectoryPicker({
@@ -2317,6 +2358,95 @@ function ContextSyncTab({ showToast }) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'assistance pour Brave Browser */}
+      {showBraveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <h3 className="text-base font-bold text-white">
+                Synchronisation locale dans Brave Browser
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBraveModal(false)}
+                className="text-gray-400 hover:text-white text-sm font-mono p-1 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Brave désactive l'accès direct aux dossiers par défaut pour préserver la vie privée. Deux options simples permettent de synchroniser vos projets locaux :
+            </p>
+
+            {/* Option 1 : Activer le flag Brave */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-cyan-300">
+                  Option 1 (Recommandée) : 100% sur le site
+                </span>
+                <span className="text-[10px] font-mono text-gray-400">1 seule fois</span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Activez l'accès direct dans Brave pour utiliser le bouton directement depuis le site :
+              </p>
+              <ol className="text-xs text-gray-300 space-y-1.5 list-decimal list-inside">
+                <li>Ouvrez un nouvel onglet dans Brave et collez :</li>
+              </ol>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-cyan-400 select-all overflow-x-auto">
+                  brave://flags/#file-system-access-api
+                </code>
+                <button
+                  type="button"
+                  onClick={handleCopyBraveFlag}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 text-xs font-medium transition shrink-0"
+                >
+                  {copiedBraveFlag ? 'Copié !' : 'Copier'}
+                </button>
+              </div>
+              <ol start="2" className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+                <li>Passez le réglage de <strong className="text-white">Default</strong> à <strong className="text-emerald-400">Enabled</strong>.</li>
+                <li>Cliquez sur <strong className="text-white">Relaunch</strong> en bas à droite de Brave.</li>
+              </ol>
+              <p className="text-[11px] text-gray-400">
+                Une fois relancé, le bouton du site synchronise directement vos dossiers sans aucune commande.
+              </p>
+            </div>
+
+            {/* Option 2 : 1 double-clic avec sync.bat */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white">
+                  Option 2 : Sans modifier Brave
+                </span>
+                <span className="text-[10px] font-mono text-gray-400">1 double-clic</span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Double-cliquez sur le fichier <code className="text-cyan-300 font-mono">sync.bat</code> situé à la racine du projet <code className="text-cyan-300 font-mono">azim404</code>. Aucun terminal à ouvrir, aucune commande à taper.
+              </p>
+              <button
+                type="button"
+                onClick={handleDownloadSyncBat}
+                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition flex items-center justify-center gap-2"
+              >
+                <span>Télécharger sync.bat</span>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowBraveModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </div>
       )}

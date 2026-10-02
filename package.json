@@ -12,7 +12,8 @@
     "dev:frontend": "cd frontend && npm run dev",
     "translate": "node scripts/translate.js",
     "translate:watch": "node scripts/translate.js --watch",
-    "sync:context": "node scripts/sync-local-context.mjs"
+    "sync:context": "node scripts/sync-local-context.mjs",
+    "sync:bridge": "node scripts/local-bridge.mjs"
   }
 }
 
