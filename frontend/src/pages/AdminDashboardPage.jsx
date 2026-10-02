@@ -515,13 +515,6 @@ export default function AdminDashboardPage() {
               <span className="uppercase text-cyan-400">{user?.role || 'Membre'}</span>
             </div>
 
-            <Link
-              to="/"
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 hover:text-white transition font-medium"
-            >
-              Site Public
-            </Link>
-
             <button
               onClick={handleLogout}
               className="text-xs px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 transition font-medium"
@@ -2000,20 +1993,20 @@ function AuditTestsTab({ sites, showToast }) {
       </div>
 
       {/* Table compacte sans scroll horizontal */}
-      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-x-auto scrollbar-thin">
         <table className="w-full text-left table-fixed">
           <thead>
             <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
-              <th className="py-2.5 px-3">SITE</th>
-              <th className="py-2.5 px-1 text-center w-16" title="Note globale unifiée prenant en compte les 6 catégories et 20 outils">GLOBAL</th>
-              <th className="py-2.5 px-1 text-center w-12" title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)">1. TLS</th>
-              <th className="py-2.5 px-1 text-center w-12" title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)">2. SEO</th>
-              <th className="py-2.5 px-1 text-center w-12" title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)">3. RGPD</th>
-              <th className="py-2.5 px-1 text-center w-12" title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)">4. GIT</th>
-              <th className="py-2.5 px-1 text-center w-12" title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)">5. CODE</th>
-              <th className="py-2.5 px-1 text-center w-12" title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)">6. VULN</th>
-              <th className="py-2.5 px-1 text-center w-14">DATE</th>
-              <th className="py-2.5 px-2 text-right w-36">ACTIONS</th>
+              <th className="py-2 px-2.5 w-40 sm:w-48">SITE</th>
+              <th className="py-2 px-1 text-center w-14" title="Note globale unifiée prenant en compte les 6 catégories et 20 outils">GLOBAL</th>
+              <th className="py-2 px-0.5 text-center w-10" title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)">1. TLS</th>
+              <th className="py-2 px-0.5 text-center w-10" title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)">2. SEO</th>
+              <th className="py-2 px-0.5 text-center w-10" title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)">3. RGPD</th>
+              <th className="py-2 px-0.5 text-center w-10" title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)">4. GIT</th>
+              <th className="py-2 px-0.5 text-center w-10" title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)">5. CODE</th>
+              <th className="py-2 px-0.5 text-center w-10" title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)">6. VULN</th>
+              <th className="py-2 px-1 text-center w-12">DATE</th>
+              <th className="py-2 px-2 text-right w-28">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
@@ -2030,9 +2023,9 @@ function AuditTestsTab({ sites, showToast }) {
                   key={site.id || sDom}
                   className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
                 >
-                  <td className="py-2 px-3 truncate">
+                  <td className="py-1.5 px-2.5 truncate">
                     <div className="font-semibold text-white truncate text-xs">{site.title || site.name || sDom}</div>
-                    <div className="text-[11px] font-mono text-gray-400 truncate flex items-center gap-1.5">
+                    <div className="text-[10px] font-mono text-gray-400 truncate flex items-center gap-1.5">
                       <span className="truncate">{sDom}</span>
                       {site.isSubpath && (
                         <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/60 text-amber-300 border border-amber-500/30 shrink-0">
@@ -2042,7 +2035,7 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-1 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <span className={`w-7 h-5 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
                         {sGlobal.grade}
@@ -2053,7 +2046,7 @@ function AuditTestsTab({ sites, showToast }) {
                     </div>
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat1}
                       loading={isLoading}
@@ -2061,7 +2054,7 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat2}
                       loading={isLoading}
@@ -2069,7 +2062,7 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat3}
                       loading={isLoading}
@@ -2077,7 +2070,7 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat4}
                       loading={isLoading}
@@ -2085,7 +2078,7 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat5}
                       loading={isLoading}
@@ -2093,7 +2086,7 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
+                  <td className="py-1.5 px-0.5 text-center">
                     <CompactCategoryCell
                       cat={cats.cat6}
                       loading={isLoading}
@@ -2101,18 +2094,18 @@ function AuditTestsTab({ sites, showToast }) {
                     />
                   </td>
 
-                  <td className="py-2 px-1 text-center">
-                    <span className="text-[11px] font-mono text-gray-400" title={lastCheck ? new Date(lastCheck).toLocaleString('fr-FR') : 'Non analysé'}>
+                  <td className="py-1.5 px-1 text-center">
+                    <span className="text-[10px] font-mono text-gray-400" title={lastCheck ? new Date(lastCheck).toLocaleString('fr-FR') : 'Non analysé'}>
                       {formatShortDate(lastCheck)}
                     </span>
                   </td>
 
-                  <td className="py-2 px-2 text-right">
+                  <td className="py-1.5 px-2 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={() => exportSiteMarkdown(sDom)}
-                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-mono text-gray-300 hover:text-white transition"
+                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-gray-300 hover:text-white transition"
                         title={`Exporter le rapport d'audit .md de ${sDom}`}
                       >
                         .md
@@ -2120,7 +2113,7 @@ function AuditTestsTab({ sites, showToast }) {
                       <button
                         type="button"
                         onClick={() => setSelectedDomain(isSelected ? null : sDom)}
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium border transition ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition ${
                           isSelected
                             ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
                             : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
@@ -2132,7 +2125,7 @@ function AuditTestsTab({ sites, showToast }) {
                         type="button"
                         onClick={() => runAuditDomain(sDom, true)}
                         disabled={isLoading}
-                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
                         title="Relancer l'analyse de ce site"
                       >
                         {isLoading ? '...' : 'Scan'}
@@ -2146,55 +2139,57 @@ function AuditTestsTab({ sites, showToast }) {
         </table>
       </div>
 
-      {/* DETAIL MODAL / VUE APPROFONDIE */}
+      {/* DETAIL MODAL / DIALOGUE OVERLAY SANS SCROLL DE PAGE */}
       {selectedDomain && (
-        <div className="p-5 rounded-xl border border-cyan-500/40 bg-slate-950 space-y-5 animate-fade-in shadow-xl">
-          {/* Header de la vue détaillée avec Synthèse Note Globale & Actions */}
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <span className={`w-14 h-14 rounded-xl border text-xl font-black flex items-center justify-center ${gradeColor(selectedGlobal?.grade)}`}>
-                {selectedGlobal?.grade || '?'}
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white">{selectedSite?.title || selectedDomain}</h3>
-                  <code className="text-xs font-mono text-cyan-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                    {selectedDomain}
-                  </code>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border border-cyan-500/40 bg-slate-950 shadow-2xl overflow-hidden">
+            {/* Header modal avec bouton fermer */}
+            <div className="p-4 bg-slate-900/80 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className={`w-11 h-11 rounded-lg border text-lg font-black flex items-center justify-center ${gradeColor(selectedGlobal?.grade)}`}>
+                  {selectedGlobal?.grade || '?'}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white">{selectedSite?.title || selectedDomain}</h3>
+                    <code className="text-[11px] font-mono text-cyan-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                      {selectedDomain}
+                    </code>
+                  </div>
+                  <div className="text-[11px] text-gray-300 mt-0.5">
+                    Score : <strong>{selectedGlobal?.score != null ? `${selectedGlobal.score}/100` : 'N/A'}</strong> ({selectedGlobal?.label}) • Dernier scan : {formatLastCheck(currentSiteLastCheck)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-300 mt-1">
-                  <span>Note Globale : <strong>{selectedGlobal?.score != null ? `${selectedGlobal.score}/100` : 'N/A'}</strong> ({selectedGlobal?.label})</span>
-                  <span>•</span>
-                  <span className="text-gray-400">Dernier scan : {formatLastCheck(currentSiteLastCheck)}</span>
-                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => exportSiteMarkdown(selectedDomain)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs font-medium border border-slate-700 transition"
+                >
+                  Exporter .md
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runAuditDomain(selectedDomain, true)}
+                  disabled={loadingMap[selectedDomain]}
+                  className="px-3 py-1 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-xs text-white font-medium transition"
+                >
+                  {loadingMap[selectedDomain] ? 'Analyse...' : 'Ré-analyser (1 clic)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDomain(null)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-700/50 text-xs font-mono text-gray-400 hover:text-rose-300 transition"
+                >
+                  Fermer
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <button
-                type="button"
-                onClick={() => exportSiteMarkdown(selectedDomain)}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs sm:text-sm font-medium border border-slate-700 transition"
-              >
-                Exporter ce site (.md)
-              </button>
-              <button
-                type="button"
-                onClick={() => runAuditDomain(selectedDomain, true)}
-                disabled={loadingMap[selectedDomain]}
-                className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-xs sm:text-sm text-white font-medium transition"
-              >
-                {loadingMap[selectedDomain] ? 'Analyse 1-clic...' : 'Tout ré-analyser (1 clic)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedDomain(null)}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm text-gray-400 hover:text-white"
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
+            {/* Modal Body scrollable à l'intérieur */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
 
           {/* Filtres de catégories */}
           <div className="flex flex-wrap gap-2">
@@ -2768,7 +2763,9 @@ function AuditTestsTab({ sites, showToast }) {
             )}
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
     </div>
   );
 }
