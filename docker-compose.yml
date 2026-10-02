@@ -10,6 +10,27 @@ services:
     depends_on:
       - azim-api
 
+  azim-db:
+    image: mysql:8.0
+    container_name: azim_db
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-azim_secret_root_404}
+      MYSQL_DATABASE: ${DB_NAME:-azim404}
+      MYSQL_USER: ${DB_USER:-azim_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-azim_pass_404}
+    volumes:
+      - ${AZIM_DATA_DIR:-/home/debian/data/azim404}/mysql:/var/lib/mysql
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   azim-api:
     build:
       context: ./backend
@@ -20,9 +41,16 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=production
+      - DB_HOST=azim-db
+      - DB_USER=${DB_USER:-azim_user}
+      - DB_PASSWORD=${DB_PASSWORD:-azim_pass_404}
+      - DB_NAME=${DB_NAME:-azim404}
     volumes:
       - ${AZIM_DATA_DIR:-/home/debian/data/azim404}:/app/data
       - ${AZIM_APPS_DIR:-/home/debian/apps}:/host_apps
+    depends_on:
+      azim-db:
+        condition: service_healthy
     networks:
       - web
 

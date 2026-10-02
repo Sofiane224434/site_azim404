@@ -915,55 +915,74 @@ export const deleteSite = (req, res) => {
   res.json({ success: true, message: 'Site supprimé de l’admin', sites });
 };
 
-// Helper pour interroger un hôte en HTTP ou HTTPS sans échec lié aux certificats
-function queryDomainRawHeaders(targetUrl, timeoutMs = 7000) {
-  return new Promise((resolve, reject) => {
+// Helper pour interroger un hôte en HTTP ou HTTPS avec suivi des redirections et tolérance aux pannes
+async function queryDomainRawHeaders(targetUrl, timeoutMs = 8000, maxRedirects = 3) {
+  let currentUrl = targetUrl;
+  let redirects = 0;
+
+  while (redirects <= maxRedirects) {
     let urlObj;
     try {
-      urlObj = new URL(targetUrl);
+      urlObj = new URL(currentUrl);
     } catch {
-      return reject(new Error('INVALID_URL'));
+      throw new Error('INVALID_URL');
     }
 
     const isHttps = urlObj.protocol === 'https:';
     const client = isHttps ? https : http;
 
-    const req = client.request(
-      urlObj,
-      {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
-          'Accept': 'text/html,*/*',
+    const res = await new Promise((resolve, reject) => {
+      const req = client.request(
+        urlObj,
+        {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
+            'Accept': 'text/html,*/*',
+            'Connection': 'close',
+          },
+          rejectUnauthorized: false,
+          timeout: timeoutMs,
         },
-        rejectUnauthorized: false,
-        timeout: timeoutMs,
-      },
-      (res) => {
-        const headers = {};
-        for (const [k, v] of Object.entries(res.headers)) {
-          headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v;
+        (resp) => {
+          const headers = {};
+          for (const [k, v] of Object.entries(resp.headers)) {
+            headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v;
+          }
+          resp.resume();
+          resolve({
+            statusCode: resp.statusCode,
+            headers,
+            isHttps,
+          });
         }
-        res.resume();
-        resolve({
-          statusCode: res.statusCode,
-          headers,
-          isHttps,
-        });
+      );
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('TIMEOUT'));
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+
+      req.end();
+    });
+
+    // Suivi automatique des redirections 301/302/307/308 pour auditer la vraie cible finale
+    if ([301, 302, 307, 308].includes(res.statusCode) && res.headers['location']) {
+      let nextLocation = res.headers['location'];
+      if (!nextLocation.startsWith('http')) {
+        nextLocation = new URL(nextLocation, currentUrl).href;
       }
-    );
+      currentUrl = nextLocation;
+      redirects++;
+      continue;
+    }
 
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('TIMEOUT'));
-    });
-
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    req.end();
-  });
+    return res;
+  }
 }
 
 // GET /api/site-status/audit-headers?domain=...
@@ -993,18 +1012,21 @@ export const auditSiteHeaders = async (req, res) => {
 
   try {
     let result;
+    // Tentative 1 : HTTPS direct
     try {
       result = await queryDomainRawHeaders(`https://${cleanDomain}`);
     } catch (httpsErr) {
-      // Si HTTPS échoue à cause du port ou certificat, tentative en HTTP
-      if (httpsErr.message !== 'ENOTFOUND' && httpsErr.code !== 'ENOTFOUND' && httpsErr.code !== 'EAI_AGAIN') {
+      // Tentative 2 : HTTP standard si HTTPS refuse ou échoue
+      try {
+        result = await queryDomainRawHeaders(`http://${cleanDomain}`);
+      } catch (httpErr) {
+        // Nouvelle tentative avec pause courte de 400ms pour éviter les erreurs de socket transitoires
+        await new Promise((r) => setTimeout(r, 400));
         try {
-          result = await queryDomainRawHeaders(`http://${cleanDomain}`);
+          result = await queryDomainRawHeaders(`https://${cleanDomain}`, 10000);
         } catch {
           throw httpsErr;
         }
-      } else {
-        throw httpsErr;
       }
     }
 

@@ -11,7 +11,8 @@
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "translate": "node scripts/translate.js",
-    "translate:watch": "node scripts/translate.js --watch"
+    "translate:watch": "node scripts/translate.js --watch",
+    "sync:context": "node scripts/sync-local-context.mjs"
   }
 }
 

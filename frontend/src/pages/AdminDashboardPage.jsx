@@ -1352,6 +1352,22 @@ function SecurityHeadersTab({ sites, showToast }) {
     });
   };
 
+  const fetchWithRetry = async (url, retries = 3, delay = 600) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok && res.status >= 500 && attempt < retries) {
+          await new Promise((r) => setTimeout(r, delay * attempt));
+          continue;
+        }
+        return await res.json();
+      } catch (err) {
+        if (attempt === retries) throw err;
+        await new Promise((r) => setTimeout(r, delay * attempt));
+      }
+    }
+  };
+
   const runAudit = async (rawDomain) => {
     const cleanDomain = (rawDomain || '')
       .trim()
@@ -1364,8 +1380,7 @@ function SecurityHeadersTab({ sites, showToast }) {
 
     setLoadingMap((prev) => ({ ...prev, [cleanDomain]: true }));
     try {
-      const res = await fetch(`/api/site-status/audit-headers?domain=${encodeURIComponent(cleanDomain)}`);
-      const data = await res.json();
+      const data = await fetchWithRetry(`/api/site-status/audit-headers?domain=${encodeURIComponent(cleanDomain)}`, 3, 600);
       saveAudit(cleanDomain, data);
       if (data.success) {
         showToast?.(`Note SecurityHeaders pour ${cleanDomain} : ${data.grade} (${data.score}/100)`);
@@ -1401,6 +1416,8 @@ function SecurityHeadersTab({ sites, showToast }) {
 
       if (dom) {
         await runAudit(dom);
+        // Pause de 300ms entre chaque audit pour garantir le succès réseau et éviter toute erreur
+        await new Promise((r) => setTimeout(r, 300));
       }
     }
     setGlobalLoading(false);
@@ -1683,28 +1700,34 @@ function SecurityHeadersTab({ sites, showToast }) {
   );
 }
 
-// Onglet dédié à l'édition et la synchronisation du contexte privé (project-context.md)
+// Onglet dédié à l'édition et la synchronisation du dossier de contexte privé
 function ContextSyncTab({ showToast }) {
   const [content, setContent] = useState('');
-  const [lastModified, setLastModified] = useState('');
+  const [lastModified, setLastModified] = useState(null);
   const [targets, setTargets] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [activeFile, setActiveFile] = useState('project-context.md');
+  const [newFileName, setNewFileName] = useState('');
+  const [showNewFileModal, setShowNewFileModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
 
-  const fetchContextData = async () => {
+  const fetchContextData = async (fileToLoad = activeFile) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/context');
-      if (res.ok) {
-        const data = await res.json();
+      const res = await fetch(`/api/context?file=${encodeURIComponent(fileToLoad)}`);
+      const data = await res.json();
+      if (data.success) {
         setContent(data.content || '');
-        setLastModified(data.lastModified || '');
+        setLastModified(data.lastModified);
         setTargets(data.targets || []);
+        setFiles(data.files || []);
+        setActiveFile(data.activeFile || fileToLoad);
       }
-    } catch (err) {
-      console.error('Erreur chargement contexte:', err);
+    } catch {
+      showToast('Impossible de charger le contexte privé');
     } finally {
       setLoading(false);
     }
@@ -1714,18 +1737,33 @@ function ContextSyncTab({ showToast }) {
     fetchContextData();
   }, []);
 
+  const handleSelectFile = (name) => {
+    setActiveFile(name);
+    fetchContextData(name);
+  };
+
+  const handleCreateFile = () => {
+    if (!newFileName.trim()) return;
+    const clean = newFileName.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+    setActiveFile(clean);
+    setContent(`# ${clean}\n\n`);
+    setShowNewFileModal(false);
+    setNewFileName('');
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
       const res = await fetch('/api/context/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, filename: activeFile }),
       });
       const data = await res.json();
       if (data.success) {
         setLastModified(data.lastModified);
-        showToast('Fichier contexte enregistré sur le serveur.');
+        showToast(data.message || 'Fichier enregistré avec succès.');
+        fetchContextData(activeFile);
       } else {
         showToast(data.error || 'Erreur lors de l’enregistrement');
       }
@@ -1770,7 +1808,7 @@ function ContextSyncTab({ showToast }) {
       await fetch('/api/context/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, filename: activeFile }),
       });
 
       const res = await fetch('/api/context/sync', {
@@ -1780,12 +1818,31 @@ function ContextSyncTab({ showToast }) {
       const data = await res.json();
       setSyncResult(data);
       if (data.success) {
-        showToast(`Synchronisé avec succès sur ${data.syncedCount} projet(s).`);
+        showToast(`Dossier synchronisé et sécurisé sur ${data.syncedCount} projet(s).`);
       }
     } catch {
       showToast('Erreur lors de la synchronisation');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDownloadBundle = async () => {
+    try {
+      const res = await fetch('/api/context/bundle');
+      const data = await res.json();
+      if (data.success) {
+        const blob = new Blob([JSON.stringify(data.bundle, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'private-context-bundle.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Fichiers de contexte exportés.');
+      }
+    } catch {
+      showToast('Erreur lors de l’export');
     }
   };
 
@@ -1795,20 +1852,28 @@ function ContextSyncTab({ showToast }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-white">Contexte Privé &amp; Synchronisation</h2>
+          <h2 className="text-xl font-bold text-white">Dossier Contexte Privé &amp; Synchronisation</h2>
           <p className="text-xs text-gray-400 mt-1">
-            Gérez le fichier de configuration opérationnel (project-context.md) et synchronisez-le sur l'ensemble de vos projets en un clic.
+            Gérez le dossier de configuration et synchronisez l'ensemble des fichiers sur vos projets avec protection automatique (.gitignore &amp; .env).
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleDownloadBundle}
+            className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white text-xs font-mono border border-slate-800 transition"
+            title="Télécharger l'ensemble des fichiers du dossier au format JSON"
+          >
+            Export JSON
+          </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
             className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700 transition"
           >
-            {saving ? 'Enregistrement...' : 'Enregistrer le fichier'}
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
           <button
             type="button"
@@ -1816,22 +1881,76 @@ function ContextSyncTab({ showToast }) {
             disabled={syncing || loading || enabledCount === 0}
             className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md transition disabled:opacity-50"
           >
-            {syncing ? 'Synchronisation...' : `Synchroniser sur les sites (${enabledCount})`}
+            {syncing ? 'Synchronisation...' : `Synchroniser le dossier (${enabledCount})`}
           </button>
         </div>
       </div>
 
+      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs text-gray-400">
+        <span>Protection automatique active : vérification et injection .gitignore &amp; .env avant chaque écriture dans les projets cibles.</span>
+        <span className="font-mono text-[11px] text-cyan-400">Sécurisé</span>
+      </div>
+
       {loading ? (
         <div className="p-8 text-center text-xs font-mono text-gray-400 bg-slate-950 rounded-2xl border border-slate-800">
-          Chargement du fichier contexte...
+          Chargement du dossier contexte...
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Editeur de texte (2 colonnes) */}
           <div className="lg:col-span-2 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {files.map((f) => (
+                <button
+                  key={f.filename}
+                  type="button"
+                  onClick={() => handleSelectFile(f.filename)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono transition border ${
+                    activeFile === f.filename
+                      ? 'bg-cyan-950 border-cyan-500/50 text-cyan-300'
+                      : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {f.filename}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowNewFileModal(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-gray-400 hover:text-white"
+              >
+                + Ajouter un fichier
+              </button>
+            </div>
+
+            {showNewFileModal && (
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="nom-fichier.md"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-mono flex-1 focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateFile}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold"
+                >
+                  Créer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewFileModal(false)}
+                  className="px-2 py-1.5 text-xs text-gray-400 hover:text-white"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex justify-between items-center text-xs font-mono text-gray-400 border-b border-slate-800 pb-2">
-                <span>Fichier source : project-context.md</span>
+                <span>Fichier : {activeFile}</span>
                 <span>
                   {lastModified ? `Mis à jour le ${new Date(lastModified).toLocaleString('fr-FR')}` : ''}
                 </span>
@@ -1840,26 +1959,36 @@ function ContextSyncTab({ showToast }) {
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={26}
+                rows={25}
                 spellCheck={false}
                 className="w-full p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs text-gray-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500 resize-y"
-                placeholder="Contenu du fichier project-context.md..."
+                placeholder={`Contenu du fichier ${activeFile}...`}
               />
 
               <div className="flex justify-between items-center text-[11px] font-mono text-gray-500">
                 <span>{content.split('\n').length} lignes • {content.length} caractères</span>
                 <button
                   type="button"
-                  onClick={fetchContextData}
+                  onClick={() => fetchContextData(activeFile)}
                   className="text-gray-400 hover:text-white underline"
                 >
                   Recharger depuis le serveur
                 </button>
               </div>
             </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
+              <span className="font-bold text-white block">Synchronisation sur vos dépôts locaux (Machine Dev) :</span>
+              <p className="text-gray-400 text-[11px] leading-relaxed">
+                Pour propager instantanément les derniers fichiers sur l'ensemble de vos dossiers en local sur votre PC, lancez simplement la commande suivante dans le projet azim404 :
+              </p>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-cyan-300 font-mono text-xs flex justify-between items-center">
+                <code>npm run sync:context</code>
+                <span className="text-[10px] text-gray-500">Node / CLI</span>
+              </div>
+            </div>
           </div>
 
-          {/* Liste des cibles de synchronisation (1 colonne) */}
           <div className="space-y-4">
             <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -1921,7 +2050,6 @@ function ContextSyncTab({ showToast }) {
               </button>
             </div>
 
-            {/* Rapport du dernier résultat de synchronisation */}
             {syncResult && (
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 animate-fade-in">
                 <div className="flex justify-between items-center text-xs">
@@ -1945,6 +2073,12 @@ function ContextSyncTab({ showToast }) {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {syncResult.securedProjects?.length > 0 && (
+                  <div className="text-[10px] text-gray-400 font-mono">
+                    ✓ Sécurité .gitignore validée sur {syncResult.securedProjects.length} dépôts.
                   </div>
                 )}
 

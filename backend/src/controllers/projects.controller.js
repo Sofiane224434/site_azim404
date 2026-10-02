@@ -1,11 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  dbGetPortfolioProjects,
+  dbSavePortfolioProjects,
+  dbDeletePortfolioProject,
+} from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../data');
-const PROJECTS_FILE = path.join(DATA_DIR, 'portfolio_projects.json');
 const STATUS_FILE = path.join(DATA_DIR, 'site_status.json');
 
 const DEFAULT_PROJECTS = [
@@ -34,14 +38,14 @@ const DEFAULT_PROJECTS = [
     inMaintenance: false,
   },
   {
-    id: 'moviedb',
-    title: 'MovieDB',
-    description: 'Application interactive de cinéma connectée à l\'API TMDB avec recherche temps réel, fiches détaillées et favoris.',
-    technologies: ['React', 'API TMDB', 'Tailwind CSS'],
+    id: 'kulturdb',
+    title: 'KulturDB',
+    description: 'Application interactive et médiathèque culturelle connectée avec catalogue, fiches détaillées et favoris.',
+    technologies: ['React', 'Node.js', 'Docker'],
     image: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=600&h=400&fit=crop',
-    link: 'https://moviedb.azim404.com/',
-    domain: 'moviedb.azim404.com',
-    badge: 'API & Streaming',
+    link: 'https://kulturdb.azim404.com/',
+    domain: 'kulturdb.azim404.com',
+    badge: 'En ligne',
     visibleOnPortfolio: true,
     inMaintenance: false,
   },
@@ -60,61 +64,62 @@ const DEFAULT_PROJECTS = [
   {
     id: 'wikisguessr',
     title: 'WikisGuessr',
-    description: 'Jeu interactif inspiré de GeoGuessr : devinez le sujet encyclopédique à partir d\'indices progressifs générés.',
-    technologies: ['React', 'Node.js', 'MySQL', 'Docker'],
-    image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop',
+    description: 'Jeu multijoueur interactif de déduction géographique basé sur Wikipédia avec salons et classements en direct.',
+    technologies: ['React', 'Socket.IO', 'Express'],
+    image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=400&fit=crop',
     link: 'https://wikisguessr.azim404.com/',
     domain: 'wikisguessr.azim404.com',
-    badge: 'Jeu Interactif',
+    badge: 'Multi-joueur',
     visibleOnPortfolio: true,
     inMaintenance: false,
   },
   {
-    id: 'cxb',
+    id: 'cars-x-battle',
     title: 'Cars X Battle',
-    description: 'Jeu multijoueur de combat automobile en arène avec gestion de comptes et statistiques en direct.',
-    technologies: ['Node.js', 'Express', 'MySQL', 'Docker'],
-    image: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&h=400&fit=crop',
+    description: 'Plateforme compétitive automobile avec classements, votes et gestion de duels entre véhicules légendaires.',
+    technologies: ['React', 'Node.js', 'MySQL'],
+    image: 'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?w=600&h=400&fit=crop',
     link: 'https://cxb.azim404.com/',
     domain: 'cxb.azim404.com',
-    badge: 'Multijoueur',
+    badge: 'Fullstack SQL',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
+  },
+  {
+    id: 'gashooter',
+    title: 'GaShooter',
+    description: 'Jeu d\'action 2D rétro arcade développé en Canvas/WebGL avec sound design rétro et système de high scores.',
+    technologies: ['Canvas API', 'JavaScript ES6+', 'Audio API'],
+    image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&h=400&fit=crop',
+    link: 'https://gashooter.azim404.com/',
+    domain: 'gashooter.azim404.com',
+    badge: 'Jeu Arcade',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
+  },
+  {
+    id: 'discord-dashboard',
+    title: 'Discord Bot Dashboard',
+    description: 'Panneau de configuration web pour serveurs Discord avec gestion des permissions et logs d\'activité.',
+    technologies: ['React', 'Discord API', 'TailwindCSS'],
+    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=400&fit=crop',
+    link: 'https://discord.azim404.com/',
+    domain: 'discord.azim404.com',
+    badge: 'En ligne',
     visibleOnPortfolio: true,
     inMaintenance: false,
   },
 ];
 
-function readProjectsFile() {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(PROJECTS_FILE)) {
-      fs.writeFileSync(PROJECTS_FILE, JSON.stringify(DEFAULT_PROJECTS, null, 2), 'utf-8');
-      return DEFAULT_PROJECTS;
-    }
-    const raw = fs.readFileSync(PROJECTS_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_PROJECTS;
-  } catch (error) {
-    console.error('Erreur lecture portfolio_projects.json:', error);
+async function loadProjects() {
+  const projects = await dbGetPortfolioProjects();
+  if (!projects || projects.length === 0) {
+    await dbSavePortfolioProjects(DEFAULT_PROJECTS);
     return DEFAULT_PROJECTS;
   }
+  return projects;
 }
 
-function writeProjectsFile(data) {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(PROJECTS_FILE, JSON.stringify(data, null, 2), 'utf-8');
-    return true;
-  } catch (error) {
-    console.error('Erreur ecriture portfolio_projects.json:', error);
-    return false;
-  }
-}
-
-// Auto enregistre dans site_status.json
 function registerInStatusFile(project) {
   try {
     if (!fs.existsSync(STATUS_FILE)) return;
@@ -143,22 +148,22 @@ function registerInStatusFile(project) {
 }
 
 // GET /api/portfolio-projects
-export const getProjects = (req, res) => {
-  const projects = readProjectsFile();
+export const getProjects = async (req, res) => {
+  const projects = await loadProjects();
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, projects });
 };
 
 // POST /api/portfolio-projects/save
-export const saveProject = (req, res) => {
+export const saveProject = async (req, res) => {
   const { id, title, description, technologies, badge, link, image, domain, visibleOnPortfolio, inMaintenance } = req.body || {};
 
   if (!title || !title.trim()) {
     return res.status(400).json({ success: false, error: 'Titre du projet obligatoire' });
   }
 
-  const projects = readProjectsFile();
+  const projects = await loadProjects();
   const cleanId = (id || title.toLowerCase().replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString()).trim();
 
   const techArray = Array.isArray(technologies)
@@ -198,7 +203,7 @@ export const saveProject = (req, res) => {
     projects.push(updatedProject);
   }
 
-  writeProjectsFile(projects);
+  await dbSavePortfolioProjects(projects);
   registerInStatusFile(updatedProject);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -207,16 +212,16 @@ export const saveProject = (req, res) => {
 };
 
 // POST /api/portfolio-projects/toggle-visibility
-export const toggleVisibility = (req, res) => {
+export const toggleVisibility = async (req, res) => {
   const { id, visible } = req.body || {};
-  const projects = readProjectsFile();
+  const projects = await loadProjects();
   const project = projects.find((p) => p.id === id);
   if (!project) {
     return res.status(404).json({ success: false, error: 'Projet introuvable' });
   }
 
   project.visibleOnPortfolio = typeof visible === 'boolean' ? visible : !project.visibleOnPortfolio;
-  writeProjectsFile(projects);
+  await dbSavePortfolioProjects(projects);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -224,12 +229,10 @@ export const toggleVisibility = (req, res) => {
 };
 
 // DELETE /api/portfolio-projects/:id
-export const deleteProject = (req, res) => {
+export const deleteProject = async (req, res) => {
   const { id } = req.params;
-  const projects = readProjectsFile();
-  const filtered = projects.filter((p) => p.id !== id);
-
-  writeProjectsFile(filtered);
+  await dbDeletePortfolioProject(id);
+  const filtered = await loadProjects();
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

@@ -1,14 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  dbGetContextTargets,
+  dbSaveContextTargets,
+  dbGetContextFile,
+  dbSaveContextFile,
+} from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
+const CONTEXT_FOLDER = path.join(DATA_DIR, 'context_files');
 const MASTER_CONTEXT_FILE = path.join(DATA_DIR, 'project-context.md');
-const TARGETS_FILE = path.join(DATA_DIR, 'context_sync_targets.json');
-const LOCAL_AGENT_FILE = path.resolve(__dirname, '../../../agent/project-context.md');
+const LOCAL_AGENT_DIR = path.resolve(__dirname, '../../../agent');
 const HOST_APPS_DIR = '/host_apps';
 const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
 
@@ -27,86 +33,140 @@ const DEFAULT_TARGETS = [
   { id: 'azim404', name: 'Azim404 (Ce projet)', folder: 'azim404', enabled: true },
 ];
 
-function readTargets() {
+function initContextStorage() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
+
+  // Si project-context.md existe à la racine data ou agent, l'importer dans context_files
+  const primaryFile = path.join(CONTEXT_FOLDER, 'project-context.md');
+  if (!fs.existsSync(primaryFile)) {
+    if (fs.existsSync(MASTER_CONTEXT_FILE)) {
+      fs.copyFileSync(MASTER_CONTEXT_FILE, primaryFile);
+    } else if (fs.existsSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'))) {
+      fs.copyFileSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'), primaryFile);
+    } else {
+      fs.writeFileSync(primaryFile, '# Contexte Projets - Prive\n\nConfiguration initiale.\n', 'utf8');
+    }
+  }
+}
+
+initContextStorage();
+
+// Sécurité : garantit que .gitignore et .env protègent les données sensibles
+function secureTargetProject(projectDir) {
   try {
-    if (fs.existsSync(TARGETS_FILE)) {
-      const raw = fs.readFileSync(TARGETS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (!fs.existsSync(projectDir)) return;
+
+    // 1. Protection .gitignore
+    const gitignorePath = path.join(projectDir, '.gitignore');
+    let currentGitignore = '';
+    if (fs.existsSync(gitignorePath)) {
+      currentGitignore = fs.readFileSync(gitignorePath, 'utf8');
+    }
+
+    const rules = [
+      '.env',
+      '.env.local',
+      '.env.*.local',
+      'agent/',
+      'shared-context/',
+      'project-context.md',
+      '*contexte*prive*.md',
+    ];
+
+    const missingRules = rules.filter((r) => !currentGitignore.includes(r));
+    if (missingRules.length > 0) {
+      const appendContent = '\n# Securite Contexte Prive et Secrets\n' + missingRules.join('\n') + '\n';
+      fs.appendFileSync(gitignorePath, appendContent, 'utf8');
+    }
+
+    // 2. Vérification / Initialisation .env
+    const envPath = path.join(projectDir, '.env');
+    if (!fs.existsSync(envPath)) {
+      const envExamplePath = path.join(projectDir, '.env.example');
+      if (fs.existsSync(envExamplePath)) {
+        fs.copyFileSync(envExamplePath, envPath);
+      }
     }
   } catch (err) {
-    console.error('Erreur lecture context_sync_targets.json:', err);
-  }
-  return DEFAULT_TARGETS;
-}
-
-function writeTargets(targets) {
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(TARGETS_FILE, JSON.stringify(targets, null, 2), 'utf-8');
-    return true;
-  } catch (err) {
-    console.error('Erreur ecriture context_sync_targets.json:', err);
-    return false;
+    console.error(`[Securite Project] Erreur securisation ${projectDir}:`, err.message);
   }
 }
 
-function readMasterContext() {
-  if (fs.existsSync(MASTER_CONTEXT_FILE)) {
+// GET /api/context
+export const getContextInfo = async (req, res) => {
+  initContextStorage();
+
+  const files = fs.readdirSync(CONTEXT_FOLDER).map((name) => {
+    const filePath = path.join(CONTEXT_FOLDER, name);
+    const stat = fs.statSync(filePath);
     return {
-      content: fs.readFileSync(MASTER_CONTEXT_FILE, 'utf-8'),
-      lastModified: fs.statSync(MASTER_CONTEXT_FILE).mtime.toISOString(),
-      path: MASTER_CONTEXT_FILE,
+      filename: name,
+      size: stat.size,
+      lastModified: stat.mtime.toISOString(),
     };
-  }
-  if (fs.existsSync(LOCAL_AGENT_FILE)) {
-    const content = fs.readFileSync(LOCAL_AGENT_FILE, 'utf-8');
-    try {
-      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-      fs.writeFileSync(MASTER_CONTEXT_FILE, content, 'utf-8');
-    } catch {}
-    return {
-      content,
-      lastModified: fs.statSync(LOCAL_AGENT_FILE).mtime.toISOString(),
-      path: LOCAL_AGENT_FILE,
-    };
-  }
-  return {
-    content: '# Contexte Projets - Prive\n\nAucun contenu defini.',
-    lastModified: new Date().toISOString(),
-    path: '',
-  };
-}
+  });
 
-export const getContextInfo = (req, res) => {
-  const master = readMasterContext();
-  const targets = readTargets();
+  const activeFilename = req.query.file || 'project-context.md';
+  const targetFilePath = path.join(CONTEXT_FOLDER, activeFilename);
+
+  let content = '';
+  let lastModified = new Date().toISOString();
+
+  // Essayer depuis SQL
+  const sqlFile = await dbGetContextFile(activeFilename);
+  if (sqlFile) {
+    content = sqlFile.content;
+    lastModified = sqlFile.lastModified;
+  } else if (fs.existsSync(targetFilePath)) {
+    content = fs.readFileSync(targetFilePath, 'utf8');
+    lastModified = fs.statSync(targetFilePath).mtime.toISOString();
+    // Sauvegarder dans SQL
+    await dbSaveContextFile(activeFilename, content);
+  }
+
+  const targets = await dbGetContextTargets(DEFAULT_TARGETS);
+
   res.json({
     success: true,
-    content: master.content,
-    lastModified: master.lastModified,
+    activeFile: activeFilename,
+    content,
+    lastModified,
+    files,
     targets,
   });
 };
 
-export const saveContextContent = (req, res) => {
-  const { content } = req.body || {};
+// POST /api/context/save
+export const saveContextContent = async (req, res) => {
+  const { content, filename } = req.body || {};
   if (typeof content !== 'string') {
     return res.status(400).json({ success: false, error: 'Contenu texte obligatoire' });
   }
 
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(MASTER_CONTEXT_FILE, content, 'utf-8');
+  const activeFilename = (filename || 'project-context.md').trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+  const targetFilePath = path.join(CONTEXT_FOLDER, activeFilename);
 
-    if (fs.existsSync(path.dirname(LOCAL_AGENT_FILE))) {
-      fs.writeFileSync(LOCAL_AGENT_FILE, content, 'utf-8');
+  try {
+    fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
+    fs.writeFileSync(targetFilePath, content, 'utf8');
+
+    // Sauvegarde miroir project-context.md
+    if (activeFilename === 'project-context.md') {
+      fs.writeFileSync(MASTER_CONTEXT_FILE, content, 'utf8');
+      if (fs.existsSync(LOCAL_AGENT_DIR)) {
+        fs.writeFileSync(path.join(LOCAL_AGENT_DIR, 'project-context.md'), content, 'utf8');
+      }
     }
+
+    // Sauvegarde en base de données SQL
+    await dbSaveContextFile(activeFilename, content);
 
     const lastModified = new Date().toISOString();
     res.json({
       success: true,
-      message: 'Fichier contexte enregistre sur le serveur avec succes.',
+      filename: activeFilename,
+      message: `Fichier ${activeFilename} enregistré avec succès en base SQL et stockage persistant.`,
       lastModified,
     });
   } catch (err) {
@@ -114,58 +174,85 @@ export const saveContextContent = (req, res) => {
   }
 };
 
-export const updateTargets = (req, res) => {
+// POST /api/context/targets
+export const updateTargets = async (req, res) => {
   const { targets } = req.body || {};
   if (!Array.isArray(targets)) {
     return res.status(400).json({ success: false, error: 'Liste de cibles invalide' });
   }
 
-  writeTargets(targets);
+  await dbSaveContextTargets(targets);
   res.json({ success: true, targets });
 };
 
-export const propagateContext = (req, res) => {
-  const master = readMasterContext();
-  const targets = readTargets();
+// POST /api/context/sync
+// Synchronise le dossier complet vers tous les projets cibles (VPS + local si accessible)
+export const propagateContext = async (req, res) => {
+  initContextStorage();
+
+  const filesInContext = fs.readdirSync(CONTEXT_FOLDER);
+  const targets = await dbGetContextTargets(DEFAULT_TARGETS);
   const enabledTargets = targets.filter((t) => t.enabled);
 
   const synced = [];
   const errors = [];
+  const securedProjects = [];
 
   for (const target of enabledTargets) {
     let targetSuccess = false;
     const folder = target.folder || target.id;
 
+    // 1. Traitement VPS
     const hostAppPath = path.join(HOST_APPS_DIR, folder);
     if (fs.existsSync(hostAppPath)) {
       try {
+        // Sécurisation .gitignore et .env avant toute écriture de données sensibles
+        secureTargetProject(hostAppPath);
+        securedProjects.push(target.name);
+
         const destAgentDir = path.join(hostAppPath, 'agent');
-        if (!fs.existsSync(destAgentDir)) fs.mkdirSync(destAgentDir, { recursive: true });
-        fs.writeFileSync(path.join(destAgentDir, 'project-context.md'), master.content, 'utf-8');
-        fs.writeFileSync(path.join(hostAppPath, 'project-context.md'), master.content, 'utf-8');
+        fs.mkdirSync(destAgentDir, { recursive: true });
+
+        for (const file of filesInContext) {
+          const src = path.join(CONTEXT_FOLDER, file);
+          const dest = path.join(destAgentDir, file);
+          fs.copyFileSync(src, dest);
+          if (file === 'project-context.md') {
+            fs.copyFileSync(src, path.join(hostAppPath, 'project-context.md'));
+          }
+        }
         targetSuccess = true;
       } catch (err) {
         errors.push({ target: target.name, error: err.message });
       }
     }
 
+    // 2. Traitement Local (si accessible)
     const localProjectPath = path.join(LOCAL_WORKSPACE_PARENT, folder);
     if (fs.existsSync(localProjectPath)) {
       try {
+        secureTargetProject(localProjectPath);
         const destAgentDir = path.join(localProjectPath, 'agent');
-        if (!fs.existsSync(destAgentDir)) fs.mkdirSync(destAgentDir, { recursive: true });
-        fs.writeFileSync(path.join(destAgentDir, 'project-context.md'), master.content, 'utf-8');
-        fs.writeFileSync(path.join(localProjectPath, 'project-context.md'), master.content, 'utf-8');
+        fs.mkdirSync(destAgentDir, { recursive: true });
+
+        for (const file of filesInContext) {
+          const src = path.join(CONTEXT_FOLDER, file);
+          const dest = path.join(destAgentDir, file);
+          fs.copyFileSync(src, dest);
+          if (file === 'project-context.md') {
+            fs.copyFileSync(src, path.join(localProjectPath, 'project-context.md'));
+          }
+        }
         targetSuccess = true;
       } catch (err) {
-        // fallback
+        // silencieux
       }
     }
 
     if (targetSuccess) {
       synced.push(target.name);
     } else {
-      errors.push({ target: target.name, error: 'Dossier du projet introuvable' });
+      errors.push({ target: target.name, error: 'Dossier introuvable sur le système' });
     }
   }
 
@@ -173,7 +260,29 @@ export const propagateContext = (req, res) => {
     success: true,
     syncedCount: synced.length,
     synced,
+    securedProjects,
     errors,
     syncedAt: new Date().toISOString(),
+  });
+};
+
+// GET /api/context/bundle
+// Exporte tous les fichiers du dossier pour synchronisation locale via CLI
+export const getContextBundle = async (req, res) => {
+  initContextStorage();
+
+  const filesInContext = fs.readdirSync(CONTEXT_FOLDER);
+  const bundle = {};
+
+  for (const file of filesInContext) {
+    const filePath = path.join(CONTEXT_FOLDER, file);
+    bundle[file] = fs.readFileSync(filePath, 'utf8');
+  }
+
+  res.json({
+    success: true,
+    fileCount: Object.keys(bundle).length,
+    bundle,
+    generatedAt: new Date().toISOString(),
   });
 };
