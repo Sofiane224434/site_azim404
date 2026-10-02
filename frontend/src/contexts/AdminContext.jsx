@@ -34,7 +34,20 @@ const DEFAULT_SITES = {
     message: "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
     updatedAt: new Date().toISOString(),
   },
+  'nexus-v': {
+    id: 'nexus-v',
+    name: 'Nexus-V',
+    domain: 'azim404.com/nexus-v',
+    deployType: 'subpath',
+    inMaintenance: false,
+    scope: 'SPECIFIC',
+    targetPages: '/nexus-v',
+    title: 'Nexus-V en cours de mise à jour',
+    message: "La passerelle Nexus-V sous azim404.com est temporairement en maintenance.",
+    updatedAt: new Date().toISOString(),
+  },
 };
+
 
 export function AdminProvider({ children }) {
   const [user, setUser] = useState(() => {

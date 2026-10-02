@@ -262,6 +262,9 @@ export default function AdminDashboardPage() {
   const [newBadge, setNewBadge] = useState('En ligne');
   const [newLink, setNewLink] = useState('');
   const [newDomain, setNewDomain] = useState('');
+  const [newImage, setNewImage] = useState('');
+  const [newDeployType, setNewDeployType] = useState('subdomain'); // 'subdomain' (DNS propre) ou 'subpath' (azim404.com/xxx)
+  const [newSubpath, setNewSubpath] = useState('');
   const [newVisibleOnPortfolio, setNewVisibleOnPortfolio] = useState(true);
   const [newAllowContextSync] = useState(true);
   const [newFolderName] = useState('');
@@ -296,42 +299,64 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const cleanDomain = (newDomain || (newLink ? new URL(newLink.startsWith('http') ? newLink : `https://${newLink}`).hostname : '')).trim().toLowerCase();
+    let targetDomain = '';
+    let targetLink = '';
+    let targetScope = 'ALL';
+    let targetPages = '';
+
+    if (newDeployType === 'subpath') {
+      const cleanSub = (newSubpath || newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '-')).replace(/^\/+/, '').replace(/\/+$/, '');
+      targetDomain = `azim404.com/${cleanSub}`;
+      targetLink = `https://azim404.com/${cleanSub}`;
+      targetScope = 'SPECIFIC';
+      targetPages = `/${cleanSub}`;
+    } else {
+      targetDomain = (newDomain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      targetLink = newLink.trim() || (targetDomain ? `https://${targetDomain}/` : '');
+    }
 
     const projectRes = await savePortfolioProject({
       title: newTitle,
       description: newDesc,
       technologies: newStack.split(',').map((s) => s.trim()).filter(Boolean),
-      badge: newBadge,
-      link: newLink,
-      domain: cleanDomain,
+      badge: newBadge || (newDeployType === 'subpath' ? 'Sous-chemin' : 'En ligne'),
+      link: targetLink,
+      domain: targetDomain,
+      image: newImage.trim() || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
+      deployType: newDeployType,
       visibleOnPortfolio: newVisibleOnPortfolio,
       inMaintenance: false,
       allowContextSync: newAllowContextSync,
       folderName: newFolderName || undefined,
     });
 
-    if (cleanDomain) {
+    if (targetDomain) {
       await saveSiteConfig({
-        id: projectRes.project?.id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_'),
+        id: projectRes.project?.id || targetDomain.replace(/[^a-z0-9_-]/gi, '_'),
         name: newTitle,
-        domain: cleanDomain,
-        scope: 'ALL',
-        targetPages: '',
-        title: 'Atelier en cours de rénovation',
-        message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités et j'optimise mes projets. Le site sera de retour d'ici quelques instants.",
+        domain: targetDomain,
+        deployType: newDeployType,
+        scope: targetScope,
+        targetPages: targetPages,
+        title: `${newTitle} en cours de mise à jour`,
+        message: `Salut, c'est Sofiane ! Je peaufine actuellement des améliorations sur ${newTitle}. Le site sera de retour d'ici quelques instants.`,
         inMaintenance: false,
       });
     }
 
-    showToast(`Projet "${newTitle}" ajouté`);
+    showToast(`Projet "${newTitle}" ajouté (${newDeployType === 'subpath' ? 'Sous-chemin azim404.com' : 'Sous-domaine DNS'})`);
     setShowAddProjectModal(false);
     setNewTitle('');
     setNewDesc('');
     setNewStack('');
     setNewLink('');
     setNewDomain('');
+    setNewImage('');
+    setNewSubpath('');
+    setNewDeployType('subdomain');
   };
+
+
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -979,28 +1004,144 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-mono text-gray-300">LIEN / URL COMPLÈTE</label>
-                  <input
-                    type="text"
-                    value={newLink}
-                    onChange={(e) => setNewLink(e.target.value)}
-                    placeholder="https://site.azim404.com/"
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
-                  />
+              {/* Sélecteur de Type de Déploiement : DNS Dédié vs Sous-Chemin */}
+              <div className="space-y-1.5 p-3 rounded-lg bg-slate-900 border border-slate-800">
+                <label className="text-xs font-mono text-gray-300 block">TYPE DE SITE / DÉPLOIEMENT</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDeployType('subdomain');
+                      setNewBadge('En ligne');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border text-left transition ${
+                      newDeployType === 'subdomain'
+                        ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 font-semibold'
+                        : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <div>Sous-domaine DNS</div>
+                    <div className="text-[10px] font-mono text-gray-500 truncate">xxx.azim404.com</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDeployType('subpath');
+                      setNewBadge('Sous-chemin');
+                      if (!newSubpath && newTitle) {
+                        setNewSubpath(newTitle.toLowerCase().replace(/[^a-z0-9_-]/g, '-'));
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border text-left transition ${
+                      newDeployType === 'subpath'
+                        ? 'bg-purple-950/80 border-purple-500/50 text-purple-300 font-semibold'
+                        : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <div>Site secondaire</div>
+                    <div className="text-[10px] font-mono text-gray-500 truncate">azim404.com/xxx</div>
+                  </button>
+                </div>
+              </div>
+
+              {newDeployType === 'subpath' ? (
+                <div className="space-y-1.5 p-3 rounded-lg bg-purple-950/20 border border-purple-500/30">
+                  <label className="text-xs font-mono text-purple-300">SOUS-CHEMIN SUR AZIM404.COM</label>
+                  <div className="flex items-center">
+                    <span className="h-9 px-3 rounded-l-lg bg-slate-900 border border-r-0 border-slate-800 text-xs font-mono text-gray-400 flex items-center">
+                      azim404.com/
+                    </span>
+                    <input
+                      type="text"
+                      value={newSubpath}
+                      onChange={(e) => setNewSubpath(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))}
+                      placeholder="nexus-v"
+                      required
+                      className="w-full h-9 px-3 rounded-r-lg bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-400 font-mono">
+                    URL générée : <span className="text-purple-300">https://azim404.com/{newSubpath || 'nexus-v'}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-300">LIEN / URL COMPLÈTE</label>
+                    <input
+                      type="text"
+                      value={newLink}
+                      onChange={(e) => setNewLink(e.target.value)}
+                      placeholder="https://site.azim404.com/"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-mono text-gray-300">DOMAINE (DNS)</label>
+                    <input
+                      type="text"
+                      value={newDomain}
+                      onChange={(e) => setNewDomain(e.target.value)}
+                      placeholder="site.azim404.com"
+                      className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+
+              {/* Choix de la Couverture du Projet pour le Portfolio */}
+              <div className="space-y-2 p-3 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-mono text-gray-300">COUVERTURE PORTFOLIO (IMAGE)</label>
+                  <span className="text-[10px] font-mono text-gray-500">URL d'image ou préréglage</span>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-mono text-gray-300">DOMAINE (TRAVAUX)</label>
-                  <input
-                    type="text"
-                    value={newDomain}
-                    onChange={(e) => setNewDomain(e.target.value)}
-                    placeholder="site.azim404.com"
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-800 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
-                  />
+                <input
+                  type="text"
+                  value={newImage}
+                  onChange={(e) => setNewImage(e.target.value)}
+                  placeholder="https://images.unsplash.com/... (ou coller une URL)"
+                  className="w-full h-9 px-3 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                />
+
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {[
+                    { label: 'Code & Web', url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop' },
+                    { label: 'IA & Réseau', url: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop' },
+                    { label: 'Gaming & 3D', url: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&h=400&fit=crop' },
+                    { label: 'Cyber & Cloud', url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop' },
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setNewImage(preset.url)}
+                      className={`text-[10px] font-mono px-2 py-1 rounded border transition ${
+                        newImage === preset.url
+                          ? 'bg-cyan-950 border-cyan-400 text-cyan-300 font-semibold'
+                          : 'bg-slate-950 border-slate-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
+
+                {newImage && (
+                  <div className="mt-2 rounded-lg overflow-hidden border border-slate-800 h-24 bg-slate-950 relative">
+                    <img
+                      src={newImage}
+                      alt="Aperçu couverture"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-gray-300">
+                      Aperçu Portfolio
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-sm">
@@ -1012,6 +1153,7 @@ export default function AdminDashboardPage() {
                   className="rounded border-slate-700 text-cyan-500 focus:ring-0"
                 />
               </div>
+
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -1081,6 +1223,7 @@ function UnifiedProjectCard({
   const [badge, setBadge] = useState(item.badge || 'En ligne');
   const [link, setLink] = useState(item.link || '');
   const [domain, setDomain] = useState(item.domain || '');
+  const [image, setImage] = useState(item.image || '');
 
   const siteConfig = item.siteConfig || {};
   const [inMaintenance, setInMaintenance] = useState(Boolean(item.inMaintenance));
@@ -1097,6 +1240,7 @@ function UnifiedProjectCard({
       setBadge(item.badge || 'En ligne');
       setLink(item.link || '');
       setDomain(item.domain || '');
+      setImage(item.image || '');
       setInMaintenance(Boolean(item.inMaintenance));
       const sc = item.siteConfig || {};
       setScope(sc.scope || 'ALL');
@@ -1118,6 +1262,7 @@ function UnifiedProjectCard({
         badge,
         link,
         domain: (domain || item.domain).trim(),
+        image: (image || '').trim(),
         visibleOnPortfolio: item.visibleOnPortfolio,
         inMaintenance,
       });
@@ -1140,6 +1285,8 @@ function UnifiedProjectCard({
     setIsEditing(false);
   };
 
+  const isSubpathDeploy = item.deployType === 'subpath' || (item.domain && item.domain.includes('/')) || (item.link && item.link.includes('azim404.com/'));
+
   return (
     <div
       className={`p-5 rounded-xl border flex flex-col justify-between transition-all ${
@@ -1149,6 +1296,24 @@ function UnifiedProjectCard({
       }`}
     >
       <div className="space-y-3">
+        {/* Couverture du projet */}
+        {item.image && (
+          <div className="relative w-full h-32 rounded-lg overflow-hidden border border-slate-800 bg-slate-900">
+            <img
+              src={item.image}
+              alt={item.title}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-mono text-gray-300">
+              <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-700/60 backdrop-blur-sm">
+                Couverture portfolio
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
@@ -1156,6 +1321,15 @@ function UnifiedProjectCard({
               <span className="text-xs font-mono uppercase text-gray-400 truncate">
                 {item.domain || 'Projet'}
               </span>
+              {isSubpathDeploy ? (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 border border-amber-500/30">
+                  Sous-chemin azim404.com
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-300 border border-slate-800">
+                  DNS Propre
+                </span>
+              )}
               {item.isProject && (
                 <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                   item.visibleOnPortfolio
@@ -1324,6 +1498,50 @@ function UnifiedProjectCard({
                   </div>
                 </div>
 
+                <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-mono text-gray-400">COUVERTURE PORTFOLIO (URL)</label>
+                    {image && (
+                      <button
+                        type="button"
+                        onClick={() => setImage('')}
+                        className="text-[11px] font-mono text-gray-400 hover:text-rose-400 transition"
+                      >
+                        Retirer
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={image}
+                    onChange={(e) => setImage(e.target.value)}
+                    placeholder="https://... ou URL image"
+                    className="w-full h-8 px-2.5 rounded bg-slate-950 border border-slate-800 text-sm text-white font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {[
+                      { label: 'Code Dev', url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop' },
+                      { label: 'Cyber Dark', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=400&fit=crop' },
+                      { label: 'Interface UI', url: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&h=400&fit=crop' },
+                      { label: 'Nexus V', url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&h=400&fit=crop' },
+                    ].map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setImage(p.url)}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 text-gray-400 hover:text-cyan-300 transition"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  {image && (
+                    <div className="mt-1 h-16 w-full rounded border border-slate-800 overflow-hidden bg-slate-950">
+                      <img src={image} alt="Aperçu" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-1 pt-1 border-t border-slate-800">
                   <label className="text-xs font-mono text-gray-400">MESSAGE DE TRAVAUX</label>
                   <textarea
@@ -1406,9 +1624,19 @@ function AuditTestsTab({ sites, showToast }) {
   const [lastCheckTimes, setLastCheckTimes] = useState({});
 
   const validSites = sites.map((s) => {
-    const dom = (s.domain || (s.link ? new URL(s.link.startsWith('http') ? s.link : `https://${s.link}`).hostname : ''))
-      .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
-    return { ...s, cleanDomain: dom };
+    let raw = (s.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!raw && s.link) {
+      try {
+        const u = new URL(s.link.startsWith('http') ? s.link : `https://${s.link}`);
+        raw = u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : '');
+      } catch {
+        raw = '';
+      }
+    }
+    raw = raw.replace(/\/+$/, '');
+    const isSubpath = s.deployType === 'subpath' || raw.includes('/') || (s.link && s.link.includes('azim404.com/'));
+    const cleanDomain = isSubpath ? raw : raw.split('/')[0].split(':')[0];
+    return { ...s, isSubpath, cleanDomain };
   }).filter((s) => Boolean(s.cleanDomain));
 
   const fetchJSON = async (url, timeout = 35000) => {
@@ -1667,6 +1895,39 @@ function AuditTestsTab({ sites, showToast }) {
     return 'text-rose-400 bg-rose-950/40 border-rose-500/40';
   };
 
+  const formatShortDate = (isoDate) => {
+    if (!isoDate) return '-';
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return '-';
+    const now = new Date();
+    const diffMins = Math.floor((now - d) / 60000);
+    if (diffMins < 1) return 'Récent';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h`;
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  };
+
+  const CompactCategoryCell = ({ cat, loading, title }) => {
+    const grade = cat?.grade;
+    const score = cat?.score;
+    return (
+      <div className="flex flex-col items-center justify-center" title={title}>
+        {loading && !score ? (
+          <span className="w-6 h-5 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
+            <span className="w-2.5 h-2.5 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
+          </span>
+        ) : (
+          <span className={`w-6 h-5 rounded border text-[11px] font-bold flex items-center justify-center ${gradeColor(grade)}`}>
+            {grade || '-'}
+          </span>
+        )}
+        <span className="text-[10px] font-mono text-gray-400 mt-0.5 leading-none">
+          {score != null ? score : '-'}
+        </span>
+      </div>
+    );
+  };
+
   const GradeBadge = ({ grade, loading, href, title: badgeTitle }) => {
     const badgeContent = loading ? (
       <span className="w-9 h-7 rounded border border-slate-700 bg-slate-900 flex items-center justify-center">
@@ -1738,181 +1999,151 @@ function AuditTestsTab({ sites, showToast }) {
         </div>
       </div>
 
-      {/* Table des résultats avec Notes de Catégories (hors détails) */}
+      {/* Table compacte sans scroll horizontal */}
       <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b border-slate-800 text-gray-400 font-mono text-xs bg-slate-900/40">
-                <th className="py-3 px-3">SITE / DOMAINE</th>
-                <th className="py-3 px-2 text-center" title="Note globale unifiée prenant en compte les 6 catégories et 20 outils">NOTE GLOBALE</th>
-                <th className="py-3 px-2 text-center" title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)">1. SÉCURITÉ & TLS</th>
-                <th className="py-3 px-2 text-center" title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)">2. SEO & PERF</th>
-                <th className="py-3 px-2 text-center" title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)">3. RGPD & COOKIES</th>
-                <th className="py-3 px-2 text-center" title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)">4. FUITES GIT</th>
-                <th className="py-3 px-2 text-center" title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)">5. QUALITÉ CODE</th>
-                <th className="py-3 px-2 text-center" title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)">6. VULNS & DB</th>
-                <th className="py-3 px-3 text-center">DERNIÈRE ANALYSE</th>
-                <th className="py-3 px-3 text-right">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {validSites.map((site) => {
-                const sDom = site.cleanDomain;
-                const sGlobal = getSiteGlobal(sDom);
-                const cats = getSiteCategories(sDom);
-                const isLoading = loadingMap[sDom];
-                const isSelected = selectedDomain === sDom;
-                const lastCheck = lastCheckTimes[sDom];
+        <table className="w-full text-left table-fixed">
+          <thead>
+            <tr className="border-b border-slate-800 text-gray-400 font-mono text-[11px] bg-slate-900/40">
+              <th className="py-2.5 px-3">SITE</th>
+              <th className="py-2.5 px-1 text-center w-16" title="Note globale unifiée prenant en compte les 6 catégories et 20 outils">GLOBAL</th>
+              <th className="py-2.5 px-1 text-center w-12" title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)">1. TLS</th>
+              <th className="py-2.5 px-1 text-center w-12" title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)">2. SEO</th>
+              <th className="py-2.5 px-1 text-center w-12" title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)">3. RGPD</th>
+              <th className="py-2.5 px-1 text-center w-12" title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)">4. GIT</th>
+              <th className="py-2.5 px-1 text-center w-12" title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)">5. CODE</th>
+              <th className="py-2.5 px-1 text-center w-12" title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)">6. VULN</th>
+              <th className="py-2.5 px-1 text-center w-14">DATE</th>
+              <th className="py-2.5 px-2 text-right w-36">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/60">
+            {validSites.map((site) => {
+              const sDom = site.cleanDomain;
+              const sGlobal = getSiteGlobal(sDom);
+              const cats = getSiteCategories(sDom);
+              const isLoading = loadingMap[sDom];
+              const isSelected = selectedDomain === sDom;
+              const lastCheck = lastCheckTimes[sDom];
 
-                return (
-                  <tr
-                    key={site.id || sDom}
-                    className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
-                  >
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-white truncate max-w-[170px]">{site.title || site.name || sDom}</div>
-                      <div className="text-xs font-mono text-gray-400">{sDom}</div>
-                    </td>
-
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1.5">
-                        <span className={`w-9 h-7 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
-                          {sGlobal.grade}
+              return (
+                <tr
+                  key={site.id || sDom}
+                  className={`transition hover:bg-slate-900/40 ${isSelected ? 'bg-cyan-950/20' : ''}`}
+                >
+                  <td className="py-2 px-3 truncate">
+                    <div className="font-semibold text-white truncate text-xs">{site.title || site.name || sDom}</div>
+                    <div className="text-[11px] font-mono text-gray-400 truncate flex items-center gap-1.5">
+                      <span className="truncate">{sDom}</span>
+                      {site.isSubpath && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/60 text-amber-300 border border-amber-500/30 shrink-0">
+                          sous-chemin
                         </span>
-                        {sGlobal.score != null && (
-                          <span className="text-xs font-mono text-gray-300 font-medium">{sGlobal.score}/100</span>
-                        )}
-                      </div>
-                    </td>
+                      )}
+                    </div>
+                  </td>
 
-                    {/* Cat 1: Sécurité réseau & TLS */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat1?.grade}
-                          loading={isLoading && !cats.cat1?.score}
-                          title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)"
-                        />
-                        {cats.cat1?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat1.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cat 2: SEO, Accessibilité & Performance */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat2?.grade}
-                          loading={isLoading && !cats.cat2?.score}
-                          title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)"
-                        />
-                        {cats.cat2?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat2.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cat 3: RGPD & Cookies */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat3?.grade}
-                          loading={isLoading && !cats.cat3?.score}
-                          title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)"
-                        />
-                        {cats.cat3?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat3.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cat 4: Fuites Git & Secrets */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat4?.grade}
-                          loading={isLoading && !cats.cat4?.score}
-                          title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)"
-                        />
-                        {cats.cat4?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat4.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cat 5: Qualité logicielle & Architecture */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat5?.grade}
-                          loading={isLoading && !cats.cat5?.score}
-                          title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)"
-                        />
-                        {cats.cat5?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat5.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Cat 6: Base de données & Vulnérabilités */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-1">
-                        <GradeBadge
-                          grade={cats.cat6?.grade}
-                          loading={isLoading && !cats.cat6?.score}
-                          title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)"
-                        />
-                        {cats.cat6?.score != null && (
-                          <span className="text-xs font-mono text-gray-400">{cats.cat6.score}/100</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <span className="text-xs font-mono text-gray-400">
-                        {formatLastCheck(lastCheck)}
+                  <td className="py-2 px-1 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <span className={`w-7 h-5 rounded border text-xs font-bold flex items-center justify-center ${gradeColor(sGlobal.grade)}`}>
+                        {sGlobal.grade}
                       </span>
-                    </td>
+                      <span className="text-[10px] font-mono text-gray-300 mt-0.5 leading-none font-semibold">
+                        {sGlobal.score != null ? `${sGlobal.score}` : '-'}
+                      </span>
+                    </div>
+                  </td>
 
-                    <td className="py-3 px-3 text-right">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => exportSiteMarkdown(sDom)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-mono text-gray-300 hover:text-white transition"
-                          title={`Exporter le rapport d'audit .md de ${sDom}`}
-                        >
-                          Exporter .md
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDomain(isSelected ? null : sDom)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
-                            isSelected
-                              ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                              : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
-                          }`}
-                        >
-                          {isSelected ? 'Fermer' : 'Détails'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => runAuditDomain(sDom, true)}
-                          disabled={isLoading}
-                          className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
-                        >
-                          {isLoading ? 'Analyse...' : 'Actualiser'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat1}
+                      loading={isLoading}
+                      title="1. Sécurité réseau & TLS (SecurityHeaders, Mozilla Observatory, Qualys SSL Labs)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat2}
+                      loading={isLoading}
+                      title="2. SEO, Accessibilité & Performance (Google PageSpeed, WAVE, Search Console)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat3}
+                      loading={isLoading}
+                      title="3. RGPD & Cookies (2gdpr, Cookiebot, Blacklight)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat4}
+                      loading={isLoading}
+                      title="4. Commits, Secrets & Fuites Git (TruffleHog, Gitleaks, GitGuardian)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat5}
+                      loading={isLoading}
+                      title="5. Qualité logicielle & Architecture (Knip, Depcheck, ESLint, SonarQube, Madge)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <CompactCategoryCell
+                      cat={cats.cat6}
+                      loading={isLoading}
+                      title="6. Base de données & Vulnérabilités (npm audit / Snyk, Prisma Doctor, OWASP ZAP)"
+                    />
+                  </td>
+
+                  <td className="py-2 px-1 text-center">
+                    <span className="text-[11px] font-mono text-gray-400" title={lastCheck ? new Date(lastCheck).toLocaleString('fr-FR') : 'Non analysé'}>
+                      {formatShortDate(lastCheck)}
+                    </span>
+                  </td>
+
+                  <td className="py-2 px-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => exportSiteMarkdown(sDom)}
+                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-mono text-gray-300 hover:text-white transition"
+                        title={`Exporter le rapport d'audit .md de ${sDom}`}
+                      >
+                        .md
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDomain(isSelected ? null : sDom)}
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium border transition ${
+                          isSelected
+                            ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                            : 'bg-slate-900 border-slate-700 text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        {isSelected ? 'Fermer' : 'Détails'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runAuditDomain(sDom, true)}
+                        disabled={isLoading}
+                        className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-mono text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                        title="Relancer l'analyse de ce site"
+                      >
+                        {isLoading ? '...' : 'Scan'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* DETAIL MODAL / VUE APPROFONDIE */}

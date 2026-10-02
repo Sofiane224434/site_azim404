@@ -111,6 +111,19 @@ const DEFAULT_PROJECTS = [
     visibleOnPortfolio: true,
     inMaintenance: false,
   },
+  {
+    id: 'nexus-v',
+    title: 'Nexus-V',
+    description: 'Deuxième site intégré sous azim404.com/nexus-v. Espace applicatif et passerelle de services secondaires.',
+    technologies: ['React', 'Node.js', 'Docker'],
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop',
+    link: 'https://azim404.com/nexus-v',
+    domain: 'azim404.com/nexus-v',
+    deployType: 'subpath',
+    badge: 'Sous-chemin',
+    visibleOnPortfolio: true,
+    inMaintenance: false,
+  },
 ];
 
 async function loadProjects() {
@@ -131,14 +144,17 @@ function registerInStatusFile(project) {
     if (!cleanDomain) return;
 
     if (!sites[project.id]) {
+      const isSubpath = project.deployType === 'subpath' || cleanDomain.includes('/');
+      const subpath = isSubpath ? cleanDomain.substring(cleanDomain.indexOf('/')) : '';
       sites[project.id] = {
         id: project.id,
         name: project.title,
         domain: cleanDomain,
+        deployType: isSubpath ? 'subpath' : 'subdomain',
         inMaintenance: Boolean(project.inMaintenance),
-        scope: 'ALL',
-        targetPages: '',
-        title: 'Atelier en cours de rénovation',
+        scope: isSubpath ? 'SPECIFIC' : 'ALL',
+        targetPages: isSubpath ? subpath : '',
+        title: `${project.title} en cours de rénovation`,
         message: "Salut, c'est Sofiane ! Je peaufine actuellement de nouvelles fonctionnalités...",
         updatedAt: new Date().toISOString(),
       };
@@ -148,6 +164,7 @@ function registerInStatusFile(project) {
     // silencieux
   }
 }
+
 
 // GET /api/portfolio-projects
 export const getProjects = async (req, res) => {

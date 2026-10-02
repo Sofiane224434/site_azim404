@@ -26,8 +26,10 @@ import {
   gradeToColor,
   computeCategoryScores,
 } from '../services/audit.service.js';
+import { dbSavePortfolioProjects } from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
+
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const STATUS_FILE = path.join(DATA_DIR, 'site_status.json');
@@ -80,6 +82,18 @@ const DEFAULT_SITES = {
     message: "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
     updatedAt: new Date().toISOString(),
   },
+  'nexus-v': {
+    id: 'nexus-v',
+    name: 'Nexus-V',
+    domain: 'azim404.com/nexus-v',
+    deployType: 'subpath',
+    inMaintenance: false,
+    scope: 'SPECIFIC',
+    targetPages: '/nexus-v',
+    title: 'Nexus-V en cours de mise à jour',
+    message: "La passerelle Nexus-V sous azim404.com est temporairement en maintenance.",
+    updatedAt: new Date().toISOString(),
+  },
 };
 
 function readStatusFile() {
@@ -113,8 +127,8 @@ function writeStatusFile(data) {
   }
 }
 
-// Synchronise l'état de maintenance dans portfolio_projects.json si le projet y existe
-function syncProjectMaintenance(id, domain, inMaintenance) {
+// Synchronise l'état de maintenance dans portfolio_projects.json et MySQL si le projet y existe
+async function syncProjectMaintenance(id, domain, inMaintenance) {
   try {
     if (!fs.existsSync(PROJECTS_FILE)) return;
     const raw = fs.readFileSync(PROJECTS_FILE, 'utf-8');
@@ -132,54 +146,66 @@ function syncProjectMaintenance(id, domain, inMaintenance) {
       }
     }
     if (modified) {
-      fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
+      await dbSavePortfolioProjects(projects);
     }
   } catch (e) {
     // silencieux
   }
 }
 
-// Helper pour trouver un site de manière ultra précise (sans faux positifs de sous-domaines)
+
+// Helper pour trouver un site de manière ultra précise (avec support sous-domaines DNS ET sous-chemins)
 export function findMatchingSite(sites, domainOrId) {
   if (!sites || !domainOrId) return null;
-  const clean = String(domainOrId)
+  const rawClean = String(domainOrId)
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .replace(/\/.*$/, '')
-    .split(':')[0]; // enleve le port
+    .replace(/\/$/, '')
+    .split(':')[0];
 
+  const cleanHost = rawClean.replace(/\/.*$/, '');
   const sitesList = Object.values(sites).filter(Boolean);
 
-  // 1. Domaine exact (ex: cxb.azim404.com === cxb.azim404.com)
+  // 1. Correspondance exacte sur la cible complète (ex: azim404.com/nexus-v)
   let found = sitesList.find((s) => {
-    const sDomain = (s.domain || '')
+    const sTarget = (s.domain || '')
       .toLowerCase()
       .replace(/^https?:\/\//, '')
-      .replace(/\/.*$/, '')
+      .replace(/\/$/, '')
       .split(':')[0];
-    return sDomain === clean;
+    return sTarget === rawClean;
   });
   if (found) return found;
 
-  // 2. ID exact (ex: "cxb" === "cxb")
-  found = sitesList.find((s) => (s.id || '').toLowerCase() === clean);
+  // 2. ID exact (ex: "nexus-v" === "nexus-v")
+  found = sitesList.find((s) => (s.id || '').toLowerCase() === rawClean);
   if (found) return found;
 
-  // 3. WWW exact (www.domaine.com <-> domaine.com)
+  // 3. Domaine sans chemin exact (ex: cxb.azim404.com)
   found = sitesList.find((s) => {
     const sDomain = (s.domain || '')
       .toLowerCase()
       .replace(/^https?:\/\//, '')
       .replace(/\/.*$/, '')
       .split(':')[0];
-    return clean === `www.${sDomain}` || sDomain === `www.${clean}`;
+    return sDomain === cleanHost;
   });
   if (found) return found;
 
-  // 4. Correspondance par sous-domaine spécifique (ex: clean "cxb.azim404.com" -> sub "cxb")
-  // NE JAMAIS faire matcher le domaine racine "azim404.com" pour un sous-domaine !
-  const parts = clean.split('.');
+  // 4. WWW exact
+  found = sitesList.find((s) => {
+    const sDomain = (s.domain || '')
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .split(':')[0];
+    return cleanHost === `www.${sDomain}` || sDomain === `www.${cleanHost}`;
+  });
+  if (found) return found;
+
+  // 5. Correspondance par sous-domaine spécifique (ex: clean "cxb.azim404.com" -> sub "cxb")
+  const parts = cleanHost.split('.');
   if (parts.length > 2) {
     const sub = parts[0];
     if (sub && sub !== 'www') {
@@ -194,6 +220,7 @@ export function findMatchingSite(sites, domainOrId) {
 
   return null;
 }
+
 
 // Verification de dérogation administrateur (Cookie ou Paramètre URL)
 function isBypassActive(req) {
@@ -836,14 +863,14 @@ export const renderMaintenanceScreen = (req, res) => {
 };
 
 // POST /api/site-status/save
-export const saveSite = (req, res) => {
-  const { id, name, domain, scope, targetPages, title, message, inMaintenance } = req.body || {};
+export const saveSite = async (req, res) => {
+  const { id, name, domain, scope, targetPages, title, message, inMaintenance, deployType } = req.body || {};
 
   const cleanDomain = (domain || '')
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .replace(/\/.*$/, '')
+    .replace(/\/$/, '')
     .split(':')[0];
   const cleanId = (id || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString()).trim().toLowerCase();
 
@@ -853,14 +880,16 @@ export const saveSite = (req, res) => {
 
   const sites = readStatusFile();
   const existing = sites[cleanId] || {};
+  const isSubpath = deployType === 'subpath' || cleanDomain.includes('/');
 
   const updatedSite = {
     id: cleanId,
     name: (name || cleanDomain || cleanId).trim(),
     domain: cleanDomain || existing.domain || `${cleanId}.azim404.com`,
+    deployType: isSubpath ? 'subpath' : 'subdomain',
     inMaintenance: typeof inMaintenance === 'boolean' ? inMaintenance : Boolean(existing.inMaintenance),
-    scope: scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
-    targetPages: (targetPages || '').trim(),
+    scope: scope === 'SPECIFIC' || isSubpath ? 'SPECIFIC' : 'ALL',
+    targetPages: (targetPages || (isSubpath ? cleanDomain.substring(cleanDomain.indexOf('/')) : '')).trim(),
     title: (title || existing.title || 'Atelier en cours de rénovation').trim(),
     message: (message || existing.message || DEFAULT_SITES.portfolio.message).trim(),
     updatedAt: new Date().toISOString(),
@@ -869,8 +898,8 @@ export const saveSite = (req, res) => {
   sites[cleanId] = updatedSite;
   writeStatusFile(sites);
 
-  // Synchronise aussi le projet portfolio
-  syncProjectMaintenance(cleanId, updatedSite.domain, updatedSite.inMaintenance);
+  // Synchronise aussi le projet portfolio et MySQL
+  await syncProjectMaintenance(cleanId, updatedSite.domain, updatedSite.inMaintenance);
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -879,14 +908,14 @@ export const saveSite = (req, res) => {
 
 // POST /api/site-status/toggle
 // Permet de basculer la maintenance en 1 clic de n'importe quel site ou projet (l'auto-crée s'il n'existe pas encore)
-export const toggleSiteStatus = (req, res) => {
-  const { site, id, inMaintenance, message, title, scope, targetPages, domain, name } = req.body || {};
+export const toggleSiteStatus = async (req, res) => {
+  const { site, id, inMaintenance, message, title, scope, targetPages, domain, name, deployType } = req.body || {};
   const siteKey = (id || site || '').trim().toLowerCase();
   const cleanDomain = (domain || siteKey)
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .replace(/\/.*$/, '')
+    .replace(/\/$/, '')
     .split(':')[0];
 
   const sites = readStatusFile();
@@ -898,13 +927,15 @@ export const toggleSiteStatus = (req, res) => {
   // Si le site n'existe pas encore dans site_status.json, ON LE CRÉE AUTOMATIQUEMENT
   if (!currentSite) {
     const finalId = siteKey || cleanDomain.replace(/[^a-z0-9_-]/gi, '_') || Date.now().toString();
+    const isSub = deployType === 'subpath' || cleanDomain.includes('/');
     currentSite = {
       id: finalId,
       name: name || cleanDomain || finalId,
       domain: cleanDomain || `${finalId}.azim404.com`,
+      deployType: isSub ? 'subpath' : 'subdomain',
       inMaintenance: false,
-      scope: scope || 'ALL',
-      targetPages: targetPages || '',
+      scope: scope || (isSub ? 'SPECIFIC' : 'ALL'),
+      targetPages: targetPages || (isSub ? cleanDomain.substring(cleanDomain.indexOf('/')) : ''),
       title: title || 'Atelier en cours de rénovation',
       message: message || DEFAULT_SITES.portfolio.message,
       updatedAt: new Date().toISOString(),
@@ -920,13 +951,14 @@ export const toggleSiteStatus = (req, res) => {
   if (scope) currentSite.scope = scope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL';
   if (targetPages !== undefined) currentSite.targetPages = (targetPages || '').trim();
   if (cleanDomain) currentSite.domain = cleanDomain;
+  if (deployType) currentSite.deployType = deployType;
   currentSite.updatedAt = new Date().toISOString();
 
   sites[currentSite.id] = currentSite;
   writeStatusFile(sites);
 
-  // Synchronise portfolio_projects.json
-  syncProjectMaintenance(currentSite.id, currentSite.domain, nextState);
+  // Synchronise portfolio_projects.json et MySQL
+  await syncProjectMaintenance(currentSite.id, currentSite.domain, nextState);
 
   console.log(`[STATUS] Site '${currentSite.id}' (${currentSite.domain}) -> maintenance: ${nextState}`);
 
@@ -934,6 +966,7 @@ export const toggleSiteStatus = (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({ success: true, site: currentSite.id, status: currentSite, sites, all: sites });
 };
+
 
 // DELETE /api/site-status/:id
 export const deleteSite = (req, res) => {
@@ -1588,8 +1621,9 @@ export const auditSSLLabs = async (req, res) => {
 // POINT D'ENTRÉE 1-CLIC : Lance en parallèle l'intégralité des 16+ audits (tous sans exception)
 export const auditFullSite = async (req, res) => {
   const rawDomain = req.query.domain || '';
-  const cleanDomain = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').split(':')[0];
-  if (!cleanDomain) return res.status(400).json({ success: false, error: 'Domaine manquant' });
+  const cleanTarget = rawDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').split(':')[0];
+  const host = cleanTarget.replace(/\/.*$/, '');
+  if (!cleanTarget) return res.status(400).json({ success: false, error: 'Domaine manquant' });
 
   const force = req.query.force === 'true';
 
@@ -1602,18 +1636,18 @@ export const auditFullSite = async (req, res) => {
       knipDepcheckRes, eslintRes, sonarRes, madgeRes,
       npmSnykRes, prismaDoctorRes, owaspZapRes,
     ] = await Promise.allSettled([
-      // Cat 1: Sécurité réseau & TLS
-      runAuditHeadersInternal(cleanDomain, force),
-      runAuditObservatoryInternal(cleanDomain, force),
-      runAuditSSLLabsInternal(cleanDomain, force),
-      // Cat 2: SEO, Accessibilité & Performance
-      auditPageSpeed(cleanDomain),
-      auditWave(cleanDomain),
-      auditSeoSearchConsole(cleanDomain),
-      // Cat 3: RGPD & Cookies
-      audit2gdpr(cleanDomain),
-      auditCookiebot(cleanDomain),
-      auditBlacklight(cleanDomain),
+      // Cat 1: Sécurité réseau & TLS (analyse sur l'hôte DNS pour SSL et Observatory, URL complète pour les headers)
+      runAuditHeadersInternal(cleanTarget, force),
+      runAuditObservatoryInternal(host, force),
+      runAuditSSLLabsInternal(host, force),
+      // Cat 2: SEO, Accessibilité & Performance (sur la cible complète)
+      auditPageSpeed(cleanTarget),
+      auditWave(cleanTarget),
+      auditSeoSearchConsole(cleanTarget),
+      // Cat 3: RGPD & Cookies (sur la cible complète)
+      audit2gdpr(cleanTarget),
+      auditCookiebot(cleanTarget),
+      auditBlacklight(cleanTarget),
       // Cat 4: Commits, Secrets & Fuites Git
       auditTruffleHog(),
       auditGitleaks(),
@@ -1626,8 +1660,9 @@ export const auditFullSite = async (req, res) => {
       // Cat 6: Base de données & Vulnérabilités
       auditNpmSnyk(),
       auditPrismaDoctor(),
-      auditOwaspZap(cleanDomain),
+      auditOwaspZap(cleanTarget),
     ]);
+
 
     const getVal = (r) => (r.status === 'fulfilled' ? r.value : null);
 
@@ -1683,7 +1718,7 @@ export const auditFullSite = async (req, res) => {
 
     const fullPayload = {
       success: true,
-      domain: cleanDomain,
+      domain: cleanTarget,
       globalGrade: catScores.globalGrade,
       globalScore: catScores.globalScore,
       globalLabel: catScores.globalLabel,
@@ -1699,7 +1734,8 @@ export const auditFullSite = async (req, res) => {
       checkedAt: new Date().toISOString(),
     };
 
-    updateAuditCache(cleanDomain, 'full', fullPayload);
+    updateAuditCache(cleanTarget, 'full', fullPayload);
+
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

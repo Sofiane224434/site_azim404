@@ -161,22 +161,47 @@ export function isReady() {
 // Méthodes de haut niveau avec SQL en priorité et fallback automatique
 // -------------------------------------------------------------
 
+const STATUS_JSON = path.join(DATA_DIR, 'site_status.json');
+
+function readLiveSiteStatus() {
+  try {
+    if (fs.existsSync(STATUS_JSON)) {
+      return JSON.parse(fs.readFileSync(STATUS_JSON, 'utf8'));
+    }
+  } catch {}
+  return {};
+}
+
 // Projets
 export async function dbGetPortfolioProjects() {
+  const statusMap = readLiveSiteStatus();
+
   if (isDbReady) {
     try {
       const rows = await query('SELECT * FROM portfolio_projects ORDER BY sort_order ASC, created_at ASC');
-      return rows.map((r) => ({
-        id: r.id,
-        title: r.title,
-        description: r.description,
-        technologies: typeof r.technologies === 'string' ? JSON.parse(r.technologies || '[]') : r.technologies || [],
-        image: r.image,
-        link: r.link,
-        domain: r.domain,
-        badge: r.badge,
-        is_displayed: Boolean(r.is_displayed),
-      }));
+      return rows.map((r) => {
+        const cleanDom = (r.domain || '').toLowerCase().trim();
+        const siteStat = statusMap[r.id] || statusMap[cleanDom] || Object.values(statusMap).find((s) => s.domain?.toLowerCase() === cleanDom);
+        const inMaint = siteStat ? Boolean(siteStat.inMaintenance) : Boolean(r.in_maintenance);
+        const isVisible = r.visible_on_portfolio !== undefined
+          ? Boolean(r.visible_on_portfolio)
+          : (r.is_displayed !== undefined ? Boolean(r.is_displayed) : true);
+
+        return {
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          technologies: typeof r.technologies === 'string' ? JSON.parse(r.technologies || '[]') : r.technologies || [],
+          image: r.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
+          link: r.link,
+          domain: r.domain,
+          badge: r.badge,
+          deployType: r.deploy_type || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+          visibleOnPortfolio: isVisible,
+          is_displayed: isVisible,
+          inMaintenance: inMaint,
+        };
+      });
     } catch (e) {
       console.warn('[DB] Erreur lecture portfolio_projects SQL:', e.message);
     }
@@ -184,20 +209,61 @@ export async function dbGetPortfolioProjects() {
 
   // Fallback JSON
   if (fs.existsSync(PROJECTS_JSON)) {
-    return JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8'));
+    const list = JSON.parse(fs.readFileSync(PROJECTS_JSON, 'utf8'));
+    return list.map((p) => {
+      const cleanDom = (p.domain || '').toLowerCase().trim();
+      const siteStat = statusMap[p.id] || statusMap[cleanDom] || Object.values(statusMap).find((s) => s.domain?.toLowerCase() === cleanDom);
+      const inMaint = siteStat ? Boolean(siteStat.inMaintenance) : Boolean(p.inMaintenance);
+      const isVisible = p.visibleOnPortfolio !== undefined
+        ? Boolean(p.visibleOnPortfolio)
+        : (p.is_displayed !== undefined ? Boolean(p.is_displayed) : true);
+
+      return {
+        ...p,
+        image: p.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
+        deployType: p.deployType || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+        visibleOnPortfolio: isVisible,
+        is_displayed: isVisible,
+        inMaintenance: inMaint,
+      };
+    });
   }
   return [];
 }
 
 export async function dbSavePortfolioProjects(projects) {
+  const statusMap = readLiveSiteStatus();
+
+  // Normalisation des projets avant sauvegarde
+  const normalizedProjects = projects.map((p) => {
+    const cleanDom = (p.domain || '').toLowerCase().trim();
+    const siteStat = statusMap[p.id] || statusMap[cleanDom] || Object.values(statusMap).find((s) => s.domain?.toLowerCase() === cleanDom);
+    const inMaint = siteStat ? Boolean(siteStat.inMaintenance) : Boolean(p.inMaintenance);
+    const isVisible = p.visibleOnPortfolio !== undefined
+      ? Boolean(p.visibleOnPortfolio)
+      : (p.is_displayed !== undefined ? Boolean(p.is_displayed) : true);
+
+    return {
+      ...p,
+      image: p.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
+      deployType: p.deployType || (cleanDom.includes('/') ? 'subpath' : 'subdomain'),
+      visibleOnPortfolio: isVisible,
+      is_displayed: isVisible,
+      inMaintenance: inMaint,
+    };
+  });
+
   // Sync to JSON backup file
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(PROJECTS_JSON, JSON.stringify(projects, null, 2), 'utf8');
+  fs.writeFileSync(PROJECTS_JSON, JSON.stringify(normalizedProjects, null, 2), 'utf8');
 
   if (isDbReady) {
     try {
-      for (let i = 0; i < projects.length; i++) {
-        const p = projects[i];
+      for (let i = 0; i < normalizedProjects.length; i++) {
+        const p = normalizedProjects[i];
+        const isVisNum = p.visibleOnPortfolio ? 1 : 0;
+        const inMaintNum = p.inMaintenance ? 1 : 0;
+
         await query(
           `INSERT INTO portfolio_projects (id, title, description, technologies, image, link, domain, badge, is_displayed, sort_order)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -216,11 +282,11 @@ export async function dbSavePortfolioProjects(projects) {
             p.title,
             p.description || '',
             JSON.stringify(p.technologies || []),
-            p.image || '',
+            p.image,
             p.link || '',
             p.domain || '',
             p.badge || 'En ligne',
-            p.is_displayed !== false ? 1 : 0,
+            isVisNum,
             i,
           ]
         );
@@ -230,6 +296,7 @@ export async function dbSavePortfolioProjects(projects) {
     }
   }
 }
+
 
 export async function dbDeletePortfolioProject(id) {
   if (isDbReady) {

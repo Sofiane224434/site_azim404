@@ -57,6 +57,19 @@
     "image": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=600&h=400&fit=crop",
     "link": "https://cxb.azim404.com/",
     "domain": "cxb.azim404.com",
+    "deployType": "subdomain",
     "badge": "Multijoueur"
+  },
+  {
+    "id": "nexus-v",
+    "title": "Nexus-V",
+    "description": "Deuxième site intégré sous azim404.com/nexus-v. Espace applicatif et passerelle de services secondaires.",
+    "technologies": ["React", "Node.js", "Docker"],
+    "image": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop",
+    "link": "https://azim404.com/nexus-v",
+    "domain": "azim404.com/nexus-v",
+    "deployType": "subpath",
+    "badge": "Sous-chemin"
   }
 ]
+

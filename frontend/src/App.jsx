@@ -5,6 +5,7 @@ import MainLayout from './layouts/MainLayout.jsx';
 import Home from './pages/Home.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import AdminLoginPage from './pages/AdminLoginPage.jsx';
+import NexusVPage from './pages/NexusVPage.jsx';
 import MaintenanceScreen from './components/MaintenanceScreen.jsx';
 
 function ProtectedAdminRoute() {
@@ -90,6 +91,8 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<PublicHome />} />
+      <Route path="/nexus-v" element={<NexusVPage />} />
+      <Route path="/nexus-v/*" element={<NexusVPage />} />
       <Route path="/admin" element={<ProtectedAdminRoute />} />
       <Route path="/login" element={<AdminLoginPage />} />
       <Route path="/auth" element={<AdminLoginPage />} />
@@ -97,6 +100,7 @@ function AppContent() {
     </Routes>
   );
 }
+
 
 export default function App() {
   return (
