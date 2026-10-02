@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -913,6 +915,57 @@ export const deleteSite = (req, res) => {
   res.json({ success: true, message: 'Site supprimé de l’admin', sites });
 };
 
+// Helper pour interroger un hôte en HTTP ou HTTPS sans échec lié aux certificats
+function queryDomainRawHeaders(targetUrl, timeoutMs = 7000) {
+  return new Promise((resolve, reject) => {
+    let urlObj;
+    try {
+      urlObj = new URL(targetUrl);
+    } catch {
+      return reject(new Error('INVALID_URL'));
+    }
+
+    const isHttps = urlObj.protocol === 'https:';
+    const client = isHttps ? https : http;
+
+    const req = client.request(
+      urlObj,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
+          'Accept': 'text/html,*/*',
+        },
+        rejectUnauthorized: false,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const headers = {};
+        for (const [k, v] of Object.entries(res.headers)) {
+          headers[k.toLowerCase()] = Array.isArray(v) ? v.join(', ') : v;
+        }
+        res.resume();
+        resolve({
+          statusCode: res.statusCode,
+          headers,
+          isHttps,
+        });
+      }
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('TIMEOUT'));
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.end();
+  });
+}
+
 // GET /api/site-status/audit-headers?domain=...
 export const auditSiteHeaders = async (req, res) => {
   const rawDomain = req.query.domain || '';
@@ -927,36 +980,35 @@ export const auditSiteHeaders = async (req, res) => {
     return res.status(400).json({ success: false, error: 'Domaine manquant' });
   }
 
+  const securityHeaderTool = [
+    {
+      id: 'securityheaders',
+      name: 'SecurityHeaders.com',
+      url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
+      category: 'Sécurité HTTP',
+      icon: '🛡️',
+      desc: 'Audit officiel SecurityHeaders.com',
+    },
+  ];
+
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-
-    let response;
+    let result;
     try {
-      response = await fetch(`https://${cleanDomain}`, {
-        method: 'HEAD',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
-        },
-      });
-    } catch {
-      response = await fetch(`https://${cleanDomain}`, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Azim404-SecurityAudit/1.0',
-        },
-      });
+      result = await queryDomainRawHeaders(`https://${cleanDomain}`);
+    } catch (httpsErr) {
+      // Si HTTPS échoue à cause du port ou certificat, tentative en HTTP
+      if (httpsErr.message !== 'ENOTFOUND' && httpsErr.code !== 'ENOTFOUND' && httpsErr.code !== 'EAI_AGAIN') {
+        try {
+          result = await queryDomainRawHeaders(`http://${cleanDomain}`);
+        } catch {
+          throw httpsErr;
+        }
+      } else {
+        throw httpsErr;
+      }
     }
 
-    clearTimeout(timeout);
-
-    const headers = {};
-    for (const [key, value] of response.headers.entries()) {
-      headers[key.toLowerCase()] = value;
-    }
-
+    const headers = result.headers || {};
     const hsts = headers['strict-transport-security'];
     const xcto = headers['x-content-type-options'];
     const xfo = headers['x-frame-options'];
@@ -1038,49 +1090,6 @@ export const auditSiteHeaders = async (req, res) => {
       gradeColor = 'text-orange-400 bg-orange-950/40 border-orange-500/40';
     }
 
-    const tools = [
-      {
-        id: 'securityheaders',
-        name: 'SecurityHeaders.com',
-        url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
-        category: 'Sécurité HTTP',
-        icon: '🛡️',
-        desc: 'Audit officiel des en-têtes de sécurité HTTP',
-      },
-      {
-        id: 'observatory',
-        name: 'Mozilla Observatory',
-        url: `https://observatory.mozilla.org/analyze/${cleanDomain}`,
-        category: 'Conformité & Bonnes Pratiques',
-        icon: '🦊',
-        desc: 'Audit de sécurité globale et TLS par Mozilla',
-      },
-      {
-        id: 'ssllabs',
-        name: 'SSL Labs (Qualys)',
-        url: `https://www.ssllabs.com/ssltest/analyze.html?d=${cleanDomain}`,
-        category: 'Certificat & Chiffrement TLS',
-        icon: '🔒',
-        desc: 'Test approfondi du certificat SSL et de la configuration TLS',
-      },
-      {
-        id: 'pagespeed',
-        name: 'Google PageSpeed Insights',
-        url: `https://pagespeed.web.dev/analysis?url=https://${cleanDomain}`,
-        category: 'Performance & UX',
-        icon: '⚡',
-        desc: 'Score de rapidité, SEO et Core Web Vitals',
-      },
-      {
-        id: 'dnschecker',
-        name: 'DNS Checker',
-        url: `https://dnschecker.org/#A/${cleanDomain}`,
-        category: 'Propagation DNS',
-        icon: '🌐',
-        desc: 'Vérification de la résolution DNS sur 30+ serveurs mondiaux',
-      },
-    ];
-
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.json({
@@ -1090,27 +1099,27 @@ export const auditSiteHeaders = async (req, res) => {
       score,
       gradeColor,
       checks,
-      tools,
+      tools: securityHeaderTool,
       checkedAt: new Date().toISOString(),
     });
   } catch (err) {
+    let friendlyError = `Hôte injoignable (${err.message})`;
+    if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
+      friendlyError = `Nom de domaine non configuré : aucun enregistrement DNS trouvé pour "${cleanDomain}". Vérifiez la zone DNS de votre domaine.`;
+    } else if (err.code === 'ECONNREFUSED') {
+      friendlyError = `Connexion refusée : aucun service web actif sur le port 443/80 de "${cleanDomain}".`;
+    } else if (err.message === 'TIMEOUT') {
+      friendlyError = `Délai dépassé (timeout 7s) : le serveur "${cleanDomain}" ne répond pas.`;
+    }
+
     return res.status(200).json({
       success: false,
       domain: cleanDomain,
       grade: '?',
       score: 0,
       gradeColor: 'text-gray-400 bg-slate-900 border-slate-700',
-      error: `Hôte injoignable ou temporairement indisponible: ${err.message}`,
-      tools: [
-        {
-          id: 'securityheaders',
-          name: 'SecurityHeaders.com',
-          url: `https://securityheaders.com/?q=${encodeURIComponent(cleanDomain)}&followRedirects=on`,
-          category: 'Sécurité HTTP',
-          icon: '🛡️',
-          desc: 'Audit officiel des en-têtes de sécurité HTTP',
-        },
-      ],
+      error: friendlyError,
+      tools: securityHeaderTool,
     });
   }
 };
