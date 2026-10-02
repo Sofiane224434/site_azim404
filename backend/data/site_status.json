@@ -20,5 +20,16 @@
     "title": "Portail en cours de maintenance",
     "message": "Je prépare de nouvelles passerelles et des outils d'infrastructure sur Azim404. On se retrouve très vite !",
     "updatedAt": "2026-10-01T14:00:00.000Z"
+  },
+  "cxb": {
+    "id": "cxb",
+    "name": "Cars X Battle",
+    "domain": "cxb.azim404.com",
+    "inMaintenance": true,
+    "scope": "ALL",
+    "targetPages": "",
+    "title": "Atelier en cours de rénovation",
+    "message": "Salut, c'est Sofiane ! Je prépare une mise à jour majeure sur Cars X Battle. Le jeu sera de retour très vite !",
+    "updatedAt": "2026-10-02T10:00:00.000Z"
   }
 }
