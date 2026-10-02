@@ -72,14 +72,16 @@ export default function Footer() {
         </div>
 
         <div className="pt-6 border-t border-slate-900 text-center text-xs text-gray-500 flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span>{t('footer.copyright', { year: currentYear })}</span>
+            <span className="text-slate-800">•</span>
             <Link
               to="/admin"
-              className="text-gray-700 hover:text-cyan-400 transition-colors p-1"
+              className="text-xs text-gray-500 hover:text-cyan-300 font-mono transition-colors flex items-center gap-1 p-1 hover:underline"
               title="Accès Console Admin & Espace Privé"
             >
-              🔒
+              <span>🔒</span>
+              <span>Administration</span>
             </Link>
           </div>
           <span className="font-semibold text-gray-400 text-sm">

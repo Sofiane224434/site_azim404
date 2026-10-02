@@ -36,17 +36,7 @@ export default function Header() {
               className="h-[1.15em] w-auto object-contain inline-block -mr-1 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)] group-hover:scale-105 transition-transform"
             />
             <span>zim</span>
-            <span
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                navigate('/admin');
-              }}
-              className="text-cyan-400 cursor-pointer select-none hover:text-cyan-200 transition-colors"
-              title="Console Admin / Espace Privé"
-            >
-              .
-            </span>
+            <span className="text-cyan-400 select-none">.</span>
             <span>404</span>
           </span>
         </a>
@@ -66,21 +56,23 @@ export default function Header() {
 
         {/* Action Buttons & Language Switcher */}
         <div className="hidden md:flex items-center gap-3">
+          {/* Bouton d'accès Administration visible, élégant et explicite */}
           <button
             onClick={() => navigate('/admin')}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl border text-xs font-mono font-bold transition-all flex items-center gap-2 ${
               isAdmin
-                ? 'bg-cyan-950/90 border-cyan-500 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                : 'bg-slate-900 border-slate-700 text-gray-300 hover:border-cyan-400 hover:text-cyan-300'
+                ? 'bg-cyan-950 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.35)] hover:bg-cyan-900'
+                : 'bg-slate-900/90 border-slate-700 text-gray-200 hover:text-white hover:border-cyan-400 hover:bg-slate-800 shadow-sm'
             }`}
-            title="Accéder à la Console Admin & Espace Privé"
+            title="Accéder au panneau d'administration"
           >
+            <span className="text-sm">🔒</span>
+            <span>{isAdmin ? 'Console Admin' : 'Administration'}</span>
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                isAdmin ? 'bg-cyan-400 animate-pulse' : 'bg-gray-500'
+              className={`w-2 h-2 rounded-full ${
+                isAdmin ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-400'
               }`}
             />
-            <span>{isAdmin ? 'CONSOLE ADMIN' : 'ESPACE PRIVÉ'}</span>
           </button>
 
           <a
@@ -127,9 +119,11 @@ export default function Header() {
         <div className="flex md:hidden items-center gap-2">
           <button
             onClick={() => navigate('/admin')}
-            className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500 text-cyan-300 text-xs font-mono font-semibold"
+            className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5"
+            title="Administration"
           >
-            {isAdmin ? 'ADM' : 'LOG'}
+            <span>🔒</span>
+            <span>Admin</span>
           </button>
 
           <div className="flex bg-slate-900 p-0.5 rounded border border-slate-700 text-xs">
@@ -184,9 +178,10 @@ export default function Header() {
                 setMobileMenuOpen(false);
                 navigate('/admin');
               }}
-              className="w-full text-center py-2.5 rounded-lg bg-slate-900 border border-cyan-500/40 text-cyan-300 font-semibold"
+              className="w-full text-center py-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold flex items-center justify-center gap-2 text-sm shadow-md"
             >
-              {isAdmin ? 'Console Admin' : 'Connexion Espace Admin'}
+              <span>🔒</span>
+              <span>{isAdmin ? 'Console Administration' : 'Connexion Administration'}</span>
             </button>
             <a
               href="https://sofiane-kherarfa.azim404.com"
