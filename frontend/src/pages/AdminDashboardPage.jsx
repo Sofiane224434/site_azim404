@@ -3183,7 +3183,7 @@ function ContextSyncTab({ showToast }) {
               gitignoreContent = await file.text();
             } catch {}
 
-            const rules = ['.env', 'sync/', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+            const rules = ['.env', 'ai-context/project-context.md', 'shared-context/', '*contexte*prive*.md'];
             const missing = rules.filter((r) => !gitignoreContent.includes(r));
             if (missing.length > 0) {
               const gitignoreHandle = await projectHandle.getFileHandle('.gitignore', { create: true });
@@ -3193,20 +3193,21 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          const syncDirHandle = await projectHandle.getDirectoryHandle('sync', { create: true });
+          const contextDirHandle = await projectHandle.getDirectoryHandle('ai-context', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
-            const fileHandle = await syncDirHandle.getFileHandle(fname, { create: true });
+            if (fname === 'GEMINI.md') continue;
+            const fileHandle = await contextDirHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
-
-            if (fname === 'project-context.md') {
-              const rootFileHandle = await projectHandle.getFileHandle(fname, { create: true });
-              const rootWritable = await rootFileHandle.createWritable();
-              await rootWritable.write(fileContent);
-              await rootWritable.close();
-            }
           }
+
+          // Pointeur racine AGENTS.md
+          const rootPointerText = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
+          const rootAgentHandle = await projectHandle.getFileHandle('AGENTS.md', { create: true });
+          const rootAgentWritable = await rootAgentHandle.createWritable();
+          await rootAgentWritable.write(rootPointerText);
+          await rootAgentWritable.close();
 
           localUpdatedCount++;
         } catch {}

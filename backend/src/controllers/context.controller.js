@@ -16,17 +16,17 @@ const DATA_DIR = path.resolve(__dirname, '../../data');
 const HOST_APPS_DIR = '/host_apps';
 const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
 
-// Dossier de synchronisation situe directement a la racine du projet ('sync')
+// Dossier de synchronisation situe directement a la racine du projet ('ai-context')
 function resolveSyncFolder() {
-  if (fs.existsSync('/host_apps/azim404/sync')) {
-    return '/host_apps/azim404/sync';
+  if (fs.existsSync('/host_apps/azim404/ai-context')) {
+    return '/host_apps/azim404/ai-context';
   }
   if (fs.existsSync('/host_apps/azim404')) {
-    const vpsSync = '/host_apps/azim404/sync';
+    const vpsSync = '/host_apps/azim404/ai-context';
     fs.mkdirSync(vpsSync, { recursive: true });
     return vpsSync;
   }
-  const localSync = path.resolve(__dirname, '../../../sync');
+  const localSync = path.resolve(__dirname, '../../../ai-context');
   fs.mkdirSync(localSync, { recursive: true });
   return localSync;
 }
@@ -64,6 +64,19 @@ function initContextStorage() {
 
 initContextStorage();
 
+const ROOT_AGENT_POINTER = `# AI DIRECTIVES & INSTRUCTIONS
+
+Toutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).
+L'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.
+`;
+
+function writeRootAgentPointer(targetProjectDir) {
+  try {
+    const pointerPath = path.join(targetProjectDir, 'AGENTS.md');
+    fs.writeFileSync(pointerPath, ROOT_AGENT_POINTER, 'utf8');
+  } catch (e) {}
+}
+
 // Sécurité : garantit que .gitignore et .env protègent les données sensibles
 function secureTargetProject(projectDir) {
   try {
@@ -80,10 +93,8 @@ function secureTargetProject(projectDir) {
       '.env',
       '.env.local',
       '.env.*.local',
-      'sync/',
-      'agent/',
+      'ai-context/project-context.md',
       'shared-context/',
-      'project-context.md',
       '*contexte*prive*.md',
     ];
 
@@ -218,14 +229,16 @@ export const propagateContext = async (req, res) => {
         secureTargetProject(hostAppPath);
         securedProjects.push(target.name);
 
-        const destSyncDir = path.join(hostAppPath, 'sync');
-        fs.mkdirSync(destSyncDir, { recursive: true });
+        const destContextDir = path.join(hostAppPath, 'ai-context');
+        fs.mkdirSync(destContextDir, { recursive: true });
 
         for (const file of filesInContext) {
+          if (file === 'GEMINI.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destSyncDir, file);
+          const dest = path.join(destContextDir, file);
           fs.copyFileSync(src, dest);
         }
+        writeRootAgentPointer(hostAppPath);
         targetSuccess = true;
       } catch (err) {
         errors.push({ target: target.name, error: err.message });
@@ -237,14 +250,16 @@ export const propagateContext = async (req, res) => {
     if (fs.existsSync(localProjectPath)) {
       try {
         secureTargetProject(localProjectPath);
-        const destSyncDir = path.join(localProjectPath, 'sync');
-        fs.mkdirSync(destSyncDir, { recursive: true });
+        const destContextDir = path.join(localProjectPath, 'ai-context');
+        fs.mkdirSync(destContextDir, { recursive: true });
 
         for (const file of filesInContext) {
+          if (file === 'GEMINI.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destSyncDir, file);
+          const dest = path.join(destContextDir, file);
           fs.copyFileSync(src, dest);
         }
+        writeRootAgentPointer(localProjectPath);
         targetSuccess = true;
       } catch (err) {
         // silencieux

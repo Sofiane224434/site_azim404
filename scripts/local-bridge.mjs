@@ -84,21 +84,23 @@ const server = http.createServer(async (req, res) => {
         try {
           const gitignorePath = path.join(projectPath, '.gitignore');
           let gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-          const rules = ['.env', 'sync/', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+          const rules = ['.env', 'ai-context/project-context.md', 'shared-context/', '*contexte*prive*.md'];
           const missing = rules.filter((r) => !gitignore.includes(r));
           if (missing.length > 0) {
             fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
           }
 
-          const syncDir = path.join(projectPath, 'sync');
-          fs.mkdirSync(syncDir, { recursive: true });
+          const contextDir = path.join(projectPath, 'ai-context');
+          fs.mkdirSync(contextDir, { recursive: true });
 
           for (const [filename, content] of Object.entries(bundle)) {
-            fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
-            if (filename === 'project-context.md') {
-              fs.writeFileSync(path.join(projectPath, 'project-context.md'), content, 'utf8');
-            }
+            if (filename === 'GEMINI.md') continue;
+            fs.writeFileSync(path.join(contextDir, filename), content, 'utf8');
           }
+
+          // Pointeur racine AGENTS.md
+          const rootPointer = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
+          fs.writeFileSync(path.join(projectPath, 'AGENTS.md'), rootPointer, 'utf8');
 
           synced.push(targetName);
         } catch {}

@@ -26,10 +26,14 @@ async function syncLocal() {
   }
 
   if (!bundle || Object.keys(bundle).length === 0) {
-    const fallbackPath = path.join(__dirname, '../sync/project-context.md');
+    const fallbackPath = path.join(__dirname, '../ai-context/project-context.md');
     if (fs.existsSync(fallbackPath)) {
-      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/sync/');
+      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/ai-context/');
       bundle = { 'project-context.md': fs.readFileSync(fallbackPath, 'utf8') };
+      const agentsPath = path.join(__dirname, '../ai-context/AGENTS.md');
+      if (fs.existsSync(agentsPath)) {
+        bundle['AGENTS.md'] = fs.readFileSync(agentsPath, 'utf8');
+      }
     }
   }
 
@@ -73,6 +77,8 @@ async function syncLocal() {
 
   const availableEntries = fs.existsSync(baseLocalDir) ? fs.readdirSync(baseLocalDir) : [];
 
+  const rootAgentPointer = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
+
   for (const targetName of targetFolders) {
     let projectPath = path.join(baseLocalDir, targetName);
     if (!fs.existsSync(projectPath)) {
@@ -88,22 +94,26 @@ async function syncLocal() {
       // 1. Protection .gitignore
       const gitignorePath = path.join(projectPath, '.gitignore');
       let gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-      const rules = ['.env', 'sync/', 'agent/', 'shared-context/', 'project-context.md', '*contexte*prive*.md'];
+      const rules = ['.env', 'ai-context/project-context.md', 'shared-context/', '*contexte*prive*.md'];
       const missing = rules.filter((r) => !gitignore.includes(r));
       if (missing.length > 0) {
         fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
       }
 
-      // 2. Écriture dans le dossier racine sync/ et project-context.md
-      const syncDir = path.join(projectPath, 'sync');
-      fs.mkdirSync(syncDir, { recursive: true });
+      // 2. Écriture dans le dossier racine ai-context/
+      const contextDir = path.join(projectPath, 'ai-context');
+      fs.mkdirSync(contextDir, { recursive: true });
 
       for (const [filename, content] of Object.entries(bundle)) {
-        fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
+        if (filename === 'GEMINI.md') continue;
+        fs.writeFileSync(path.join(contextDir, filename), content, 'utf8');
       }
 
+      // 3. Écriture du pointeur racine AGENTS.md
+      fs.writeFileSync(path.join(projectPath, 'AGENTS.md'), rootAgentPointer, 'utf8');
+
       syncedCount++;
-      console.log(`  ✓ Synchronisé et sécurisé : ${targetName}`);
+      console.log(`  ✓ Synchronisé et sécurisé (ai-context) : ${targetName}`);
     } catch (e) {
       console.error(`  ✗ Erreur sur ${targetName}:`, e.message);
     }

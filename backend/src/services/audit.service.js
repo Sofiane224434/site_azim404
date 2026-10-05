@@ -508,7 +508,7 @@ export async function auditGitleaks() {
     gitignoreContent = fs.readFileSync(path.join(REPO_ROOT, '.gitignore'), 'utf8');
   } catch {}
 
-  const rules = ['.env', 'sync/', '*.key', '*.pem', 'id_rsa'];
+  const rules = ['.env', '*.key', '*.pem', 'id_rsa'];
   const missingRules = rules.filter((r) => !gitignoreContent.includes(r));
 
   // Vérifier l'historique récent des commits pour détecter d'éventuelles fuites
