@@ -3207,22 +3207,15 @@ function ContextSyncTab({ showToast }) {
 
           const aiContextDirHandle = await projectHandle.getDirectoryHandle('ai-context', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
-            if (fname === 'GEMINI.md' || fname === 'AGENTS.md') continue;
+            if (fname === 'GEMINI.md') continue;
             const fileHandle = await aiContextDirHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
           }
 
-          // Écriture de project-context.md à la racine du projet
-          if (bundleFiles['project-context.md']) {
-            const rootContextHandle = await projectHandle.getFileHandle('project-context.md', { create: true });
-            const rootWritable = await rootContextHandle.createWritable();
-            await rootWritable.write(bundleFiles['project-context.md']);
-            await rootWritable.close();
-          }
-
-          // Nettoyage des résidus obsolètes
+          // Nettoyage des fichiers orphelins à la racine et des résidus obsolètes
+          try { await projectHandle.removeEntry('project-context.md'); } catch {}
           try { await projectHandle.removeEntry('sync', { recursive: true }); } catch {}
           try { await projectHandle.removeEntry('.agents', { recursive: true }); } catch {}
           try { await projectHandle.removeEntry('AGENTS.md'); } catch {}

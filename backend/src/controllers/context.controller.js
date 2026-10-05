@@ -95,11 +95,13 @@ function secureTargetProject(projectDir) {
       fs.appendFileSync(gitignorePath, appendContent, 'utf8');
     }
 
-    // Nettoyer tout AGENTS.md ou GEMINI.md orphelin à la racine
+    // Nettoyer tout AGENTS.md, GEMINI.md ou project-context.md orphelin a la racine
     const rootAgent = path.join(projectDir, 'AGENTS.md');
     if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
     const rootGemini = path.join(projectDir, 'GEMINI.md');
     if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
+    const rootContext = path.join(projectDir, 'project-context.md');
+    if (fs.existsSync(rootContext)) fs.unlinkSync(rootContext);
 
     // 2. Vérification / Initialisation .env
     const envPath = path.join(projectDir, '.env');
@@ -172,12 +174,6 @@ export const saveContextContent = async (req, res) => {
     fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
     fs.writeFileSync(targetFilePath, content, 'utf8');
 
-    // Mise a jour du fichier a la racine si c'est project-context.md
-    if (activeFilename === 'project-context.md') {
-      const rootContextPath = path.join(ROOT_PROJECT_DIR, 'project-context.md');
-      fs.writeFileSync(rootContextPath, content, 'utf8');
-    }
-
     // Sauvegarde en base de données SQL
     await dbSaveContextFile(activeFilename, content);
 
@@ -205,7 +201,7 @@ export const updateTargets = async (req, res) => {
 };
 
 // POST /api/context/sync
-// Synchronise le dossier sync et project-context.md vers tous les projets cibles (VPS + local si accessible)
+// Synchronise le dossier ai-context vers tous les projets cibles (VPS + local si accessible)
 export const propagateContext = async (req, res) => {
   initContextStorage();
 
@@ -233,17 +229,15 @@ export const propagateContext = async (req, res) => {
         fs.mkdirSync(destAiContextDir, { recursive: true });
 
         for (const file of filesInContext) {
-          if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
+          if (file === 'GEMINI.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
           const dest = path.join(destAiContextDir, file);
           fs.copyFileSync(src, dest);
         }
 
-        // Copier project-context.md a la racine du projet
-        const rootContextSrc = path.join(CONTEXT_FOLDER, 'project-context.md');
-        if (fs.existsSync(rootContextSrc)) {
-          fs.copyFileSync(rootContextSrc, path.join(hostAppPath, 'project-context.md'));
-        }
+        // Supprimer project-context.md orphelin a la racine
+        const rootContextDest = path.join(hostAppPath, 'project-context.md');
+        if (fs.existsSync(rootContextDest)) fs.unlinkSync(rootContextDest);
 
         // Nettoyer d'anciens dossiers obsoletes si presents
         try {
@@ -268,17 +262,15 @@ export const propagateContext = async (req, res) => {
         fs.mkdirSync(destAiContextDir, { recursive: true });
 
         for (const file of filesInContext) {
-          if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
+          if (file === 'GEMINI.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
           const dest = path.join(destAiContextDir, file);
           fs.copyFileSync(src, dest);
         }
 
-        // Copier project-context.md a la racine du projet
-        const rootContextSrc = path.join(CONTEXT_FOLDER, 'project-context.md');
-        if (fs.existsSync(rootContextSrc)) {
-          fs.copyFileSync(rootContextSrc, path.join(localProjectPath, 'project-context.md'));
-        }
+        // Supprimer project-context.md orphelin a la racine
+        const localRootContext = path.join(localProjectPath, 'project-context.md');
+        if (fs.existsSync(localRootContext)) fs.unlinkSync(localRootContext);
 
         // Nettoyer d'anciens dossiers obsoletes si presents
         try {

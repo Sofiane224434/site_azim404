@@ -29,18 +29,19 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url === '/sync' && req.method === 'POST') {
     try {
-      let bundle = null;
+      let bundle = {};
 
-      // Priorite a la source locale si accessible
-      const localAiContext = path.join(__dirname, '../ai-context/project-context.md');
-      const localRoot = path.join(__dirname, '../project-context.md');
-      if (fs.existsSync(localAiContext)) {
-        bundle = { 'project-context.md': fs.readFileSync(localAiContext, 'utf8') };
-      } else if (fs.existsSync(localRoot)) {
-        bundle = { 'project-context.md': fs.readFileSync(localRoot, 'utf8') };
+      // Priorite au dossier local ai-context/
+      const localAiDir = path.join(__dirname, '../ai-context');
+      if (fs.existsSync(localAiDir)) {
+        const files = fs.readdirSync(localAiDir);
+        for (const f of files) {
+          if (f === 'GEMINI.md') continue;
+          bundle[f] = fs.readFileSync(path.join(localAiDir, f), 'utf8');
+        }
       }
 
-      if (!bundle) {
+      if (Object.keys(bundle).length === 0) {
         try {
           const bundleRes = await fetch(API_URL);
           if (bundleRes.ok) {
@@ -50,7 +51,7 @@ const server = http.createServer(async (req, res) => {
         } catch {}
       }
 
-      if (!bundle) {
+      if (Object.keys(bundle).length === 0) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, error: 'Impossible de recuperer les fichiers' }));
       }
@@ -110,39 +111,24 @@ const server = http.createServer(async (req, res) => {
           const aiContextDir = path.join(projectPath, 'ai-context');
           fs.mkdirSync(aiContextDir, { recursive: true });
 
-          // Migration de l'ancien dossier sync
-          const legacySync = path.join(projectPath, 'sync');
-          if (fs.existsSync(legacySync)) {
-            try {
-              const syncFiles = fs.readdirSync(legacySync);
-              for (const sFile of syncFiles) {
-                if (sFile !== 'AGENTS.md' && sFile !== 'GEMINI.md') {
-                  const src = path.join(legacySync, sFile);
-                  const dest = path.join(aiContextDir, sFile);
-                  if (!fs.existsSync(dest)) fs.copyFileSync(src, dest);
-                }
-              }
-              fs.rmSync(legacySync, { recursive: true, force: true });
-            } catch {}
-          }
-
           for (const [filename, content] of Object.entries(bundle)) {
-            if (filename === 'GEMINI.md' || filename === 'AGENTS.md') continue;
+            if (filename === 'GEMINI.md') continue;
             fs.writeFileSync(path.join(aiContextDir, filename), content, 'utf8');
           }
 
-          // Ecriture de project-context.md a la racine du projet
-          if (bundle['project-context.md']) {
-            fs.writeFileSync(path.join(projectPath, 'project-context.md'), bundle['project-context.md'], 'utf8');
-          }
-
-          // Nettoyage de fichiers/dossiers obsoletes
-          const legacyAgents = path.join(projectPath, '.agents');
-          if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
+          // Nettoyer les fichiers orphelins a la racine du projet
+          const rootContext = path.join(projectPath, 'project-context.md');
+          if (fs.existsSync(rootContext)) fs.unlinkSync(rootContext);
           const rootAgent = path.join(projectPath, 'AGENTS.md');
           if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
           const rootGemini = path.join(projectPath, 'GEMINI.md');
           if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
+
+          // Nettoyer les anciens dossiers obsoletes
+          const legacySync = path.join(projectPath, 'sync');
+          if (fs.existsSync(legacySync)) fs.rmSync(legacySync, { recursive: true, force: true });
+          const legacyAgents = path.join(projectPath, '.agents');
+          if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
 
           synced.push(targetName);
         } catch {}
