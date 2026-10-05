@@ -49,3 +49,6 @@ conception/contexte-projets-prive.md
 *.pem
 id_rsa
 id_rsa.pub
+# Private Context Rules
+.env.local
+.env.*.local

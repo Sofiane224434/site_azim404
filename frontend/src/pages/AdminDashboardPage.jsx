@@ -3205,10 +3205,10 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          const syncDirHandle = await projectHandle.getDirectoryHandle('sync', { create: true });
+          const aiContextDirHandle = await projectHandle.getDirectoryHandle('ai-context', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
             if (fname === 'GEMINI.md' || fname === 'AGENTS.md') continue;
-            const fileHandle = await syncDirHandle.getFileHandle(fname, { create: true });
+            const fileHandle = await aiContextDirHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
@@ -3223,7 +3223,7 @@ function ContextSyncTab({ showToast }) {
           }
 
           // Nettoyage des résidus obsolètes
-          try { await projectHandle.removeEntry('ai-context', { recursive: true }); } catch {}
+          try { await projectHandle.removeEntry('sync', { recursive: true }); } catch {}
           try { await projectHandle.removeEntry('.agents', { recursive: true }); } catch {}
           try { await projectHandle.removeEntry('AGENTS.md'); } catch {}
           try { await projectHandle.removeEntry('GEMINI.md'); } catch {}

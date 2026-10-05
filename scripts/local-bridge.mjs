@@ -30,30 +30,32 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/sync' && req.method === 'POST') {
     try {
       let bundle = null;
-      try {
-        const bundleRes = await fetch(API_URL);
-        if (bundleRes.ok) {
-          const bData = await bundleRes.json();
-          if (bData.success && bData.bundle) bundle = bData.bundle;
-        }
-      } catch {}
+
+      // Priorite a la source locale si accessible
+      const localAiContext = path.join(__dirname, '../ai-context/project-context.md');
+      const localRoot = path.join(__dirname, '../project-context.md');
+      if (fs.existsSync(localAiContext)) {
+        bundle = { 'project-context.md': fs.readFileSync(localAiContext, 'utf8') };
+      } else if (fs.existsSync(localRoot)) {
+        bundle = { 'project-context.md': fs.readFileSync(localRoot, 'utf8') };
+      }
 
       if (!bundle) {
-        const fallbackSync = path.join(__dirname, '../sync/project-context.md');
-        const fallbackRoot = path.join(__dirname, '../project-context.md');
-        if (fs.existsSync(fallbackSync)) {
-          bundle = { 'project-context.md': fs.readFileSync(fallbackSync, 'utf8') };
-        } else if (fs.existsSync(fallbackRoot)) {
-          bundle = { 'project-context.md': fs.readFileSync(fallbackRoot, 'utf8') };
-        }
+        try {
+          const bundleRes = await fetch(API_URL);
+          if (bundleRes.ok) {
+            const bData = await bundleRes.json();
+            if (bData.success && bData.bundle) bundle = bData.bundle;
+          }
+        } catch {}
       }
 
       if (!bundle) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, error: 'Impossible de récupérer les fichiers' }));
+        return res.end(JSON.stringify({ success: false, error: 'Impossible de recuperer les fichiers' }));
       }
 
-      // Récupérer les cibles
+      // Recuperer les cibles
       let targetFolders = [];
       try {
         const cRes = await fetch(API_URL.replace('/bundle', ''));
@@ -91,8 +93,8 @@ const server = http.createServer(async (req, res) => {
             '.env',
             '.env.local',
             '.env.*.local',
-            'sync/',
             'ai-context/',
+            'sync/',
             '.agents/',
             'project-context.md',
             'shared-context/',
@@ -105,22 +107,36 @@ const server = http.createServer(async (req, res) => {
             fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
           }
 
-          const syncDir = path.join(projectPath, 'sync');
-          fs.mkdirSync(syncDir, { recursive: true });
+          const aiContextDir = path.join(projectPath, 'ai-context');
+          fs.mkdirSync(aiContextDir, { recursive: true });
+
+          // Migration de l'ancien dossier sync
+          const legacySync = path.join(projectPath, 'sync');
+          if (fs.existsSync(legacySync)) {
+            try {
+              const syncFiles = fs.readdirSync(legacySync);
+              for (const sFile of syncFiles) {
+                if (sFile !== 'AGENTS.md' && sFile !== 'GEMINI.md') {
+                  const src = path.join(legacySync, sFile);
+                  const dest = path.join(aiContextDir, sFile);
+                  if (!fs.existsSync(dest)) fs.copyFileSync(src, dest);
+                }
+              }
+              fs.rmSync(legacySync, { recursive: true, force: true });
+            } catch {}
+          }
 
           for (const [filename, content] of Object.entries(bundle)) {
             if (filename === 'GEMINI.md' || filename === 'AGENTS.md') continue;
-            fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
+            fs.writeFileSync(path.join(aiContextDir, filename), content, 'utf8');
           }
 
-          // Écriture de project-context.md à la racine du projet
+          // Ecriture de project-context.md a la racine du projet
           if (bundle['project-context.md']) {
             fs.writeFileSync(path.join(projectPath, 'project-context.md'), bundle['project-context.md'], 'utf8');
           }
 
-          // Nettoyage de fichiers/dossiers obsolètes
-          const legacyAiContext = path.join(projectPath, 'ai-context');
-          if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+          // Nettoyage de fichiers/dossiers obsoletes
           const legacyAgents = path.join(projectPath, '.agents');
           if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
           const rootAgent = path.join(projectPath, 'AGENTS.md');

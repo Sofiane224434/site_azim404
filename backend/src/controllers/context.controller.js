@@ -16,17 +16,17 @@ const DATA_DIR = path.resolve(__dirname, '../../data');
 const HOST_APPS_DIR = '/host_apps';
 const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
 
-// Dossier de synchronisation situe directement a la racine du projet ('sync')
+// Dossier de synchronisation situe directement a la racine du projet ('ai-context')
 function resolveSyncFolder() {
-  if (fs.existsSync('/host_apps/azim404/sync')) {
-    return '/host_apps/azim404/sync';
+  if (fs.existsSync('/host_apps/azim404/ai-context')) {
+    return '/host_apps/azim404/ai-context';
   }
   if (fs.existsSync('/host_apps/azim404')) {
-    const vpsSync = '/host_apps/azim404/sync';
+    const vpsSync = '/host_apps/azim404/ai-context';
     fs.mkdirSync(vpsSync, { recursive: true });
     return vpsSync;
   }
-  const localSync = path.resolve(__dirname, '../../../sync');
+  const localSync = path.resolve(__dirname, '../../../ai-context');
   fs.mkdirSync(localSync, { recursive: true });
   return localSync;
 }
@@ -229,13 +229,13 @@ export const propagateContext = async (req, res) => {
         secureTargetProject(hostAppPath);
         securedProjects.push(target.name);
 
-        const destSyncDir = path.join(hostAppPath, 'sync');
-        fs.mkdirSync(destSyncDir, { recursive: true });
+        const destAiContextDir = path.join(hostAppPath, 'ai-context');
+        fs.mkdirSync(destAiContextDir, { recursive: true });
 
         for (const file of filesInContext) {
           if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destSyncDir, file);
+          const dest = path.join(destAiContextDir, file);
           fs.copyFileSync(src, dest);
         }
 
@@ -247,8 +247,8 @@ export const propagateContext = async (req, res) => {
 
         // Nettoyer d'anciens dossiers obsoletes si presents
         try {
-          const legacyAiContext = path.join(hostAppPath, 'ai-context');
-          if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+          const legacySync = path.join(hostAppPath, 'sync');
+          if (fs.existsSync(legacySync)) fs.rmSync(legacySync, { recursive: true, force: true });
           const legacyAgents = path.join(hostAppPath, '.agents');
           if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
         } catch {}
@@ -264,13 +264,13 @@ export const propagateContext = async (req, res) => {
     if (fs.existsSync(localProjectPath)) {
       try {
         secureTargetProject(localProjectPath);
-        const destSyncDir = path.join(localProjectPath, 'sync');
-        fs.mkdirSync(destSyncDir, { recursive: true });
+        const destAiContextDir = path.join(localProjectPath, 'ai-context');
+        fs.mkdirSync(destAiContextDir, { recursive: true });
 
         for (const file of filesInContext) {
           if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destSyncDir, file);
+          const dest = path.join(destAiContextDir, file);
           fs.copyFileSync(src, dest);
         }
 
@@ -282,8 +282,8 @@ export const propagateContext = async (req, res) => {
 
         // Nettoyer d'anciens dossiers obsoletes si presents
         try {
-          const legacyAiContext = path.join(localProjectPath, 'ai-context');
-          if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+          const legacySync = path.join(localProjectPath, 'sync');
+          if (fs.existsSync(legacySync)) fs.rmSync(legacySync, { recursive: true, force: true });
           const legacyAgents = path.join(localProjectPath, '.agents');
           if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
         } catch {}
