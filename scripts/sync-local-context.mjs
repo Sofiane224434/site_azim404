@@ -26,14 +26,14 @@ async function syncLocal() {
   }
 
   if (!bundle || Object.keys(bundle).length === 0) {
-    const fallbackPath = path.join(__dirname, '../ai-context/project-context.md');
-    if (fs.existsSync(fallbackPath)) {
-      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/ai-context/');
-      bundle = { 'project-context.md': fs.readFileSync(fallbackPath, 'utf8') };
-      const agentsPath = path.join(__dirname, '../ai-context/AGENTS.md');
-      if (fs.existsSync(agentsPath)) {
-        bundle['AGENTS.md'] = fs.readFileSync(agentsPath, 'utf8');
-      }
+    const fallbackSync = path.join(__dirname, '../sync/project-context.md');
+    const fallbackRoot = path.join(__dirname, '../project-context.md');
+    if (fs.existsSync(fallbackSync)) {
+      console.log('[Sync Local] Utilisation du fichier de contexte local azim404/sync/');
+      bundle = { 'project-context.md': fs.readFileSync(fallbackSync, 'utf8') };
+    } else if (fs.existsSync(fallbackRoot)) {
+      console.log('[Sync Local] Utilisation du fichier de contexte racine project-context.md');
+      bundle = { 'project-context.md': fs.readFileSync(fallbackRoot, 'utf8') };
     }
   }
 
@@ -74,10 +74,7 @@ async function syncLocal() {
   console.log(`[Sync Local] Cibles autorisées détectées (${targetFolders.length}) :`, targetFolders);
 
   let syncedCount = 0;
-
   const availableEntries = fs.existsSync(baseLocalDir) ? fs.readdirSync(baseLocalDir) : [];
-
-  const rootAgentPointer = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
 
   for (const targetName of targetFolders) {
     let projectPath = path.join(baseLocalDir, targetName);
@@ -94,34 +91,50 @@ async function syncLocal() {
       // 1. Protection .gitignore
       const gitignorePath = path.join(projectPath, '.gitignore');
       let gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-      const rules = ['.env', 'ai-context/project-context.md', 'shared-context/', '*contexte*prive*.md'];
+      const rules = [
+        '.env',
+        '.env.local',
+        '.env.*.local',
+        'sync/',
+        'ai-context/',
+        '.agents/',
+        'project-context.md',
+        'shared-context/',
+        '*contexte*prive*.md',
+        '/AGENTS.md',
+        '/GEMINI.md',
+      ];
       const missing = rules.filter((r) => !gitignore.includes(r));
       if (missing.length > 0) {
         fs.appendFileSync(gitignorePath, '\n# Private Context Rules\n' + missing.join('\n') + '\n', 'utf8');
       }
 
-      // 2. Écriture dans le dossier racine ai-context/
-      const contextDir = path.join(projectPath, 'ai-context');
-      fs.mkdirSync(contextDir, { recursive: true });
+      // 2. Écriture dans le dossier sync/
+      const syncDir = path.join(projectPath, 'sync');
+      fs.mkdirSync(syncDir, { recursive: true });
 
       for (const [filename, content] of Object.entries(bundle)) {
-        if (filename === 'GEMINI.md') continue;
-        fs.writeFileSync(path.join(contextDir, filename), content, 'utf8');
+        if (filename === 'GEMINI.md' || filename === 'AGENTS.md') continue;
+        fs.writeFileSync(path.join(syncDir, filename), content, 'utf8');
       }
 
-      // 3. Écriture de la règle dans .agents/rules/ai-context.md (aucun .md visible à la racine)
-      const agentRulesDir = path.join(projectPath, '.agents', 'rules');
-      fs.mkdirSync(agentRulesDir, { recursive: true });
-      fs.writeFileSync(path.join(agentRulesDir, 'ai-context.md'), rootAgentPointer, 'utf8');
+      // 3. Écriture de project-context.md à la racine du projet
+      if (bundle['project-context.md']) {
+        fs.writeFileSync(path.join(projectPath, 'project-context.md'), bundle['project-context.md'], 'utf8');
+      }
 
-      // Nettoyer tout AGENTS.md / GEMINI.md orphelin à la racine
+      // 4. Nettoyage de fichiers/dossiers obsolètes
+      const legacyAiContext = path.join(projectPath, 'ai-context');
+      if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+      const legacyAgents = path.join(projectPath, '.agents');
+      if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
       const rootAgent = path.join(projectPath, 'AGENTS.md');
       if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
       const rootGemini = path.join(projectPath, 'GEMINI.md');
       if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
 
       syncedCount++;
-      console.log(`  ✓ Synchronisé et sécurisé (.agents/rules + ai-context) : ${targetName}`);
+      console.log(`  ✓ Synchronisé et sécurisé (sync/ + project-context.md) : ${targetName}`);
     } catch (e) {
       console.error(`  ✗ Erreur sur ${targetName}:`, e.message);
     }

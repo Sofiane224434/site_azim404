@@ -16,17 +16,17 @@ const DATA_DIR = path.resolve(__dirname, '../../data');
 const HOST_APPS_DIR = '/host_apps';
 const LOCAL_WORKSPACE_PARENT = 'c:\\Users\\Sofia\\OneDrive\\Desktop\\git commit';
 
-// Dossier de synchronisation situe directement a la racine du projet ('ai-context')
+// Dossier de synchronisation situe directement a la racine du projet ('sync')
 function resolveSyncFolder() {
-  if (fs.existsSync('/host_apps/azim404/ai-context')) {
-    return '/host_apps/azim404/ai-context';
+  if (fs.existsSync('/host_apps/azim404/sync')) {
+    return '/host_apps/azim404/sync';
   }
   if (fs.existsSync('/host_apps/azim404')) {
-    const vpsSync = '/host_apps/azim404/ai-context';
+    const vpsSync = '/host_apps/azim404/sync';
     fs.mkdirSync(vpsSync, { recursive: true });
     return vpsSync;
   }
-  const localSync = path.resolve(__dirname, '../../../ai-context');
+  const localSync = path.resolve(__dirname, '../../../sync');
   fs.mkdirSync(localSync, { recursive: true });
   return localSync;
 }
@@ -64,26 +64,6 @@ function initContextStorage() {
 
 initContextStorage();
 
-const AGENT_RULE_CONTENT = `# AI DIRECTIVES & INSTRUCTIONS
-
-Toutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).
-L'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.
-`;
-
-function setupAgentWorkspaceRule(targetProjectDir) {
-  try {
-    const rulesDir = path.join(targetProjectDir, '.agents', 'rules');
-    fs.mkdirSync(rulesDir, { recursive: true });
-    fs.writeFileSync(path.join(rulesDir, 'ai-context.md'), AGENT_RULE_CONTENT, 'utf8');
-
-    // Nettoyer tout AGENTS.md ou GEMINI.md orphelin à la racine
-    const rootAgent = path.join(targetProjectDir, 'AGENTS.md');
-    if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
-    const rootGemini = path.join(targetProjectDir, 'GEMINI.md');
-    if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
-  } catch (e) {}
-}
-
 // Sécurité : garantit que .gitignore et .env protègent les données sensibles
 function secureTargetProject(projectDir) {
   try {
@@ -100,7 +80,9 @@ function secureTargetProject(projectDir) {
       '.env',
       '.env.local',
       '.env.*.local',
-      'ai-context/project-context.md',
+      'sync/',
+      'ai-context/',
+      'project-context.md',
       'shared-context/',
       '*contexte*prive*.md',
       '/AGENTS.md',
@@ -112,6 +94,12 @@ function secureTargetProject(projectDir) {
       const appendContent = '\n# Securite Contexte Prive et Secrets\n' + missingRules.join('\n') + '\n';
       fs.appendFileSync(gitignorePath, appendContent, 'utf8');
     }
+
+    // Nettoyer tout AGENTS.md ou GEMINI.md orphelin à la racine
+    const rootAgent = path.join(projectDir, 'AGENTS.md');
+    if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
+    const rootGemini = path.join(projectDir, 'GEMINI.md');
+    if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
 
     // 2. Vérification / Initialisation .env
     const envPath = path.join(projectDir, '.env');
@@ -184,8 +172,11 @@ export const saveContextContent = async (req, res) => {
     fs.mkdirSync(CONTEXT_FOLDER, { recursive: true });
     fs.writeFileSync(targetFilePath, content, 'utf8');
 
-    // Mise a jour du fichier dans le dossier sync uniquement
-    fs.writeFileSync(targetFilePath, content, 'utf8');
+    // Mise a jour du fichier a la racine si c'est project-context.md
+    if (activeFilename === 'project-context.md') {
+      const rootContextPath = path.join(ROOT_PROJECT_DIR, 'project-context.md');
+      fs.writeFileSync(rootContextPath, content, 'utf8');
+    }
 
     // Sauvegarde en base de données SQL
     await dbSaveContextFile(activeFilename, content);
@@ -214,7 +205,7 @@ export const updateTargets = async (req, res) => {
 };
 
 // POST /api/context/sync
-// Synchronise le dossier complet vers tous les projets cibles (VPS + local si accessible)
+// Synchronise le dossier sync et project-context.md vers tous les projets cibles (VPS + local si accessible)
 export const propagateContext = async (req, res) => {
   initContextStorage();
 
@@ -238,16 +229,30 @@ export const propagateContext = async (req, res) => {
         secureTargetProject(hostAppPath);
         securedProjects.push(target.name);
 
-        const destContextDir = path.join(hostAppPath, 'ai-context');
-        fs.mkdirSync(destContextDir, { recursive: true });
+        const destSyncDir = path.join(hostAppPath, 'sync');
+        fs.mkdirSync(destSyncDir, { recursive: true });
 
         for (const file of filesInContext) {
-          if (file === 'GEMINI.md') continue;
+          if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destContextDir, file);
+          const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
         }
-        setupAgentWorkspaceRule(hostAppPath);
+
+        // Copier project-context.md a la racine du projet
+        const rootContextSrc = path.join(CONTEXT_FOLDER, 'project-context.md');
+        if (fs.existsSync(rootContextSrc)) {
+          fs.copyFileSync(rootContextSrc, path.join(hostAppPath, 'project-context.md'));
+        }
+
+        // Nettoyer d'anciens dossiers obsoletes si presents
+        try {
+          const legacyAiContext = path.join(hostAppPath, 'ai-context');
+          if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+          const legacyAgents = path.join(hostAppPath, '.agents');
+          if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
+        } catch {}
+
         targetSuccess = true;
       } catch (err) {
         errors.push({ target: target.name, error: err.message });
@@ -259,16 +264,30 @@ export const propagateContext = async (req, res) => {
     if (fs.existsSync(localProjectPath)) {
       try {
         secureTargetProject(localProjectPath);
-        const destContextDir = path.join(localProjectPath, 'ai-context');
-        fs.mkdirSync(destContextDir, { recursive: true });
+        const destSyncDir = path.join(localProjectPath, 'sync');
+        fs.mkdirSync(destSyncDir, { recursive: true });
 
         for (const file of filesInContext) {
-          if (file === 'GEMINI.md') continue;
+          if (file === 'GEMINI.md' || file === 'AGENTS.md') continue;
           const src = path.join(CONTEXT_FOLDER, file);
-          const dest = path.join(destContextDir, file);
+          const dest = path.join(destSyncDir, file);
           fs.copyFileSync(src, dest);
         }
-        setupAgentWorkspaceRule(localProjectPath);
+
+        // Copier project-context.md a la racine du projet
+        const rootContextSrc = path.join(CONTEXT_FOLDER, 'project-context.md');
+        if (fs.existsSync(rootContextSrc)) {
+          fs.copyFileSync(rootContextSrc, path.join(localProjectPath, 'project-context.md'));
+        }
+
+        // Nettoyer d'anciens dossiers obsoletes si presents
+        try {
+          const legacyAiContext = path.join(localProjectPath, 'ai-context');
+          if (fs.existsSync(legacyAiContext)) fs.rmSync(legacyAiContext, { recursive: true, force: true });
+          const legacyAgents = path.join(localProjectPath, '.agents');
+          if (fs.existsSync(legacyAgents)) fs.rmSync(legacyAgents, { recursive: true, force: true });
+        } catch {}
+
         targetSuccess = true;
       } catch (err) {
         // silencieux

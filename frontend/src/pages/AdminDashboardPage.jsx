@@ -3183,7 +3183,19 @@ function ContextSyncTab({ showToast }) {
               gitignoreContent = await file.text();
             } catch {}
 
-            const rules = ['.env', 'ai-context/project-context.md', 'shared-context/', '*contexte*prive*.md'];
+            const rules = [
+              '.env',
+              '.env.local',
+              '.env.*.local',
+              'sync/',
+              'ai-context/',
+              '.agents/',
+              'project-context.md',
+              'shared-context/',
+              '*contexte*prive*.md',
+              '/AGENTS.md',
+              '/GEMINI.md',
+            ];
             const missing = rules.filter((r) => !gitignoreContent.includes(r));
             if (missing.length > 0) {
               const gitignoreHandle = await projectHandle.getFileHandle('.gitignore', { create: true });
@@ -3193,27 +3205,28 @@ function ContextSyncTab({ showToast }) {
             }
           } catch {}
 
-          const contextDirHandle = await projectHandle.getDirectoryHandle('ai-context', { create: true });
+          const syncDirHandle = await projectHandle.getDirectoryHandle('sync', { create: true });
           for (const [fname, fileContent] of Object.entries(bundleFiles)) {
-            if (fname === 'GEMINI.md') continue;
-            const fileHandle = await contextDirHandle.getFileHandle(fname, { create: true });
+            if (fname === 'GEMINI.md' || fname === 'AGENTS.md') continue;
+            const fileHandle = await syncDirHandle.getFileHandle(fname, { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(fileContent);
             await writable.close();
           }
 
-          // Règle d'agent dans .agents/rules/ai-context.md (aucun .md visible à la racine)
-          const rootPointerText = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
-          try {
-            const agentsDirHandle = await projectHandle.getDirectoryHandle('.agents', { create: true });
-            const rulesDirHandle = await agentsDirHandle.getDirectoryHandle('rules', { create: true });
-            const ruleFileHandle = await rulesDirHandle.getFileHandle('ai-context.md', { create: true });
-            const ruleWritable = await ruleFileHandle.createWritable();
-            await ruleWritable.write(rootPointerText);
-            await ruleWritable.close();
-            try { await projectHandle.removeEntry('AGENTS.md'); } catch {}
-            try { await projectHandle.removeEntry('GEMINI.md'); } catch {}
-          } catch {}
+          // Écriture de project-context.md à la racine du projet
+          if (bundleFiles['project-context.md']) {
+            const rootContextHandle = await projectHandle.getFileHandle('project-context.md', { create: true });
+            const rootWritable = await rootContextHandle.createWritable();
+            await rootWritable.write(bundleFiles['project-context.md']);
+            await rootWritable.close();
+          }
+
+          // Nettoyage des résidus obsolètes
+          try { await projectHandle.removeEntry('ai-context', { recursive: true }); } catch {}
+          try { await projectHandle.removeEntry('.agents', { recursive: true }); } catch {}
+          try { await projectHandle.removeEntry('AGENTS.md'); } catch {}
+          try { await projectHandle.removeEntry('GEMINI.md'); } catch {}
 
           localUpdatedCount++;
         } catch {}

@@ -37,7 +37,9 @@ dist-ssr
 
 # Private context and secrets (non versionnes)
 sync/
-ai-context/project-context.md
+ai-context/
+.agents/
+project-context.md
 shared-context/
 *contexte*prive*.md
 conception/contexte-projets-prive.md
