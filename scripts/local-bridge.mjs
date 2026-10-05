@@ -98,9 +98,17 @@ const server = http.createServer(async (req, res) => {
             fs.writeFileSync(path.join(contextDir, filename), content, 'utf8');
           }
 
-          // Pointeur racine AGENTS.md
+          // Règle d'agent dans .agents/rules/ai-context.md (aucun .md visible à la racine)
+          const agentRulesDir = path.join(projectPath, '.agents', 'rules');
+          fs.mkdirSync(agentRulesDir, { recursive: true });
           const rootPointer = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
-          fs.writeFileSync(path.join(projectPath, 'AGENTS.md'), rootPointer, 'utf8');
+          fs.writeFileSync(path.join(agentRulesDir, 'ai-context.md'), rootPointer, 'utf8');
+
+          // Nettoyer tout AGENTS.md / GEMINI.md orphelin à la racine
+          const rootAgent = path.join(projectPath, 'AGENTS.md');
+          if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
+          const rootGemini = path.join(projectPath, 'GEMINI.md');
+          if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
 
           synced.push(targetName);
         } catch {}

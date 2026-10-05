@@ -64,16 +64,23 @@ function initContextStorage() {
 
 initContextStorage();
 
-const ROOT_AGENT_POINTER = `# AI DIRECTIVES & INSTRUCTIONS
+const AGENT_RULE_CONTENT = `# AI DIRECTIVES & INSTRUCTIONS
 
 Toutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).
 L'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.
 `;
 
-function writeRootAgentPointer(targetProjectDir) {
+function setupAgentWorkspaceRule(targetProjectDir) {
   try {
-    const pointerPath = path.join(targetProjectDir, 'AGENTS.md');
-    fs.writeFileSync(pointerPath, ROOT_AGENT_POINTER, 'utf8');
+    const rulesDir = path.join(targetProjectDir, '.agents', 'rules');
+    fs.mkdirSync(rulesDir, { recursive: true });
+    fs.writeFileSync(path.join(rulesDir, 'ai-context.md'), AGENT_RULE_CONTENT, 'utf8');
+
+    // Nettoyer tout AGENTS.md ou GEMINI.md orphelin à la racine
+    const rootAgent = path.join(targetProjectDir, 'AGENTS.md');
+    if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
+    const rootGemini = path.join(targetProjectDir, 'GEMINI.md');
+    if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
   } catch (e) {}
 }
 
@@ -96,6 +103,8 @@ function secureTargetProject(projectDir) {
       'ai-context/project-context.md',
       'shared-context/',
       '*contexte*prive*.md',
+      '/AGENTS.md',
+      '/GEMINI.md',
     ];
 
     const missingRules = rules.filter((r) => !currentGitignore.includes(r));
@@ -238,7 +247,7 @@ export const propagateContext = async (req, res) => {
           const dest = path.join(destContextDir, file);
           fs.copyFileSync(src, dest);
         }
-        writeRootAgentPointer(hostAppPath);
+        setupAgentWorkspaceRule(hostAppPath);
         targetSuccess = true;
       } catch (err) {
         errors.push({ target: target.name, error: err.message });
@@ -259,7 +268,7 @@ export const propagateContext = async (req, res) => {
           const dest = path.join(destContextDir, file);
           fs.copyFileSync(src, dest);
         }
-        writeRootAgentPointer(localProjectPath);
+        setupAgentWorkspaceRule(localProjectPath);
         targetSuccess = true;
       } catch (err) {
         // silencieux

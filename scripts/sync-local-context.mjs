@@ -109,11 +109,19 @@ async function syncLocal() {
         fs.writeFileSync(path.join(contextDir, filename), content, 'utf8');
       }
 
-      // 3. Écriture du pointeur racine AGENTS.md
-      fs.writeFileSync(path.join(projectPath, 'AGENTS.md'), rootAgentPointer, 'utf8');
+      // 3. Écriture de la règle dans .agents/rules/ai-context.md (aucun .md visible à la racine)
+      const agentRulesDir = path.join(projectPath, '.agents', 'rules');
+      fs.mkdirSync(agentRulesDir, { recursive: true });
+      fs.writeFileSync(path.join(agentRulesDir, 'ai-context.md'), rootAgentPointer, 'utf8');
+
+      // Nettoyer tout AGENTS.md / GEMINI.md orphelin à la racine
+      const rootAgent = path.join(projectPath, 'AGENTS.md');
+      if (fs.existsSync(rootAgent)) fs.unlinkSync(rootAgent);
+      const rootGemini = path.join(projectPath, 'GEMINI.md');
+      if (fs.existsSync(rootGemini)) fs.unlinkSync(rootGemini);
 
       syncedCount++;
-      console.log(`  ✓ Synchronisé et sécurisé (ai-context) : ${targetName}`);
+      console.log(`  ✓ Synchronisé et sécurisé (.agents/rules + ai-context) : ${targetName}`);
     } catch (e) {
       console.error(`  ✗ Erreur sur ${targetName}:`, e.message);
     }

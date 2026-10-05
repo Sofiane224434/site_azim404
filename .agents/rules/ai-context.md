@@ -1,4 +1,4 @@
-# AI DIRECTIVES & INSTRUCTIONS — AZIM404
+# DIRECTIVES IA & CONTEXTE — AZIM404
 
 Toutes les directives prioritaires, règles de code, interface et référentiels d'audit sont définis dans le dossier centralisé `ai-context/` :
 

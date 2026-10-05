@@ -3202,12 +3202,18 @@ function ContextSyncTab({ showToast }) {
             await writable.close();
           }
 
-          // Pointeur racine AGENTS.md
+          // Règle d'agent dans .agents/rules/ai-context.md (aucun .md visible à la racine)
           const rootPointerText = `# AI DIRECTIVES & INSTRUCTIONS\n\nToutes les directives prioritaires et règles de travail sont définies dans [ai-context/AGENTS.md](ai-context/AGENTS.md).\nL'IA DOIT obligatoirement charger et appliquer les directives de ce fichier dès le début de chaque tâche.\n`;
-          const rootAgentHandle = await projectHandle.getFileHandle('AGENTS.md', { create: true });
-          const rootAgentWritable = await rootAgentHandle.createWritable();
-          await rootAgentWritable.write(rootPointerText);
-          await rootAgentWritable.close();
+          try {
+            const agentsDirHandle = await projectHandle.getDirectoryHandle('.agents', { create: true });
+            const rulesDirHandle = await agentsDirHandle.getDirectoryHandle('rules', { create: true });
+            const ruleFileHandle = await rulesDirHandle.getFileHandle('ai-context.md', { create: true });
+            const ruleWritable = await ruleFileHandle.createWritable();
+            await ruleWritable.write(rootPointerText);
+            await ruleWritable.close();
+            try { await projectHandle.removeEntry('AGENTS.md'); } catch {}
+            try { await projectHandle.removeEntry('GEMINI.md'); } catch {}
+          } catch {}
 
           localUpdatedCount++;
         } catch {}
